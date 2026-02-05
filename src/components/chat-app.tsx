@@ -136,6 +136,7 @@ export default function ChatApp() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [archivedOnly, setArchivedOnly] = useState(false);
+  const [spaceFilter, setSpaceFilter] = useState("");
   const [collectionFilter, setCollectionFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [sortByTag, setSortByTag] = useState(false);
@@ -155,6 +156,8 @@ export default function ChatApp() {
       filterMode: AnswerMode | "all";
       favoritesOnly: boolean;
       pinnedOnly: boolean;
+      archivedOnly: boolean;
+      spaceFilter: string;
       collectionFilter: string;
       tagFilter: string;
       sort: "newest" | "oldest";
@@ -174,6 +177,7 @@ export default function ChatApp() {
       favoritesOnly: boolean;
       pinnedOnly: boolean;
       archivedOnly: boolean;
+      spaceFilter: string;
       collectionFilter: string;
       tagFilter: string;
       sort: "newest" | "oldest";
@@ -275,7 +279,12 @@ export default function ChatApp() {
     if (searchStore) {
       try {
         const parsed = JSON.parse(searchStore) as typeof savedSearches;
-        setSavedSearches(parsed);
+        const normalized = parsed.map((item) => ({
+          ...item,
+          archivedOnly: item.archivedOnly ?? false,
+          spaceFilter: item.spaceFilter ?? "",
+        }));
+        setSavedSearches(normalized);
       } catch {
         setSavedSearches([]);
       }
@@ -392,6 +401,7 @@ export default function ChatApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
+    const spaceId = params.get("space");
     const collectionId = params.get("collection");
     const tag = params.get("tag");
     if (threadId) {
@@ -404,6 +414,9 @@ export default function ChatApp() {
     }
     if (collectionId) {
       setCollectionFilter(collectionId);
+    }
+    if (spaceId) {
+      setSpaceFilter(spaceId);
     }
     if (tag) {
       setTagFilter(tag);
@@ -456,6 +469,11 @@ export default function ChatApp() {
       const matchesFavorite = !favoritesOnly || thread.favorite;
       const matchesPinned = !pinnedOnly || thread.pinned;
       const matchesArchived = archivedOnly ? thread.archived : !thread.archived;
+      const matchesSpace =
+        !spaceFilter ||
+        (spaceFilter === "__none__"
+          ? !thread.spaceId
+          : thread.spaceId === spaceFilter);
       const matchesCollection =
         !collectionFilter || thread.collectionId === collectionFilter;
       const matchesTag = !tagFilter || thread.tags?.includes(tagFilter);
@@ -465,6 +483,7 @@ export default function ChatApp() {
         matchesFavorite &&
         matchesPinned &&
         matchesArchived &&
+        matchesSpace &&
         matchesCollection &&
         matchesTag
       );
@@ -493,6 +512,7 @@ export default function ChatApp() {
     favoritesOnly,
     pinnedOnly,
     archivedOnly,
+    spaceFilter,
     collectionFilter,
     tagFilter,
     sortByTag,
@@ -1163,6 +1183,8 @@ ${answer.citations
       filterMode,
       favoritesOnly,
       pinnedOnly,
+      archivedOnly,
+      spaceFilter,
       collectionFilter,
       tagFilter,
       sort,
@@ -1181,6 +1203,8 @@ ${answer.citations
     setFilterMode(entry.filterMode);
     setFavoritesOnly(entry.favoritesOnly);
     setPinnedOnly(entry.pinnedOnly);
+    setArchivedOnly(entry.archivedOnly);
+    setSpaceFilter(entry.spaceFilter);
     setCollectionFilter(entry.collectionFilter);
     setTagFilter(entry.tagFilter);
     setSort(entry.sort);
@@ -1203,20 +1227,22 @@ ${answer.citations
       JSON.stringify({
         search: search.trim(),
         filterMode,
-        favoritesOnly,
-        pinnedOnly,
-        archivedOnly,
-        collectionFilter,
-        tagFilter,
-        sort,
-        sortByTag,
-      }),
+      favoritesOnly,
+      pinnedOnly,
+      archivedOnly,
+      spaceFilter,
+      collectionFilter,
+      tagFilter,
+      sort,
+      sortByTag,
+    }),
     [
       search,
       filterMode,
       favoritesOnly,
       pinnedOnly,
       archivedOnly,
+      spaceFilter,
       collectionFilter,
       tagFilter,
       sort,
@@ -1230,6 +1256,7 @@ ${answer.citations
       favoritesOnly ? "favorites" : null,
       pinnedOnly ? "pinned" : null,
       archivedOnly ? "archived" : null,
+      spaceFilter ? "space" : null,
       collectionFilter ? "collection" : null,
       tagFilter ? `#${tagFilter}` : null,
       search.trim() ? `"${search.trim()}"` : null,
@@ -1244,6 +1271,7 @@ ${answer.citations
       favoritesOnly,
       pinnedOnly,
       archivedOnly,
+      spaceFilter,
       collectionFilter,
       tagFilter,
       sort,
@@ -1267,6 +1295,7 @@ ${answer.citations
     favoritesOnly,
     pinnedOnly,
     archivedOnly,
+    spaceFilter,
     collectionFilter,
     tagFilter,
     sort,
@@ -1274,6 +1303,11 @@ ${answer.citations
   ]);
 
   function exportFilteredLibrary() {
+    const spaceLabel = !spaceFilter
+      ? "All"
+      : spaceFilter === "__none__"
+        ? "No space"
+        : spaces.find((space) => space.id === spaceFilter)?.name ?? spaceFilter;
     const lines: string[] = [
       "# Signal Search Library Export",
       "",
@@ -1282,6 +1316,7 @@ ${answer.citations
       `Favorites: ${favoritesOnly ? "Yes" : "No"}`,
       `Pinned: ${pinnedOnly ? "Yes" : "No"}`,
       `Archived: ${archivedOnly ? "Yes" : "No"}`,
+      `Space: ${spaceLabel}`,
       `Collection: ${collectionFilter || "All"}`,
       `Tag: ${tagFilter || "All"}`,
       `Sort: ${sort}${sortByTag ? " + tag" : ""}`,
@@ -1470,6 +1505,7 @@ ${answer.citations
     setFavoritesOnly(item.favoritesOnly);
     setPinnedOnly(item.pinnedOnly);
     setArchivedOnly(item.archivedOnly);
+    setSpaceFilter(item.spaceFilter);
     setCollectionFilter(item.collectionFilter);
     setTagFilter(item.tagFilter);
     setSort(item.sort);
@@ -1962,9 +1998,12 @@ ${answer.citations
           >
             Collections
           </Link>
-          <span className="rounded-full border border-white/10 px-3 py-1">
+          <Link
+            href="/spaces"
+            className="rounded-full border border-white/10 px-3 py-1"
+          >
             Spaces
-          </span>
+          </Link>
           <span className="rounded-full border border-white/10 px-3 py-1">
             Tasks
           </span>
@@ -2537,6 +2576,21 @@ ${answer.citations
               >
                 Sort by tag
               </button>
+              <select
+                value={spaceFilter}
+                onChange={(event) => setSpaceFilter(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+              >
+                <option value="">All spaces</option>
+                <option value="__none__">No space</option>
+                {spaces.map((space) => (
+                  <option key={space.id} value={space.id}>
+                    {archivedSpaces.includes(space.id)
+                      ? `${space.name} (archived)`
+                      : space.name}
+                  </option>
+                ))}
+              </select>
               <select
                 value={collectionFilter}
                 onChange={(event) => setCollectionFilter(event.target.value)}
