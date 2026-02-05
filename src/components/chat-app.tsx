@@ -118,6 +118,7 @@ export default function ChatApp() {
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
   const [bulkDuplicateSpaceId, setBulkDuplicateSpaceId] = useState("");
+  const [bulkMoveSpaceId, setBulkMoveSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
@@ -1362,6 +1363,38 @@ ${answer.citations
     );
   }
 
+  function moveThreadsToSpace(spaceId: string | null) {
+    if (!selectedThreadIds.length) return;
+    const space = spaces.find((item) => item.id === spaceId) ?? null;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        selectedThreadIds.includes(thread.id)
+          ? {
+              ...thread,
+              spaceId: space?.id ?? null,
+              spaceName: space?.name ?? null,
+            }
+          : thread
+      )
+    );
+    if (current && selectedThreadIds.includes(current.id)) {
+      setCurrent((prev) =>
+        prev
+          ? {
+              ...prev,
+              spaceId: space?.id ?? null,
+              spaceName: space?.name ?? null,
+            }
+          : prev
+      );
+    }
+    setNotice(
+      space
+        ? `Moved ${selectedThreadIds.length} threads to ${space.name}.`
+        : `Removed ${selectedThreadIds.length} threads from spaces.`
+    );
+  }
+
   function applyRecentFilter(item: (typeof recentFilters)[number]) {
     setSearch(item.query);
     setFilterMode(item.filterMode);
@@ -2390,9 +2423,7 @@ ${answer.citations
                       disabled={!spaces.length}
                     >
                       <option value="">
-                        {spaces.length
-                          ? "Duplicate to space"
-                          : "No spaces yet"}
+                        {spaces.length ? "Duplicate to space" : "No spaces yet"}
                       </option>
                       {spaces.map((space) => (
                         <option key={space.id} value={space.id}>
@@ -2405,11 +2436,42 @@ ${answer.citations
                         bulkDuplicate(bulkDuplicateSpaceId || null)
                       }
                       className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                      disabled={!spaces.length}
+                      disabled={!spaces.length && !selectedThreadIds.length}
                     >
                       Duplicate
                     </button>
                   </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={bulkMoveSpaceId}
+                      onChange={(event) => setBulkMoveSpaceId(event.target.value)}
+                      className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      disabled={!spaces.length}
+                    >
+                      <option value="">
+                        {spaces.length ? "Move to space" : "No spaces yet"}
+                      </option>
+                      {spaces.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => moveThreadsToSpace(bulkMoveSpaceId || null)}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      disabled={!selectedThreadIds.length}
+                    >
+                      Move
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => bulkDuplicate(null)}
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    disabled={!selectedThreadIds.length}
+                  >
+                    Duplicate selected
+                  </button>
                   <div className="flex items-center gap-2">
                     <input
                       value={bulkTagDraft}

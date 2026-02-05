@@ -30,6 +30,7 @@ npm install && npm run dev
 - Archive filtered view + bump thread
 - Unarchive filtered + duplicate thread
 - Duplicate threads into spaces + bulk duplicate
+- Bulk duplicate + bulk move to space
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
