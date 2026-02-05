@@ -13,6 +13,7 @@ npm install && npm run dev
 - Web-grounded answers with citations
 - Quick, Research, and Learn modes with research progress states
 - Source toggle (web or offline)
+- Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)

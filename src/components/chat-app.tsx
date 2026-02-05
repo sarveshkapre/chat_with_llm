@@ -25,6 +25,11 @@ type Thread = AnswerResponse & {
   feedback?: Feedback;
 };
 
+type StreamMessage =
+  | { type: "delta"; text: string }
+  | { type: "done"; payload: AnswerResponse }
+  | { type: "error"; message: string };
+
 const MODES: { id: AnswerMode; label: string; blurb: string }[] = [
   {
     id: "quick",
@@ -84,6 +89,7 @@ export default function ChatApp() {
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState<AnswerMode>("quick");
   const [sources, setSources] = useState<SourceMode>("web");
+  const [streamingEnabled, setStreamingEnabled] = useState(true);
   const [incognito, setIncognito] = useState(false);
   const [loading, setLoading] = useState(false);
   const [current, setCurrent] = useState<Thread | null>(null);
@@ -111,6 +117,7 @@ export default function ChatApp() {
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [liveAnswer, setLiveAnswer] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -356,45 +363,109 @@ export default function ChatApp() {
     setSelectedFileIds((prev) => prev.filter((item) => item !== id));
   }
 
+  function buildRequestAttachments() {
+    const selectedFiles = libraryFiles.filter((file) =>
+      selectedFileIds.includes(file.id)
+    );
+
+    const searchMatches = fileSearchEnabled
+      ? searchLibraryFiles(libraryFiles, question, 3).map((match) => match.file)
+      : [];
+
+    const combinedLibrary = [...selectedFiles, ...searchMatches].filter(
+      (file, index, array) => array.findIndex((item) => item.id === file.id) === index
+    );
+
+    const libraryAttachments: Attachment[] = combinedLibrary.map((file) => ({
+      id: file.id,
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      text: file.text,
+      error: null,
+    }));
+
+    return [...attachments, ...libraryAttachments];
+  }
+
   async function submitQuestion() {
     if (!question.trim() || loading) return;
     setLoading(true);
     setError(null);
+    setLiveAnswer("");
+
+    const requestAttachments = buildRequestAttachments();
+    const requestBody = {
+      question,
+      mode,
+      sources,
+      attachments: requestAttachments,
+      spaceInstructions: activeSpace?.instructions ?? "",
+      spaceId: activeSpace?.id,
+      spaceName: activeSpace?.name,
+    };
+
+    if (!streamingEnabled) {
+      await submitNonStreaming(requestBody);
+      return;
+    }
 
     try {
-      const selectedFiles = libraryFiles.filter((file) =>
-        selectedFileIds.includes(file.id)
-      );
+      const response = await fetch("/api/answer/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
 
-      const searchMatches = fileSearchEnabled
-        ? searchLibraryFiles(libraryFiles, question, 3).map((match) => match.file)
-        : [];
+      if (!response.ok || !response.body) {
+        await submitNonStreaming(requestBody);
+        return;
+      }
 
-      const combinedLibrary = [...selectedFiles, ...searchMatches].filter(
-        (file, index, array) => array.findIndex((item) => item.id === file.id) === index
-      );
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let doneReceived = false;
 
-      const libraryAttachments: Attachment[] = combinedLibrary.map((file) => ({
-        id: file.id,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        text: file.text,
-        error: null,
-      }));
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
 
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const message = JSON.parse(line) as StreamMessage;
+          if (message.type === "delta") {
+            setLiveAnswer((prev) => prev + message.text);
+          }
+          if (message.type === "error") {
+            throw new Error(message.message);
+          }
+          if (message.type === "done") {
+            doneReceived = true;
+            handleStreamDone(message.payload);
+          }
+        }
+      }
+
+      if (!doneReceived) {
+        throw new Error("Stream ended unexpectedly.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitNonStreaming(requestBody: Record<string, unknown>) {
+    try {
       const response = await fetch("/api/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question,
-          mode,
-          sources,
-          attachments: [...attachments, ...libraryAttachments],
-          spaceInstructions: activeSpace?.instructions ?? "",
-          spaceId: activeSpace?.id,
-          spaceName: activeSpace?.name,
-        }),
+        body: JSON.stringify(requestBody),
       });
       const data = (await response.json()) as AnswerResponse & {
         error?: string;
@@ -404,22 +475,26 @@ export default function ChatApp() {
         throw new Error(data.error ?? "Request failed");
       }
 
-      const thread: Thread = {
-        ...data,
-        feedback: null,
-        attachments: data.attachments.map(stripAttachmentText),
-      };
-      setCurrent(thread);
-      if (!incognito) {
-        setThreads((prev) => [thread, ...prev].slice(0, 30));
-      }
-      setQuestion("");
-      setAttachments([]);
+      handleStreamDone(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleStreamDone(data: AnswerResponse) {
+    const thread: Thread = {
+      ...data,
+      feedback: null,
+      attachments: data.attachments.map(stripAttachmentText),
+    };
+    setCurrent(thread);
+    if (!incognito) {
+      setThreads((prev) => [thread, ...prev].slice(0, 30));
+    }
+    setQuestion("");
+    setAttachments([]);
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -631,14 +706,7 @@ export default function ChatApp() {
         throw new Error(data.error ?? "Task run failed");
       }
 
-      const thread: Thread = {
-        ...data,
-        feedback: null,
-        attachments: data.attachments.map(stripAttachmentText),
-      };
-
-      setThreads((prev) => [thread, ...prev].slice(0, 30));
-      setCurrent(thread);
+      handleStreamDone(data);
 
       const nextRun = computeNextRun(
         task.cadence,
@@ -667,6 +735,8 @@ export default function ChatApp() {
   function deleteTask(id: string) {
     setTasks((prev) => prev.filter((task) => task.id !== id));
   }
+
+  const displayAnswer = loading && streamingEnabled ? liveAnswer : current?.answer;
 
   return (
     <div className="flex min-h-screen flex-col bg-signal-bg text-signal-text">
@@ -747,26 +817,49 @@ export default function ChatApp() {
                     </button>
                   ))}
                 </div>
-                <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-xs text-signal-muted">
-                  <div>
-                    <p className="text-sm font-semibold text-signal-text">
-                      Incognito
-                    </p>
-                    <p className="text-xs text-signal-muted">
-                      Do not save this thread to your library.
-                    </p>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-xs text-signal-muted">
+                    <div>
+                      <p className="text-sm font-semibold text-signal-text">
+                        Incognito
+                      </p>
+                      <p className="text-xs text-signal-muted">
+                        Do not save this thread to your library.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setIncognito((prev) => !prev)}
+                      className={cn(
+                        "rounded-full border px-4 py-1 text-xs transition",
+                        incognito
+                          ? "border-signal-accent text-signal-text"
+                          : "border-white/10 text-signal-muted"
+                      )}
+                    >
+                      {incognito ? "On" : "Off"}
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setIncognito((prev) => !prev)}
-                    className={cn(
-                      "rounded-full border px-4 py-1 text-xs transition",
-                      incognito
-                        ? "border-signal-accent text-signal-text"
-                        : "border-white/10 text-signal-muted"
-                    )}
-                  >
-                    {incognito ? "On" : "Off"}
-                  </button>
+                  <div className="flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-xs text-signal-muted">
+                    <div>
+                      <p className="text-sm font-semibold text-signal-text">
+                        Streaming
+                      </p>
+                      <p className="text-xs text-signal-muted">
+                        Live answer tokens as they arrive.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setStreamingEnabled((prev) => !prev)}
+                      className={cn(
+                        "rounded-full border px-4 py-1 text-xs transition",
+                        streamingEnabled
+                          ? "border-signal-accent text-signal-text"
+                          : "border-white/10 text-signal-muted"
+                      )}
+                    >
+                      {streamingEnabled ? "On" : "Off"}
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-xs text-signal-muted">
                   <div>
@@ -929,12 +1022,10 @@ export default function ChatApp() {
               </div>
             ) : null}
             <div className="mt-4 space-y-4 text-sm leading-7 text-signal-text/90">
-              {current ? (
-                current.answer
+              {displayAnswer ? (
+                displayAnswer
                   .split("\n\n")
-                  .map((paragraph, index) => (
-                    <p key={index}>{paragraph}</p>
-                  ))
+                  .map((paragraph, index) => <p key={index}>{paragraph}</p>)
               ) : (
                 <p className="text-signal-muted">
                   Ask a question to generate a cited answer. Your results and
