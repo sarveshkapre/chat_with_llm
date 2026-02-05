@@ -1349,6 +1349,20 @@ ${answer.citations
     URL.revokeObjectURL(url);
   }
 
+  function clearFilters() {
+    setSearch("");
+    setFilterMode("all");
+    setFavoritesOnly(false);
+    setPinnedOnly(false);
+    setArchivedOnly(false);
+    setSpaceFilter("");
+    setCollectionFilter("");
+    setTagFilter("");
+    setSort("newest");
+    setSortByTag(false);
+    setNotice("Filters cleared.");
+  }
+
   function archiveFilteredThreads(next = true) {
     if (!filteredThreads.length) return;
     setThreads((prev) =>
@@ -2575,6 +2589,12 @@ ${answer.citations
                 )}
               >
                 Sort by tag
+              </button>
+              <button
+                onClick={clearFilters}
+                className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
+              >
+                Clear filters
               </button>
               <select
                 value={spaceFilter}

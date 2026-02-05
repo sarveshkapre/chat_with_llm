@@ -53,7 +53,7 @@ export default function SpacesView() {
       return [];
     }
   });
-  const [spaceTags] = useState<Record<string, string[]>>(() => {
+  const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() => {
     if (typeof window === "undefined") return {};
     const stored = localStorage.getItem(SPACE_TAGS_KEY);
     if (!stored) return {};
@@ -63,6 +63,9 @@ export default function SpacesView() {
       return {};
     }
   });
+  const [spaceTagDrafts, setSpaceTagDrafts] = useState<Record<string, string>>(
+    {}
+  );
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [search, setSearch] = useState("");
@@ -86,6 +89,10 @@ export default function SpacesView() {
       JSON.stringify(archivedSpaces)
     );
   }, [archivedSpaces]);
+
+  useEffect(() => {
+    localStorage.setItem(SPACE_TAGS_KEY, JSON.stringify(spaceTags));
+  }, [spaceTags]);
 
 
   useEffect(() => {
@@ -151,6 +158,37 @@ export default function SpacesView() {
     if (activeSpaceId === spaceId) {
       setActiveSpaceId(null);
     }
+  }
+
+  function addSpaceTags(spaceId: string) {
+    const draft = spaceTagDrafts[spaceId] ?? "";
+    const nextTags = draft
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+    if (!nextTags.length) {
+      setNotice("Enter a space tag.");
+      return;
+    }
+    setSpaceTags((prev) => {
+      const existing = prev[spaceId] ?? [];
+      const merged = [...existing];
+      nextTags.forEach((tag) => {
+        if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+          merged.push(tag);
+        }
+      });
+      return { ...prev, [spaceId]: merged };
+    });
+    setSpaceTagDrafts((prev) => ({ ...prev, [spaceId]: "" }));
+  }
+
+  function removeSpaceTag(spaceId: string, tag: string) {
+    setSpaceTags((prev) => {
+      const next = { ...prev };
+      next[spaceId] = (next[spaceId] ?? []).filter((item) => item !== tag);
+      return next;
+    });
   }
 
   function exportSpace(space: Space) {
@@ -295,21 +333,41 @@ export default function SpacesView() {
                   <p className="mt-4 text-xs text-signal-muted">
                     {space.instructions || "No instructions."}
                   </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {space.tags.length ? (
-                      space.tags.map((tag) => (
-                        <span
-                          key={`${space.id}-${tag}`}
-                          className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
-                        >
-                          #{tag}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-xs text-signal-muted">
-                        No tags yet.
-                      </span>
-                    )}
+                  <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
+                    <div className="flex flex-wrap gap-2">
+                      {space.tags.length ? (
+                        space.tags.map((tag) => (
+                          <button
+                            key={`${space.id}-${tag}`}
+                            onClick={() => removeSpaceTag(space.id, tag)}
+                            className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
+                          >
+                            #{tag} ×
+                          </button>
+                        ))
+                      ) : (
+                        <span>No tags yet.</span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <input
+                        value={spaceTagDrafts[space.id] ?? ""}
+                        onChange={(event) =>
+                          setSpaceTagDrafts((prev) => ({
+                            ...prev,
+                            [space.id]: event.target.value,
+                          }))
+                        }
+                        placeholder="Add tags (comma separated)"
+                        className="w-full rounded-full border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-text outline-none"
+                      />
+                      <button
+                        onClick={() => addSpaceTags(space.id)}
+                        className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
+                      >
+                        Add
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
