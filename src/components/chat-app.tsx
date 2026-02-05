@@ -117,6 +117,7 @@ export default function ChatApp() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
+  const [bulkDuplicateSpaceId, setBulkDuplicateSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
@@ -1318,6 +1319,49 @@ ${answer.citations
     setNotice("Thread duplicated.");
   }
 
+  function duplicateThreadToSpace(thread: Thread, spaceId: string | null) {
+    const space = spaces.find((item) => item.id === spaceId) ?? null;
+    const copy: Thread = {
+      ...thread,
+      id: nanoid(),
+      createdAt: new Date().toISOString(),
+      question: `${thread.question} (copy)`,
+      title: `${thread.title ?? thread.question} (copy)`,
+      feedback: null,
+      spaceId: space?.id ?? null,
+      spaceName: space?.name ?? null,
+    };
+    setThreads((prev) => [copy, ...prev]);
+    setCurrent(copy);
+    setNotice(
+      space ? `Duplicated into ${space.name}.` : "Thread duplicated."
+    );
+  }
+
+  function bulkDuplicate(spaceId: string | null) {
+    if (!selectedThreadIds.length) return;
+    const space = spaces.find((item) => item.id === spaceId) ?? null;
+    const copies = threads
+      .filter((thread) => selectedThreadIds.includes(thread.id))
+      .map((thread) => ({
+        ...thread,
+        id: nanoid(),
+        createdAt: new Date().toISOString(),
+        question: `${thread.question} (copy)`,
+        title: `${thread.title ?? thread.question} (copy)`,
+        feedback: null,
+        spaceId: space?.id ?? null,
+        spaceName: space?.name ?? null,
+      }));
+    if (!copies.length) return;
+    setThreads((prev) => [...copies, ...prev]);
+    setNotice(
+      space
+        ? `Duplicated ${copies.length} threads into ${space.name}.`
+        : `Duplicated ${copies.length} threads.`
+    );
+  }
+
   function applyRecentFilter(item: (typeof recentFilters)[number]) {
     setSearch(item.query);
     setFilterMode(item.filterMode);
@@ -2337,6 +2381,36 @@ ${answer.citations
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
+                    <select
+                      value={bulkDuplicateSpaceId}
+                      onChange={(event) =>
+                        setBulkDuplicateSpaceId(event.target.value)
+                      }
+                      className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      disabled={!spaces.length}
+                    >
+                      <option value="">
+                        {spaces.length
+                          ? "Duplicate to space"
+                          : "No spaces yet"}
+                      </option>
+                      {spaces.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() =>
+                        bulkDuplicate(bulkDuplicateSpaceId || null)
+                      }
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      disabled={!spaces.length}
+                    >
+                      Duplicate
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <input
                       value={bulkTagDraft}
                       onChange={(event) => setBulkTagDraft(event.target.value)}
@@ -2686,6 +2760,22 @@ ${answer.citations
                       >
                         Duplicate
                       </button>
+                      <select
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (!value) return;
+                          duplicateThreadToSpace(thread, value);
+                          event.currentTarget.selectedIndex = 0;
+                        }}
+                        className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      >
+                        <option value="">Duplicate to space</option>
+                        {spaces.map((space) => (
+                          <option key={space.id} value={space.id}>
+                            {space.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
                       <div className="flex flex-wrap gap-2">
