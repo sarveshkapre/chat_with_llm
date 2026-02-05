@@ -10,6 +10,7 @@ import type {
 import type { Space } from "@/lib/types/space";
 import type { Task, TaskCadence } from "@/lib/types/task";
 import type { LibraryFile } from "@/lib/types/file";
+import type { Collection } from "@/lib/types/collection";
 import { cn } from "@/lib/utils";
 import {
   canReadAsText,
@@ -25,6 +26,9 @@ type Feedback = "up" | "down" | null;
 type Thread = AnswerResponse & {
   feedback?: Feedback;
   title?: string | null;
+  pinned?: boolean;
+  favorite?: boolean;
+  collectionId?: string | null;
 };
 
 type StreamMessage =
@@ -81,6 +85,7 @@ const SPACES_KEY = "signal-spaces-v1";
 const ACTIVE_SPACE_KEY = "signal-space-active";
 const TASKS_KEY = "signal-tasks-v1";
 const FILES_KEY = "signal-files-v1";
+const COLLECTIONS_KEY = "signal-collections-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -110,6 +115,11 @@ export default function ChatApp() {
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [libraryCompact, setLibraryCompact] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [collectionFilter, setCollectionFilter] = useState("");
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [collectionName, setCollectionName] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -134,7 +144,14 @@ export default function ChatApp() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Thread[];
-        setThreads(parsed);
+        const normalized = parsed.map((thread) => ({
+          ...thread,
+          title: thread.title ?? thread.question,
+          pinned: thread.pinned ?? false,
+          favorite: thread.favorite ?? false,
+          collectionId: thread.collectionId ?? null,
+        }));
+        setThreads(normalized);
       } catch {
         setThreads([]);
       }
@@ -170,6 +187,16 @@ export default function ChatApp() {
       }
     }
 
+    const collectionStore = localStorage.getItem(COLLECTIONS_KEY);
+    if (collectionStore) {
+      try {
+        const parsed = JSON.parse(collectionStore) as Collection[];
+        setCollections(parsed);
+      } catch {
+        setCollections([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -191,6 +218,10 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(FILES_KEY, JSON.stringify(libraryFiles));
   }, [libraryFiles]);
+
+  useEffect(() => {
+    localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
+  }, [collections]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -249,16 +280,39 @@ export default function ChatApp() {
     const filtered = threads.filter((thread) => {
       const matchesMode = filterMode === "all" || thread.mode === filterMode;
       const matchesSearch =
-        !normalized || thread.question.toLowerCase().includes(normalized);
-      return matchesMode && matchesSearch;
+        !normalized ||
+        thread.question.toLowerCase().includes(normalized) ||
+        (thread.title ?? "").toLowerCase().includes(normalized);
+      const matchesFavorite = !favoritesOnly || thread.favorite;
+      const matchesPinned = !pinnedOnly || thread.pinned;
+      const matchesCollection =
+        !collectionFilter || thread.collectionId === collectionFilter;
+      return (
+        matchesMode &&
+        matchesSearch &&
+        matchesFavorite &&
+        matchesPinned &&
+        matchesCollection
+      );
     });
 
     return filtered.sort((a, b) => {
+      if ((a.pinned ?? false) !== (b.pinned ?? false)) {
+        return a.pinned ? -1 : 1;
+      }
       const left = new Date(a.createdAt).getTime();
       const right = new Date(b.createdAt).getTime();
       return sort === "newest" ? right - left : left - right;
     });
-  }, [threads, search, filterMode, sort]);
+  }, [
+    threads,
+    search,
+    filterMode,
+    sort,
+    favoritesOnly,
+    pinnedOnly,
+    collectionFilter,
+  ]);
 
   const filteredFiles = useMemo(() => {
     const normalized = fileSearchQuery.trim().toLowerCase();
@@ -497,6 +551,9 @@ export default function ChatApp() {
       ...data,
       feedback: null,
       title: data.question,
+      pinned: false,
+      favorite: false,
+      collectionId: null,
       attachments: data.attachments.map(stripAttachmentText),
     };
     setCurrent(thread);
@@ -708,6 +765,43 @@ ${answer.citations
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   }
 
+  function togglePin(id: string) {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, pinned: !thread.pinned } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) =>
+        prev ? { ...prev, pinned: !prev.pinned } : prev
+      );
+    }
+  }
+
+  function toggleFavorite(id: string) {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, favorite: !thread.favorite } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) =>
+        prev ? { ...prev, favorite: !prev.favorite } : prev
+      );
+    }
+  }
+
+  function assignCollection(id: string, collectionId: string | null) {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, collectionId } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) => (prev ? { ...prev, collectionId } : prev));
+    }
+  }
+
   function toggleThreadSelection(id: string) {
     setSelectedThreadIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -757,6 +851,33 @@ ${answer.citations
     setSelectedThreadIds([]);
     setBulkSpaceId("");
     setNotice(`Added ${target.name} to selected threads.`);
+  }
+
+  function createCollection() {
+    if (!collectionName.trim()) {
+      setNotice("Collection needs a name.");
+      return;
+    }
+    const collection: Collection = {
+      id: nanoid(),
+      name: collectionName.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setCollections((prev) => [collection, ...prev]);
+    setCollectionName("");
+    setNotice("Collection created.");
+  }
+
+  function deleteCollection(id: string) {
+    setCollections((prev) => prev.filter((collection) => collection.id !== id));
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.collectionId === id ? { ...thread, collectionId: null } : thread
+      )
+    );
+    if (collectionFilter === id) {
+      setCollectionFilter("");
+    }
   }
 
   function createSpace() {
@@ -1293,6 +1414,28 @@ ${answer.citations
                 >
                   👎
                 </button>
+                <button
+                  onClick={() => togglePin(current.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs transition",
+                    current.pinned
+                      ? "border-signal-accent text-signal-text"
+                      : "border-white/10 text-signal-muted"
+                  )}
+                >
+                  {current.pinned ? "Pinned" : "Pin"}
+                </button>
+                <button
+                  onClick={() => toggleFavorite(current.id)}
+                  className={cn(
+                    "rounded-full border px-3 py-1 text-xs transition",
+                    current.favorite
+                      ? "border-signal-accent text-signal-text"
+                      : "border-white/10 text-signal-muted"
+                  )}
+                >
+                  {current.favorite ? "Favorited" : "Favorite"}
+                </button>
               </div>
             ) : null}
             {current && showDetails ? (
@@ -1425,6 +1568,42 @@ ${answer.citations
                   <option value="oldest">Oldest</option>
                 </select>
               </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setFavoritesOnly((prev) => !prev)}
+                  className={cn(
+                    "w-full rounded-full border px-3 py-2 text-xs transition",
+                    favoritesOnly
+                      ? "border-signal-accent text-signal-text"
+                      : "border-white/10 text-signal-muted"
+                  )}
+                >
+                  Favorites
+                </button>
+                <button
+                  onClick={() => setPinnedOnly((prev) => !prev)}
+                  className={cn(
+                    "w-full rounded-full border px-3 py-2 text-xs transition",
+                    pinnedOnly
+                      ? "border-signal-accent text-signal-text"
+                      : "border-white/10 text-signal-muted"
+                  )}
+                >
+                  Pinned
+                </button>
+              </div>
+              <select
+                value={collectionFilter}
+                onChange={(event) => setCollectionFilter(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+              >
+                <option value="">All collections</option>
+                {collections.map((collection) => (
+                  <option key={collection.id} value={collection.id}>
+                    {collection.name}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={() => setLibraryCompact((prev) => !prev)}
                 className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -1568,11 +1747,50 @@ ${answer.citations
                           : "Select"}
                       </button>
                       <button
+                        onClick={() => togglePin(thread.id)}
+                        className={cn(
+                          "rounded-full border px-2 py-1 text-[11px] transition",
+                          thread.pinned
+                            ? "border-signal-accent text-signal-text"
+                            : "border-white/10 text-signal-muted"
+                        )}
+                      >
+                        {thread.pinned ? "Pinned" : "Pin"}
+                      </button>
+                      <button
+                        onClick={() => toggleFavorite(thread.id)}
+                        className={cn(
+                          "rounded-full border px-2 py-1 text-[11px] transition",
+                          thread.favorite
+                            ? "border-signal-accent text-signal-text"
+                            : "border-white/10 text-signal-muted"
+                        )}
+                      >
+                        {thread.favorite ? "Favorited" : "Favorite"}
+                      </button>
+                      <button
                         onClick={() => startRenameThread(thread)}
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         Rename
                       </button>
+                      <select
+                        value={thread.collectionId ?? ""}
+                        onChange={(event) =>
+                          assignCollection(
+                            thread.id,
+                            event.target.value ? event.target.value : null
+                          )
+                        }
+                        className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      >
+                        <option value="">No collection</option>
+                        {collections.map((collection) => (
+                          <option key={collection.id} value={collection.id}>
+                            {collection.name}
+                          </option>
+                        ))}
+                      </select>
                       <a
                         href={`/report?id=${thread.id}`}
                         target="_blank"
@@ -1600,6 +1818,56 @@ ${answer.citations
                 Clear library
               </button>
             ) : null}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
+            <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
+              Collections
+            </p>
+            <p className="mt-2 text-sm text-signal-muted">
+              Group threads into lightweight collections.
+            </p>
+            <div className="mt-4 space-y-2">
+              <input
+                value={collectionName}
+                onChange={(event) => setCollectionName(event.target.value)}
+                placeholder="Collection name"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+              <button
+                onClick={createCollection}
+                className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
+              >
+                Create collection
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {collections.length === 0 ? (
+                <p className="text-xs text-signal-muted">No collections yet.</p>
+              ) : (
+                collections.map((collection) => (
+                  <div
+                    key={collection.id}
+                    className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-signal-text">
+                        {collection.name}
+                      </span>
+                      <button
+                        onClick={() => deleteCollection(collection.id)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-signal-muted">
+                      {new Date(collection.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">

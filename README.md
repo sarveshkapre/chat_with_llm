@@ -19,6 +19,7 @@ npm install && npm run dev
 - Bulk thread actions (delete, assign to space)
 - Thread renaming + compact library view
 - Export answers to Markdown, DOCX, and PDF
+- Favorites, pinned threads, and collections
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
