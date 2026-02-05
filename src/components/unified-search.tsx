@@ -83,6 +83,16 @@ export default function UnifiedSearch() {
     });
   }, [spaces, normalized]);
 
+  const topThreadResults = useMemo(
+    () => filteredThreads.slice(0, 3),
+    [filteredThreads]
+  );
+
+  const topSpaceResults = useMemo(
+    () => filteredSpaces.slice(0, 3),
+    [filteredSpaces]
+  );
+
   function pushRecentQuery(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -163,6 +173,10 @@ export default function UnifiedSearch() {
     URL.revokeObjectURL(url);
   }
 
+  function clearRecentQueries() {
+    setRecentQueries([]);
+  }
+
   return (
     <div className="min-h-screen bg-signal-bg text-signal-text">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-6">
@@ -228,21 +242,79 @@ export default function UnifiedSearch() {
             ))}
           </div>
           {recentQueries.length ? (
-            <div className="flex flex-wrap gap-2 text-xs">
-              {recentQueries.map((item) => (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-signal-muted">
+                <span>Recent searches</span>
                 <button
-                  key={item}
-                  onClick={() => {
-                    setQuery(item);
-                    pushRecentQuery(item);
-                  }}
-                  className="rounded-full border border-white/10 px-3 py-1 text-signal-muted"
+                  onClick={clearRecentQueries}
+                  className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                 >
-                  {item}
+                  Clear recent
                 </button>
-              ))}
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {recentQueries.map((item) => (
+                  <button
+                    key={item}
+                    onClick={() => {
+                      setQuery(item);
+                      pushRecentQuery(item);
+                    }}
+                    className="rounded-full border border-white/10 px-3 py-1 text-signal-muted"
+                  >
+                    {item}
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3">
+            <p className="text-xs uppercase tracking-[0.2em] text-signal-muted">
+              Top Results
+            </p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-xs text-signal-muted">
+                  Threads: {filteredThreads.length}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {topThreadResults.length ? (
+                    topThreadResults.map((thread) => (
+                      <Link
+                        key={`top-thread-${thread.id}`}
+                        href={`/?thread=${thread.id}`}
+                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
+                      >
+                        {thread.title ?? thread.question}
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-xs text-signal-muted">No thread hits.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-signal-muted">
+                  Spaces: {filteredSpaces.length}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {topSpaceResults.length ? (
+                    topSpaceResults.map((space) => (
+                      <Link
+                        key={`top-space-${space.id}`}
+                        href={`/?space=${space.id}`}
+                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
+                      >
+                        {space.name}
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-xs text-signal-muted">No space hits.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
