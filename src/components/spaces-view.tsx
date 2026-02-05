@@ -69,6 +69,7 @@ export default function SpacesView() {
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [search, setSearch] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -101,10 +102,27 @@ export default function SpacesView() {
     return () => window.clearTimeout(timeout);
   }, [notice]);
 
+  const tagOptions = useMemo(() => {
+    const counter = new Map<string, number>();
+    spaces.forEach((space) => {
+      (spaceTags[space.id] ?? []).forEach((tag) => {
+        counter.set(tag, (counter.get(tag) ?? 0) + 1);
+      });
+    });
+    return Array.from(counter.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  }, [spaces, spaceTags]);
+
   const summaries = useMemo(() => {
-    const filtered = spaces.filter((space) =>
-      space.name.toLowerCase().includes(search.trim().toLowerCase())
-    );
+    const filtered = spaces.filter((space) => {
+      const matchesSearch = space.name
+        .toLowerCase()
+        .includes(search.trim().toLowerCase());
+      const tags = spaceTags[space.id] ?? [];
+      const matchesTag = !tagFilter || tags.includes(tagFilter);
+      return matchesSearch && matchesTag;
+    });
     return filtered.map((space) => {
       const items = threads.filter((thread) => thread.spaceId === space.id);
       const lastUpdated =
@@ -122,7 +140,7 @@ export default function SpacesView() {
         archived: archivedSpaces.includes(space.id),
       };
     });
-  }, [spaces, threads, search, spaceTags, archivedSpaces]);
+  }, [spaces, threads, search, spaceTags, archivedSpaces, tagFilter]);
 
   function createSpace() {
     if (!name.trim()) {
@@ -220,21 +238,61 @@ export default function SpacesView() {
     URL.revokeObjectURL(url);
   }
 
+  function exportAllSpaces() {
+    const lines: string[] = [
+      "# Signal Search Spaces Export",
+      "",
+      `Total spaces: ${spaces.length}`,
+      "",
+      "## Spaces",
+      ...spaces.map((space, index) => {
+        const spaceThreads = threads.filter(
+          (thread) => thread.spaceId === space.id
+        );
+        const tags = (spaceTags[space.id] ?? []).length
+          ? (spaceTags[space.id] ?? []).join(", ")
+          : "none";
+        return [
+          `${index + 1}. ${space.name}`,
+          `   - Threads: ${spaceThreads.length}`,
+          `   - Tags: ${tags}`,
+          `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-spaces-${Date.now()}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="min-h-screen bg-signal-bg text-signal-text">
-      <header className="flex items-center justify-between border-b border-white/10 px-6 py-6">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-6">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-signal-muted">
             Spaces
           </p>
           <h1 className="mt-2 text-3xl font-semibold">Signal Search</h1>
         </div>
-        <Link
-          href="/"
-          className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
-        >
-          Back to Library
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/"
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
+          >
+            Back to Library
+          </Link>
+          <button
+            onClick={exportAllSpaces}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
+          >
+            Export all spaces
+          </button>
+        </div>
       </header>
 
       <main className="px-6 py-10">
@@ -271,6 +329,29 @@ export default function SpacesView() {
               placeholder="Search spaces"
               className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {tagOptions.length === 0 ? (
+                <span className="text-xs text-signal-muted">
+                  No tags yet.
+                </span>
+              ) : (
+                tagOptions.map(({ tag, count }) => (
+                  <button
+                    key={tag}
+                    onClick={() =>
+                      setTagFilter((prev) => (prev === tag ? "" : tag))
+                    }
+                    className={`rounded-full border px-3 py-1 text-[11px] ${
+                      tagFilter === tag
+                        ? "border-signal-accent text-signal-text"
+                        : "border-white/10 text-signal-muted"
+                    }`}
+                  >
+                    #{tag} · {count}
+                  </button>
+                ))
+              )}
+            </div>
           </section>
 
           <section className="space-y-4">

@@ -38,6 +38,7 @@ npm install && npm run dev
 - Merge spaces + space tags
 - Space filter in Library + Spaces dashboard
 - Space tag editing in dashboard + clear filters button
+- Space tag filters + export all spaces
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
