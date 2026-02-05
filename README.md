@@ -41,6 +41,8 @@ npm install && npm run dev
 - Space tag filters + export all spaces
 - Space tag search + export filtered spaces
 - Space dashboard thread preview
+- Space dashboard sorting (name/activity)
+- Unified search (threads + spaces)
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

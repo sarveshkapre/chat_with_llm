@@ -2013,6 +2013,12 @@ ${answer.citations
             Collections
           </Link>
           <Link
+            href="/search"
+            className="rounded-full border border-white/10 px-3 py-1"
+          >
+            Search
+          </Link>
+          <Link
             href="/spaces"
             className="rounded-full border border-white/10 px-3 py-1"
           >

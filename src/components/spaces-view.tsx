@@ -69,6 +69,7 @@ export default function SpacesView() {
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
   const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState<"name" | "activity">("activity");
   const [tagFilter, setTagFilter] = useState("");
   const [tagQuery, setTagQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -132,7 +133,7 @@ export default function SpacesView() {
       const matchesTag = !tagFilter || tags.includes(tagFilter);
       return matchesSearch && matchesTag;
     });
-    return filtered.map((space) => {
+    const mapped = filtered.map((space) => {
       const items = threads.filter((thread) => thread.spaceId === space.id);
       const lastUpdated =
         items.length > 0
@@ -140,6 +141,9 @@ export default function SpacesView() {
               Math.max(...items.map((item) => new Date(item.createdAt).getTime()))
             ).toLocaleString()
           : "No activity yet";
+      const lastUpdatedMs = items.length
+        ? Math.max(...items.map((item) => new Date(item.createdAt).getTime()))
+        : 0;
       const tags = spaceTags[space.id] ?? [];
       const preview = items
         .slice(0, 3)
@@ -148,12 +152,19 @@ export default function SpacesView() {
         ...space,
         count: items.length,
         lastUpdated,
+        lastUpdatedMs,
         tags,
         archived: archivedSpaces.includes(space.id),
         preview,
       };
     });
-  }, [spaces, threads, search, spaceTags, archivedSpaces, tagFilter]);
+    return mapped.sort((a, b) => {
+      if (sortBy === "name") {
+        return a.name.localeCompare(b.name);
+      }
+      return b.lastUpdatedMs - a.lastUpdatedMs;
+    });
+  }, [spaces, threads, search, spaceTags, archivedSpaces, tagFilter, sortBy]);
 
   function createSpace() {
     if (!name.trim()) {
@@ -359,6 +370,16 @@ export default function SpacesView() {
               placeholder="Search spaces"
               className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />
+            <select
+              value={sortBy}
+              onChange={(event) =>
+                setSortBy(event.target.value as "name" | "activity")
+              }
+              className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+            >
+              <option value="activity">Sort by activity</option>
+              <option value="name">Sort by name</option>
+            </select>
             <input
               value={tagQuery}
               onChange={(event) => setTagQuery(event.target.value)}
