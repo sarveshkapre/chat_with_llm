@@ -16,6 +16,7 @@ npm install && npm run dev
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
 - Research report view with export + print
+- Bulk thread actions (delete, assign to space)
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

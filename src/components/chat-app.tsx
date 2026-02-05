@@ -101,6 +101,8 @@ export default function ChatApp() {
   const [notice, setNotice] = useState<string | null>(null);
   const [spaces, setSpaces] = useState<Space[]>([]);
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
+  const [bulkSpaceId, setBulkSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -565,15 +567,68 @@ export default function ChatApp() {
   function deleteThread(id: string) {
     setThreads((prev) => prev.filter((thread) => thread.id !== id));
     if (current?.id === id) setCurrent(null);
+    setSelectedThreadIds((prev) => prev.filter((threadId) => threadId !== id));
   }
 
   function clearLibrary() {
     setThreads([]);
     setCurrent(null);
+    setSelectedThreadIds([]);
   }
 
   function removeAttachment(id: string) {
     setAttachments((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function toggleThreadSelection(id: string) {
+    setSelectedThreadIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function selectAllThreads() {
+    setSelectedThreadIds(filteredThreads.map((thread) => thread.id));
+  }
+
+  function clearThreadSelection() {
+    setSelectedThreadIds([]);
+  }
+
+  function bulkDeleteThreads() {
+    if (!selectedThreadIds.length) return;
+    setThreads((prev) =>
+      prev.filter((thread) => !selectedThreadIds.includes(thread.id))
+    );
+    if (current && selectedThreadIds.includes(current.id)) {
+      setCurrent(null);
+    }
+    setSelectedThreadIds([]);
+    setNotice("Selected threads deleted.");
+  }
+
+  function bulkAssignSpace() {
+    if (!selectedThreadIds.length) return;
+    const target = spaces.find((space) => space.id === bulkSpaceId) ?? null;
+    if (!target) {
+      setNotice("Select a space to assign.");
+      return;
+    }
+
+    setThreads((prev) =>
+      prev.map((thread) =>
+        selectedThreadIds.includes(thread.id)
+          ? { ...thread, spaceId: target.id, spaceName: target.name }
+          : thread
+      )
+    );
+    if (current && selectedThreadIds.includes(current.id)) {
+      setCurrent((prev) =>
+        prev ? { ...prev, spaceId: target.id, spaceName: target.name } : prev
+      );
+    }
+    setSelectedThreadIds([]);
+    setBulkSpaceId("");
+    setNotice(`Added ${target.name} to selected threads.`);
   }
 
   function createSpace() {
@@ -1231,6 +1286,59 @@ export default function ChatApp() {
                 </select>
               </div>
             </div>
+            {selectedThreadIds.length ? (
+              <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
+                <div className="flex items-center justify-between">
+                  <span>{selectedThreadIds.length} selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={selectAllThreads}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    >
+                      Select all
+                    </button>
+                    <button
+                      onClick={clearThreadSelection}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={bulkDeleteThreads}
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  >
+                    Delete selected
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={bulkSpaceId}
+                      onChange={(event) => setBulkSpaceId(event.target.value)}
+                      className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      disabled={!spaces.length}
+                    >
+                      <option value="">
+                        {spaces.length ? "Assign to space" : "No spaces yet"}
+                      </option>
+                      {spaces.map((space) => (
+                        <option key={space.id} value={space.id}>
+                          {space.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={bulkAssignSpace}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      disabled={!spaces.length}
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div className="mt-4 space-y-3">
               {filteredThreads.length === 0 ? (
                 <p className="text-xs text-signal-muted">
@@ -1265,6 +1373,19 @@ export default function ChatApp() {
                       </div>
                     </button>
                     <div className="mt-3 flex items-center gap-2">
+                      <button
+                        onClick={() => toggleThreadSelection(thread.id)}
+                        className={cn(
+                          "rounded-full border px-2 py-1 text-[11px] transition",
+                          selectedThreadIds.includes(thread.id)
+                            ? "border-signal-accent text-signal-text"
+                            : "border-white/10 text-signal-muted"
+                        )}
+                      >
+                        {selectedThreadIds.includes(thread.id)
+                          ? "Selected"
+                          : "Select"}
+                      </button>
                       <a
                         href={`/report?id=${thread.id}`}
                         target="_blank"
