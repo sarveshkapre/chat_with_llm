@@ -16,6 +16,7 @@ npm install && npm run dev
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
 - Conversational follow-ups with optional thread context toggle
+- Thread-scoped follow-up lock for mode/source with one-click new-thread reset
 - Research report view with export + print
 - Bulk thread actions (delete, assign to space)
 - Thread renaming + compact library view

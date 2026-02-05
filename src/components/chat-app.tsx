@@ -366,6 +366,12 @@ export default function ChatApp() {
   }, [current?.id]);
 
   useEffect(() => {
+    if (!current || !useThreadContext) return;
+    setMode(current.mode);
+    setSources(current.sources);
+  }, [current, useThreadContext]);
+
+  useEffect(() => {
     localStorage.setItem(FILES_KEY, JSON.stringify(libraryFiles));
   }, [libraryFiles]);
 
@@ -458,9 +464,15 @@ export default function ChatApp() {
     return () => window.clearInterval(interval);
   }, [loading, mode]);
 
+  const followUpLocked = Boolean(current && useThreadContext);
+  const effectiveMode = followUpLocked ? (current?.mode ?? mode) : mode;
+  const effectiveSources = followUpLocked
+    ? (current?.sources ?? sources)
+    : sources;
+
   const activeMode = useMemo(
-    () => MODES.find((item) => item.id === mode) ?? MODES[0],
-    [mode]
+    () => MODES.find((item) => item.id === effectiveMode) ?? MODES[0],
+    [effectiveMode]
   );
 
   const activeSpace = useMemo(
@@ -711,8 +723,8 @@ export default function ChatApp() {
     const requestAttachments = buildRequestAttachments();
     const requestBody = {
       question,
-      mode,
-      sources,
+      mode: effectiveMode,
+      sources: effectiveSources,
       context,
       attachments: requestAttachments,
       spaceInstructions: activeSpace?.instructions ?? "",
@@ -973,6 +985,13 @@ ${answer.citations
     if (!current) return;
     setQuestion(current.question);
     setUseThreadContext(false);
+  }
+
+  function startNewThread() {
+    setCurrent(null);
+    setShowDetails(false);
+    setUseThreadContext(false);
+    setNotice("Started a new thread.");
   }
 
   function startRenameThread(thread: Thread) {
@@ -2172,16 +2191,23 @@ ${answer.citations
                 <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                   Mode
                 </p>
+                {followUpLocked ? (
+                  <p className="mt-2 text-xs text-signal-muted">
+                    Locked to selected thread for follow-up.
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-3 md:grid-cols-3">
                   {MODES.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setMode(item.id)}
+                      disabled={followUpLocked}
                       className={cn(
                         "rounded-2xl border px-4 py-3 text-left transition",
-                        mode === item.id
+                        effectiveMode === item.id
                           ? "border-signal-accent bg-signal-accent/10 text-signal-text"
-                          : "border-white/10 bg-transparent text-signal-muted hover:border-white/30"
+                          : "border-white/10 bg-transparent text-signal-muted hover:border-white/30",
+                        followUpLocked ? "cursor-not-allowed opacity-70" : ""
                       )}
                     >
                       <p className="text-sm font-semibold text-signal-text">
@@ -2197,16 +2223,23 @@ ${answer.citations
                 <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                   Sources
                 </p>
+                {followUpLocked ? (
+                  <p className="mt-2 text-xs text-signal-muted">
+                    Source focus is thread-scoped while context is on.
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {SOURCES.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setSources(item.id)}
+                      disabled={followUpLocked}
                       className={cn(
                         "rounded-2xl border px-4 py-3 text-left transition",
-                        sources === item.id
+                        effectiveSources === item.id
                           ? "border-signal-accent bg-signal-accent/10 text-signal-text"
-                          : "border-white/10 bg-transparent text-signal-muted hover:border-white/30"
+                          : "border-white/10 bg-transparent text-signal-muted hover:border-white/30",
+                        followUpLocked ? "cursor-not-allowed opacity-70" : ""
                       )}
                     >
                       <p className="text-sm font-semibold text-signal-text">
@@ -2316,17 +2349,25 @@ ${answer.citations
                       <span className="truncate">
                         Follow-up context from: {current.title ?? current.question}
                       </span>
-                      <button
-                        onClick={() => setUseThreadContext((prev) => !prev)}
-                        className={cn(
-                          "rounded-full border px-3 py-1 text-xs transition",
-                          useThreadContext
-                            ? "border-signal-accent text-signal-text"
-                            : "border-white/10 text-signal-muted"
-                        )}
-                      >
-                        {useThreadContext ? "Context on" : "Context off"}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setUseThreadContext((prev) => !prev)}
+                          className={cn(
+                            "rounded-full border px-3 py-1 text-xs transition",
+                            useThreadContext
+                              ? "border-signal-accent text-signal-text"
+                              : "border-white/10 text-signal-muted"
+                          )}
+                        >
+                          {useThreadContext ? "Context on" : "Context off"}
+                        </button>
+                        <button
+                          onClick={startNewThread}
+                          className="rounded-full border border-white/10 px-3 py-1 text-xs"
+                        >
+                          New thread
+                        </button>
+                      </div>
                     </div>
                   ) : null}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
