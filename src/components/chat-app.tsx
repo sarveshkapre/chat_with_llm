@@ -205,6 +205,7 @@ export default function ChatApp() {
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [useThreadContext, setUseThreadContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -354,6 +355,12 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    if (current?.id) {
+      setUseThreadContext(true);
+    }
+  }, [current?.id]);
 
   useEffect(() => {
     localStorage.setItem(FILES_KEY, JSON.stringify(libraryFiles));
@@ -669,8 +676,30 @@ export default function ChatApp() {
     return [...attachments, ...libraryAttachments];
   }
 
+  function buildThreadContext(thread: Thread) {
+    const contextLines = [
+      `Previous question: ${thread.question}`,
+      `Previous answer: ${thread.answer.slice(0, 2400)}`,
+    ];
+
+    if (thread.citations.length) {
+      const citationSummary = thread.citations
+        .slice(0, 5)
+        .map((citation, index) => `${index + 1}. ${citation.title} (${citation.url})`)
+        .join("\n");
+      contextLines.push(`Previous citations:\n${citationSummary}`);
+    }
+
+    return contextLines.join("\n\n");
+  }
+
   async function submitQuestion() {
     if (!question.trim() || loading) return;
+    const baseThread = current;
+    const context =
+      useThreadContext && baseThread
+        ? buildThreadContext(baseThread)
+        : undefined;
     setLoading(true);
     setError(null);
     setLiveAnswer("");
@@ -681,6 +710,7 @@ export default function ChatApp() {
       question,
       mode,
       sources,
+      context,
       attachments: requestAttachments,
       spaceInstructions: activeSpace?.instructions ?? "",
       spaceId: activeSpace?.id,
@@ -939,6 +969,7 @@ ${answer.citations
   function editQuestion() {
     if (!current) return;
     setQuestion(current.question);
+    setUseThreadContext(false);
   }
 
   function startRenameThread(thread: Thread) {
@@ -2268,6 +2299,24 @@ ${answer.citations
                     placeholder="Ask anything. Add sources, upload files, or pick a mode."
                     className="h-32 w-full resize-none bg-transparent text-sm text-signal-text outline-none placeholder:text-signal-muted"
                   />
+                  {current ? (
+                    <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted">
+                      <span className="truncate">
+                        Follow-up context from: {current.title ?? current.question}
+                      </span>
+                      <button
+                        onClick={() => setUseThreadContext((prev) => !prev)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs transition",
+                          useThreadContext
+                            ? "border-signal-accent text-signal-text"
+                            : "border-white/10 text-signal-muted"
+                        )}
+                      >
+                        {useThreadContext ? "Context on" : "Context off"}
+                      </button>
+                    </div>
+                  ) : null}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3 text-xs text-signal-muted">
                       <button
@@ -3096,7 +3145,10 @@ ${answer.citations
                     )}
                   >
                     <button
-                      onClick={() => setCurrent(thread)}
+                      onClick={() => {
+                        setCurrent(thread);
+                        setUseThreadContext(true);
+                      }}
                       className="w-full text-left"
                     >
                       <p className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">

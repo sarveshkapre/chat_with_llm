@@ -45,10 +45,17 @@ function formatAttachments(attachments: Attachment[]): string {
   return `\n\nContext from attached files:\n${blocks.join("\n\n")}`;
 }
 
+function formatConversationContext(context?: string) {
+  const trimmed = context?.trim();
+  if (!trimmed) return "";
+  return `\n\nConversation context:\n${trimmed.slice(0, 6000)}`;
+}
+
 export async function answerWithOpenAI(
   question: string,
   mode: AnswerMode,
   sources: SourceMode,
+  context: string | undefined,
   attachments: Attachment[],
   spaceInstructions?: string,
   spaceMeta?: { id?: string; name?: string }
@@ -74,7 +81,7 @@ export async function answerWithOpenAI(
 
   const response = await client.responses.create({
     model,
-    input: `${question}${formatAttachments(attachments)}`,
+    input: `${question}${formatConversationContext(context)}${formatAttachments(attachments)}`,
     instructions: [
       MODE_INSTRUCTIONS[mode],
       SOURCE_INSTRUCTIONS[sources],

@@ -17,6 +17,7 @@ export async function answerWithMock(
   question: string,
   mode: AnswerMode,
   sources: SourceMode,
+  context: string | undefined,
   attachments: Attachment[],
   spaceInstructions?: string,
   spaceMeta?: { id?: string; name?: string }
@@ -28,11 +29,14 @@ export async function answerWithMock(
       : mode === "research"
         ? "This is a research-style summary placeholder. Connect a model provider to generate a full report with citations."
         : "This is a quick answer placeholder. Connect a model provider to return a sourced response.";
+  const contextHint = context?.trim()
+    ? "\n\nFollow-up context was included from the previous thread."
+    : "";
 
   return {
     id: nanoid(),
     question,
-    answer,
+    answer: `${answer}${contextHint}`,
     mode,
     sources,
     createdAt,

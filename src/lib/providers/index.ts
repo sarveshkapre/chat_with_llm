@@ -11,6 +11,7 @@ export async function answerWithProvider(
   question: string,
   mode: AnswerMode,
   sources: SourceMode,
+  context: string | undefined,
   attachments: Attachment[],
   spaceInstructions?: string,
   spaceMeta?: { id?: string; name?: string }
@@ -21,6 +22,7 @@ export async function answerWithProvider(
       question,
       mode,
       sources,
+      context,
       attachments,
       spaceInstructions,
       spaceMeta
@@ -32,6 +34,7 @@ export async function answerWithProvider(
       question,
       mode,
       sources,
+      context,
       attachments,
       spaceInstructions,
       spaceMeta
@@ -43,6 +46,7 @@ export async function answerWithProvider(
       question,
       mode,
       sources,
+      context,
       attachments,
       spaceInstructions,
       spaceMeta
@@ -53,6 +57,7 @@ export async function answerWithProvider(
     question,
     mode,
     sources,
+    context,
     attachments,
     spaceInstructions,
     spaceMeta

@@ -53,11 +53,18 @@ function formatAttachments(attachments: Attachment[]) {
   return `\n\nContext from attached files:\n${blocks.join("\n\n")}`;
 }
 
+function formatConversationContext(context?: string) {
+  const trimmed = context?.trim();
+  if (!trimmed) return "";
+  return `\n\nConversation context:\n${trimmed.slice(0, 6000)}`;
+}
+
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     question?: string;
     mode?: AnswerMode;
     sources?: SourceMode;
+    context?: string;
     attachments?: Attachment[];
     spaceInstructions?: string;
     spaceId?: string;
@@ -96,6 +103,7 @@ export async function POST(request: Request) {
             question,
             mode,
             sources,
+            body.context?.trim() || undefined,
             attachments,
             body.spaceInstructions,
             { id: body.spaceId, name: body.spaceName }
@@ -136,7 +144,7 @@ export async function POST(request: Request) {
 
         const streamResponse = await client.responses.create({
           model,
-          input: `${question}${formatAttachments(attachments)}`,
+          input: `${question}${formatConversationContext(body.context)}${formatAttachments(attachments)}`,
           instructions,
           tools,
           tool_choice: tools.length ? "auto" : "none",

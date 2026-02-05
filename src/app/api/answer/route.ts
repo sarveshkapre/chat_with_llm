@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       question?: string;
       mode?: AnswerMode;
       sources?: SourceMode;
+      context?: string;
       attachments?: Attachment[];
       spaceInstructions?: string;
       spaceId?: string;
@@ -40,6 +41,7 @@ export async function POST(request: Request) {
       question,
       mode,
       sources,
+      body.context?.trim() || undefined,
       body.attachments ?? [],
       body.spaceInstructions,
       { id: body.spaceId, name: body.spaceName }

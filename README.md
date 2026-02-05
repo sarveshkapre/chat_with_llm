@@ -15,6 +15,7 @@ npm install && npm run dev
 - Source toggle (web or offline)
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
+- Conversational follow-ups with optional thread context toggle
 - Research report view with export + print
 - Bulk thread actions (delete, assign to space)
 - Thread renaming + compact library view

@@ -32,6 +32,7 @@ export type AnswerRequest = {
   question: string;
   mode: AnswerMode;
   sources: SourceMode;
+  context?: string;
   attachments?: Attachment[];
   spaceInstructions?: string;
   spaceId?: string;
