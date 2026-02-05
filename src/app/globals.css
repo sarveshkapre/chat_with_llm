@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+:root {
+  --signal-bg: #0c0c0f;
+  --signal-surface: rgba(20, 20, 33, 0.9);
+  --signal-accent: #f2c067;
+  --signal-text: #f5f4f2;
+  --signal-muted: #a09cb1;
+}
+
+@theme inline {
+  --color-signal-bg: var(--signal-bg);
+  --color-signal-surface: var(--signal-surface);
+  --color-signal-accent: var(--signal-accent);
+  --color-signal-text: var(--signal-text);
+  --color-signal-muted: var(--signal-muted);
+  --font-sans: var(--font-space-grotesk);
+  --font-display: var(--font-newsreader);
+  --shadow-glow: 0 0 30px rgba(242, 192, 103, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: radial-gradient(circle at top, rgba(57, 46, 93, 0.45), transparent 60%),
+    radial-gradient(circle at 20% 20%, rgba(75, 151, 186, 0.15), transparent 55%),
+    var(--signal-bg);
+  color: var(--signal-text);
+  font-family: var(--font-space-grotesk), system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-newsreader), serif;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(242, 192, 103, 0.4);
+  border-radius: 999px;
+}
