@@ -43,6 +43,7 @@ npm install && npm run dev
 - Space dashboard thread preview
 - Space dashboard sorting (name/activity)
 - Unified search (threads + spaces)
+- Unified search filters + export results
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
