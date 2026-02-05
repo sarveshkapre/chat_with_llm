@@ -70,6 +70,7 @@ export default function SpacesView() {
   const [instructions, setInstructions] = useState("");
   const [search, setSearch] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [tagQuery, setTagQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -113,6 +114,14 @@ export default function SpacesView() {
       .map(([tag, count]) => ({ tag, count }))
       .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
   }, [spaces, spaceTags]);
+
+  const filteredTagOptions = useMemo(() => {
+    if (!tagQuery.trim()) return tagOptions;
+    const normalized = tagQuery.trim().toLowerCase();
+    return tagOptions.filter((option) =>
+      option.tag.toLowerCase().includes(normalized)
+    );
+  }, [tagOptions, tagQuery]);
 
   const summaries = useMemo(() => {
     const filtered = spaces.filter((space) => {
@@ -239,13 +248,24 @@ export default function SpacesView() {
   }
 
   function exportAllSpaces() {
+    return exportSpacesData(spaces, "signal-spaces");
+  }
+
+  function exportFilteredSpaces() {
+    return exportSpacesData(summaries, "signal-spaces-filtered");
+  }
+
+  function exportSpacesData(
+    list: { id: string; name: string; instructions: string; createdAt: string }[],
+    filePrefix: string
+  ) {
     const lines: string[] = [
       "# Signal Search Spaces Export",
       "",
-      `Total spaces: ${spaces.length}`,
+      `Total spaces: ${list.length}`,
       "",
       "## Spaces",
-      ...spaces.map((space, index) => {
+      ...list.map((space, index) => {
         const spaceThreads = threads.filter(
           (thread) => thread.spaceId === space.id
         );
@@ -265,7 +285,7 @@ export default function SpacesView() {
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `signal-spaces-${Date.now()}.md`;
+    anchor.download = `${filePrefix}-${Date.now()}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -291,6 +311,12 @@ export default function SpacesView() {
             className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
           >
             Export all spaces
+          </button>
+          <button
+            onClick={exportFilteredSpaces}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
+          >
+            Export filtered
           </button>
         </div>
       </header>
@@ -329,13 +355,19 @@ export default function SpacesView() {
               placeholder="Search spaces"
               className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />
+            <input
+              value={tagQuery}
+              onChange={(event) => setTagQuery(event.target.value)}
+              placeholder="Filter tags"
+              className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+            />
             <div className="mt-4 flex flex-wrap gap-2">
-              {tagOptions.length === 0 ? (
+              {filteredTagOptions.length === 0 ? (
                 <span className="text-xs text-signal-muted">
-                  No tags yet.
+                  No matching tags.
                 </span>
               ) : (
-                tagOptions.map(({ tag, count }) => (
+                filteredTagOptions.map(({ tag, count }) => (
                   <button
                     key={tag}
                     onClick={() =>
