@@ -17,12 +17,14 @@ import {
   stripAttachmentText,
 } from "@/lib/attachments";
 import { searchLibraryFiles } from "@/lib/file-search";
+import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import { nanoid } from "nanoid";
 
 type Feedback = "up" | "down" | null;
 
 type Thread = AnswerResponse & {
   feedback?: Feedback;
+  title?: string | null;
 };
 
 type StreamMessage =
@@ -105,6 +107,9 @@ export default function ChatApp() {
   const [bulkSpaceId, setBulkSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
+  const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const [libraryCompact, setLibraryCompact] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -491,6 +496,7 @@ export default function ChatApp() {
     const thread: Thread = {
       ...data,
       feedback: null,
+      title: data.question,
       attachments: data.attachments.map(stripAttachmentText),
     };
     setCurrent(thread);
@@ -524,10 +530,42 @@ export default function ChatApp() {
     setNotice("Answer copied to clipboard.");
   }
 
+  function buildExportHtml(answer: Thread) {
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>${answer.title ?? answer.question}</title>
+<style>
+body { font-family: ui-sans-serif, system-ui; margin: 40px; color: #0f172a; }
+header { margin-bottom: 24px; }
+section { margin-bottom: 16px; }
+small { color: #64748b; }
+</style>
+</head>
+<body>
+<header>
+<h1>${answer.title ?? answer.question}</h1>
+<small>Mode: ${answer.mode} · Sources: ${answer.sources === "web" ? "Web" : "Offline"}</small>
+</header>
+${answer.answer
+  .split("\n\n")
+  .map((paragraph) => `<section>${paragraph}</section>`)
+  .join("\n")}
+<h2>Sources</h2>
+<ul>
+${answer.citations
+  .map((citation) => `<li><a href="${citation.url}">${citation.title}</a></li>`)
+  .join("\n")}
+</ul>
+</body>
+</html>`;
+  }
+
   function exportMarkdown() {
     if (!current) return;
     const lines = [
-      `# ${current.question}`,
+      `# ${current.title ?? current.question}`,
       "",
       current.answer,
       "",
@@ -552,6 +590,67 @@ export default function ChatApp() {
     URL.revokeObjectURL(url);
   }
 
+  async function exportDocx() {
+    if (!current) return;
+    const paragraphs = current.answer
+      .split("\n\n")
+      .map((paragraph) => new Paragraph(paragraph));
+
+    const citationParagraphs = current.citations.length
+      ? current.citations.map(
+          (citation, index) =>
+            new Paragraph(`${index + 1}. ${citation.title} (${citation.url})`)
+        )
+      : [new Paragraph("No citations.")];
+
+    const doc = new Document({
+      sections: [
+        {
+          children: [
+            new Paragraph({
+              text: current.title ?? current.question,
+              heading: HeadingLevel.HEADING_1,
+            }),
+            new Paragraph(
+              `Mode: ${current.mode} · Sources: ${
+                current.sources === "web" ? "Web" : "Offline"
+              }`
+            ),
+            ...paragraphs,
+            new Paragraph({
+              text: "Sources",
+              heading: HeadingLevel.HEADING_2,
+            }),
+            ...citationParagraphs,
+          ],
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-search-${current.id}.docx`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportPdf() {
+    if (!current) return;
+    const html = buildExportHtml(current);
+    const popup = window.open("", "_blank");
+    if (!popup) {
+      setNotice("Pop-up blocked. Allow pop-ups to print PDF.");
+      return;
+    }
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
+    popup.focus();
+    popup.print();
+  }
+
   function shareThread() {
     if (!current) return;
     const url = `${window.location.origin}?thread=${current.id}`;
@@ -562,6 +661,35 @@ export default function ChatApp() {
   function editQuestion() {
     if (!current) return;
     setQuestion(current.question);
+  }
+
+  function startRenameThread(thread: Thread) {
+    setEditingThreadId(thread.id);
+    setEditingTitle(thread.title ?? thread.question);
+  }
+
+  function saveRenameThread(id: string) {
+    if (!editingTitle.trim()) {
+      setNotice("Title cannot be empty.");
+      return;
+    }
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, title: editingTitle.trim() } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) =>
+        prev ? { ...prev, title: editingTitle.trim() } : prev
+      );
+    }
+    setEditingThreadId(null);
+    setEditingTitle("");
+  }
+
+  function cancelRenameThread() {
+    setEditingThreadId(null);
+    setEditingTitle("");
   }
 
   function deleteThread(id: string) {
@@ -1105,6 +1233,18 @@ export default function ChatApp() {
                 >
                   Export Markdown
                 </button>
+                <button
+                  onClick={exportDocx}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
+                >
+                  Export DOCX
+                </button>
+                <button
+                  onClick={exportPdf}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
+                >
+                  Export PDF
+                </button>
                 <a
                   href={`/report?id=${current.id}`}
                   target="_blank"
@@ -1285,6 +1425,12 @@ export default function ChatApp() {
                   <option value="oldest">Oldest</option>
                 </select>
               </div>
+              <button
+                onClick={() => setLibraryCompact((prev) => !prev)}
+                className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
+              >
+                {libraryCompact ? "Expanded view" : "Compact view"}
+              </button>
             </div>
             {selectedThreadIds.length ? (
               <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
@@ -1348,30 +1494,65 @@ export default function ChatApp() {
                 filteredThreads.map((thread) => (
                   <div
                     key={thread.id}
-                    className="rounded-2xl border border-white/10 p-3 text-left text-xs text-signal-text"
+                    className={cn(
+                      "rounded-2xl border border-white/10 text-left text-xs text-signal-text",
+                      libraryCompact ? "p-2" : "p-3"
+                    )}
                   >
                     <button
                       onClick={() => setCurrent(thread)}
                       className="w-full text-left"
                     >
                       <p className="text-sm font-semibold overflow-hidden text-ellipsis whitespace-nowrap">
-                        {thread.question}
+                        {thread.title ?? thread.question}
                       </p>
-                      <div className="mt-2 flex items-center gap-2 text-[11px] text-signal-muted">
-                        <span className="rounded-full border border-white/10 px-2 py-0.5">
+                      {libraryCompact ? (
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {new Date(thread.createdAt).toLocaleString()} ·{" "}
                           {thread.mode}
-                        </span>
-                        <span className="rounded-full border border-white/10 px-2 py-0.5">
-                          {thread.sources === "web" ? "Web" : "Offline"}
-                        </span>
-                        {thread.spaceName ? (
+                        </p>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-signal-muted">
                           <span className="rounded-full border border-white/10 px-2 py-0.5">
-                            {thread.spaceName}
+                            {thread.mode}
                           </span>
-                        ) : null}
-                        <span>{new Date(thread.createdAt).toLocaleString()}</span>
-                      </div>
+                          <span className="rounded-full border border-white/10 px-2 py-0.5">
+                            {thread.sources === "web" ? "Web" : "Offline"}
+                          </span>
+                          {thread.spaceName ? (
+                            <span className="rounded-full border border-white/10 px-2 py-0.5">
+                              {thread.spaceName}
+                            </span>
+                          ) : null}
+                          <span>
+                            {new Date(thread.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
                     </button>
+                    {editingThreadId === thread.id ? (
+                      <div className="mt-3 space-y-2">
+                        <input
+                          value={editingTitle}
+                          onChange={(event) => setEditingTitle(event.target.value)}
+                          className="w-full rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => saveRenameThread(thread.id)}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelRenameThread}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
                     <div className="mt-3 flex items-center gap-2">
                       <button
                         onClick={() => toggleThreadSelection(thread.id)}
@@ -1385,6 +1566,12 @@ export default function ChatApp() {
                         {selectedThreadIds.includes(thread.id)
                           ? "Selected"
                           : "Select"}
+                      </button>
+                      <button
+                        onClick={() => startRenameThread(thread)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        Rename
                       </button>
                       <a
                         href={`/report?id=${thread.id}`}

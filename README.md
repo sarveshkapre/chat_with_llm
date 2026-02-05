@@ -17,6 +17,8 @@ npm install && npm run dev
 - Thread library with search, filters, and share links
 - Research report view with export + print
 - Bulk thread actions (delete, assign to space)
+- Thread renaming + compact library view
+- Export answers to Markdown, DOCX, and PDF
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
