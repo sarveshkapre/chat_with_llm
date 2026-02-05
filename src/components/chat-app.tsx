@@ -1272,6 +1272,34 @@ ${answer.citations
     URL.revokeObjectURL(url);
   }
 
+  function archiveFilteredThreads() {
+    if (!filteredThreads.length) return;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        filteredThreads.some((item) => item.id === thread.id)
+          ? { ...thread, archived: true }
+          : thread
+      )
+    );
+    if (current && filteredThreads.some((item) => item.id === current.id)) {
+      setCurrent((prev) => (prev ? { ...prev, archived: true } : prev));
+    }
+    setNotice(`Archived ${filteredThreads.length} threads.`);
+  }
+
+  function bumpThread(id: string) {
+    const now = new Date().toISOString();
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, createdAt: now } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) => (prev ? { ...prev, createdAt: now } : prev));
+    }
+    setNotice("Thread bumped.");
+  }
+
   function applyRecentFilter(item: (typeof recentFilters)[number]) {
     setSearch(item.query);
     setFilterMode(item.filterMode);
@@ -2212,6 +2240,12 @@ ${answer.citations
               >
                 Export filtered view
               </button>
+              <button
+                onClick={archiveFilteredThreads}
+                className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
+              >
+                Archive filtered
+              </button>
             </div>
             {selectedThreadIds.length ? (
               <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
@@ -2621,6 +2655,12 @@ ${answer.citations
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         {thread.archived ? "Unarchive" : "Archive"}
+                      </button>
+                      <button
+                        onClick={() => bumpThread(thread.id)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        Bump
                       </button>
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
