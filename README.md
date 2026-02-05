@@ -11,11 +11,12 @@ npm install && npm run dev
 
 ## Features
 - Web-grounded answers with citations
-- Quick, Research, and Learn modes
+- Quick, Research, and Learn modes with research progress states
 - Source toggle (web or offline)
 - Thread library with search, filters, and share links
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
+- Tasks scheduler (local-only) with Run Now
 - Pluggable provider interface (OpenAI now, OSS models next)
 
 ## Configuration

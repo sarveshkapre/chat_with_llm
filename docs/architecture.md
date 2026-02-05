@@ -1,7 +1,7 @@
 # Architecture
 
 ## Overview
-Signal Search is a Next.js app with an API route that calls a provider layer. The provider returns an `AnswerResponse` containing text and citations. The UI renders modes, sources, spaces, and a local thread library.
+Signal Search is a Next.js app with an API route that calls a provider layer. The provider returns an `AnswerResponse` containing text and citations. The UI renders modes, sources, spaces, tasks, and a local thread library.
 
 ## Key modules
 - `src/app/api/answer/route.ts`: API entry point.
@@ -15,3 +15,6 @@ Signal Search is a Next.js app with an API route that calls a provider layer. Th
 2. API routes to provider.
 3. Provider returns answer + citations.
 4. UI renders answer and caches thread history in localStorage.
+
+## Local automation
+Tasks are stored in localStorage and run on-demand. Each run creates a thread in the library.

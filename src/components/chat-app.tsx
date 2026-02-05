@@ -8,6 +8,7 @@ import type {
   Attachment,
 } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
+import type { Task, TaskCadence } from "@/lib/types/task";
 import { cn } from "@/lib/utils";
 import {
   canReadAsText,
@@ -53,9 +54,23 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
   },
 ];
 
+const TASK_CADENCES: { id: TaskCadence; label: string }[] = [
+  { id: "daily", label: "Daily" },
+  { id: "weekday", label: "Weekdays" },
+  { id: "weekly", label: "Weekly" },
+];
+
+const RESEARCH_STEPS = [
+  "Scanning sources",
+  "Reading and extracting",
+  "Cross-checking",
+  "Drafting report",
+];
+
 const STORAGE_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
 const ACTIVE_SPACE_KEY = "signal-space-active";
+const TASKS_KEY = "signal-tasks-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -78,6 +93,15 @@ export default function ChatApp() {
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [taskName, setTaskName] = useState("");
+  const [taskPrompt, setTaskPrompt] = useState("");
+  const [taskCadence, setTaskCadence] = useState<TaskCadence>("daily");
+  const [taskTime, setTaskTime] = useState("09:00");
+  const [taskMode, setTaskMode] = useState<AnswerMode>("quick");
+  const [taskSources, setTaskSources] = useState<SourceMode>("web");
+  const [taskRunningId, setTaskRunningId] = useState<string | null>(null);
+  const [researchStepIndex, setResearchStepIndex] = useState(0);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -101,6 +125,16 @@ export default function ChatApp() {
       }
     }
 
+    const taskStore = localStorage.getItem(TASKS_KEY);
+    if (taskStore) {
+      try {
+        const parsed = JSON.parse(taskStore) as Task[];
+        setTasks(parsed);
+      } catch {
+        setTasks([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -114,6 +148,10 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
   }, [spaces]);
+
+  useEffect(() => {
+    localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
+  }, [tasks]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -140,6 +178,22 @@ export default function ChatApp() {
     const timeout = window.setTimeout(() => setNotice(null), 3200);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (!loading || mode !== "research") {
+      setResearchStepIndex(0);
+      return;
+    }
+
+    setResearchStepIndex(0);
+    const interval = window.setInterval(() => {
+      setResearchStepIndex((prev) =>
+        Math.min(prev + 1, RESEARCH_STEPS.length - 1)
+      );
+    }, 1500);
+
+    return () => window.clearInterval(interval);
+  }, [loading, mode]);
 
   const activeMode = useMemo(
     () => MODES.find((item) => item.id === mode) ?? MODES[0],
@@ -367,6 +421,152 @@ export default function ChatApp() {
     if (activeSpaceId === id) setActiveSpaceId(null);
   }
 
+  function parseTime(time: string) {
+    const [hourRaw, minuteRaw] = time.split(":");
+    const hour = Number.parseInt(hourRaw ?? "0", 10);
+    const minute = Number.parseInt(minuteRaw ?? "0", 10);
+    return {
+      hour: Number.isNaN(hour) ? 9 : hour,
+      minute: Number.isNaN(minute) ? 0 : minute,
+    };
+  }
+
+  function setTime(base: Date, time: string) {
+    const { hour, minute } = parseTime(time);
+    const next = new Date(base);
+    next.setHours(hour, minute, 0, 0);
+    return next;
+  }
+
+  function nextDaily(time: string, from = new Date()) {
+    const next = setTime(from, time);
+    if (next <= from) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next;
+  }
+
+  function nextWeekday(time: string, from = new Date()) {
+    const next = nextDaily(time, from);
+    while (next.getDay() === 0 || next.getDay() === 6) {
+      next.setDate(next.getDate() + 1);
+    }
+    return next;
+  }
+
+  function nextWeekly(time: string, dayOfWeek: number, from = new Date()) {
+    const base = setTime(from, time);
+    const offset = (dayOfWeek - base.getDay() + 7) % 7;
+    base.setDate(base.getDate() + offset);
+    if (base <= from) {
+      base.setDate(base.getDate() + 7);
+    }
+    return base;
+  }
+
+  function computeNextRun(cadence: TaskCadence, time: string, day?: number) {
+    if (cadence === "weekday") return nextWeekday(time);
+    if (cadence === "weekly") return nextWeekly(time, day ?? new Date().getDay());
+    return nextDaily(time);
+  }
+
+  function createTask() {
+    if (!taskName.trim() || !taskPrompt.trim()) {
+      setNotice("Task needs a name and prompt.");
+      return;
+    }
+
+    const createdAt = new Date();
+    const dayOfWeek = taskCadence === "weekly" ? createdAt.getDay() : null;
+    const nextRun = computeNextRun(taskCadence, taskTime, dayOfWeek ?? undefined);
+
+    const task: Task = {
+      id: nanoid(),
+      name: taskName.trim(),
+      prompt: taskPrompt.trim(),
+      cadence: taskCadence,
+      time: taskTime,
+      mode: taskMode,
+      sources: taskSources,
+      createdAt: createdAt.toISOString(),
+      nextRun: nextRun.toISOString(),
+      lastRun: null,
+      dayOfWeek,
+      spaceId: activeSpace?.id ?? null,
+      spaceName: activeSpace?.name ?? null,
+    };
+
+    setTasks((prev) => [task, ...prev]);
+    setTaskName("");
+    setTaskPrompt("");
+    setNotice("Task created.");
+  }
+
+  async function runTask(task: Task) {
+    if (taskRunningId) return;
+    setTaskRunningId(task.id);
+    setNotice("Running task...");
+
+    try {
+      const space = spaces.find((item) => item.id === task.spaceId) ?? null;
+      const response = await fetch("/api/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: task.prompt,
+          mode: task.mode,
+          sources: task.sources,
+          attachments: [],
+          spaceInstructions: space?.instructions ?? "",
+          spaceId: space?.id,
+          spaceName: space?.name,
+        }),
+      });
+      const data = (await response.json()) as AnswerResponse & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Task run failed");
+      }
+
+      const thread: Thread = {
+        ...data,
+        feedback: null,
+        attachments: data.attachments.map(stripAttachmentText),
+      };
+
+      setThreads((prev) => [thread, ...prev].slice(0, 30));
+      setCurrent(thread);
+
+      const nextRun = computeNextRun(
+        task.cadence,
+        task.time,
+        task.dayOfWeek ?? undefined
+      );
+      setTasks((prev) =>
+        prev.map((item) =>
+          item.id === task.id
+            ? {
+                ...item,
+                lastRun: new Date().toISOString(),
+                nextRun: nextRun.toISOString(),
+              }
+            : item
+        )
+      );
+      setNotice("Task completed.");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Task failed.");
+    } finally {
+      setTaskRunningId(null);
+    }
+  }
+
+  function deleteTask(id: string) {
+    setTasks((prev) => prev.filter((task) => task.id !== id));
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-signal-bg text-signal-text">
       <header className="flex items-center justify-between px-6 py-5 md:px-12">
@@ -580,6 +780,32 @@ export default function ChatApp() {
                 ) : null}
               </div>
             </div>
+            {loading && mode === "research" ? (
+              <div className="mt-4 space-y-2 text-xs text-signal-muted">
+                {RESEARCH_STEPS.map((step, index) => {
+                  const state =
+                    index < researchStepIndex
+                      ? "done"
+                      : index === researchStepIndex
+                        ? "active"
+                        : "pending";
+                  return (
+                    <div
+                      key={step}
+                      className={cn(
+                        "flex items-center justify-between rounded-2xl border px-3 py-2",
+                        state === "active"
+                          ? "border-signal-accent text-signal-text"
+                          : "border-white/10"
+                      )}
+                    >
+                      <span>{step}</span>
+                      <span className="text-[11px] uppercase">{state}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
             <div className="mt-4 space-y-4 text-sm leading-7 text-signal-text/90">
               {current ? (
                 current.answer
@@ -834,11 +1060,119 @@ export default function ChatApp() {
               Tasks
             </p>
             <p className="mt-2 text-sm text-signal-muted">
-              Schedule recurring reports once automation is enabled.
+              Schedule recurring briefs and alerts.
             </p>
-            <button className="mt-4 w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted">
-              Add a task (soon)
-            </button>
+            <div className="mt-4 space-y-2">
+              <input
+                value={taskName}
+                onChange={(event) => setTaskName(event.target.value)}
+                placeholder="Task name"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+              <textarea
+                value={taskPrompt}
+                onChange={(event) => setTaskPrompt(event.target.value)}
+                placeholder="Task prompt"
+                className="h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+              <div className="flex gap-2">
+                <select
+                  value={taskCadence}
+                  onChange={(event) =>
+                    setTaskCadence(event.target.value as TaskCadence)
+                  }
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                >
+                  {TASK_CADENCES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="time"
+                  value={taskTime}
+                  onChange={(event) => setTaskTime(event.target.value)}
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={taskMode}
+                  onChange={(event) =>
+                    setTaskMode(event.target.value as AnswerMode)
+                  }
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                >
+                  {MODES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={taskSources}
+                  onChange={(event) =>
+                    setTaskSources(event.target.value as SourceMode)
+                  }
+                  className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                >
+                  {SOURCES.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                onClick={createTask}
+                className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
+              >
+                Create task
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {tasks.length === 0 ? (
+                <p className="text-xs text-signal-muted">No tasks yet.</p>
+              ) : (
+                tasks.map((task) => (
+                  <div
+                    key={task.id}
+                    className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-signal-text">
+                        {task.name}
+                      </span>
+                      <span className="text-[11px] uppercase">
+                        {task.cadence}
+                      </span>
+                    </div>
+                    <div className="mt-2 text-[11px]">
+                      <p>Next: {new Date(task.nextRun).toLocaleString()}</p>
+                      {task.lastRun ? (
+                        <p>Last: {new Date(task.lastRun).toLocaleString()}</p>
+                      ) : null}
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        onClick={() => runTask(task)}
+                        disabled={taskRunningId === task.id}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      >
+                        {taskRunningId === task.id ? "Running" : "Run now"}
+                      </button>
+                      <button
+                        onClick={() => deleteTask(task.id)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </aside>
       </main>
