@@ -53,7 +53,7 @@ npm install && npm run dev
 - Unified search now includes collections and files
 - Unified search now includes tasks
 - Unified search sort controls (relevance/newest/oldest) + per-section result limits
-- Spaces with custom instructions (local-only)
+- Spaces with custom instructions and preferred model routing (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
 - Tasks scheduler (local-only) with once/daily/weekday/weekly/monthly/yearly cadences, explicit Space targeting, and last-result links

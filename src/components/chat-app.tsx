@@ -72,6 +72,7 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
 ];
 
 const REWRITE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
+const REQUEST_MODELS = ["auto", ...REWRITE_MODELS] as const;
 
 const TASK_CADENCES: { id: TaskCadence; label: string }[] = [
   { id: "once", label: "Once" },
@@ -107,6 +108,15 @@ const MAX_ATTACHMENT_SIZE = 1_000_000;
 const MAX_LIBRARY_FILES = 20;
 const MAX_LIBRARY_FILE_SIZE = 200_000;
 
+function normalizeRequestModel(
+  value?: string | null
+): (typeof REQUEST_MODELS)[number] {
+  if (!value) return "auto";
+  return REQUEST_MODELS.includes(value as (typeof REQUEST_MODELS)[number])
+    ? (value as (typeof REQUEST_MODELS)[number])
+    : "auto";
+}
+
 export default function ChatApp() {
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState<AnswerMode>("quick");
@@ -129,9 +139,15 @@ export default function ChatApp() {
   const [bulkMoveSpaceId, setBulkMoveSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
+  const [spacePreferredModel, setSpacePreferredModel] = useState<
+    (typeof REQUEST_MODELS)[number]
+  >("auto");
   const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
   const [editingSpaceName, setEditingSpaceName] = useState("");
   const [editingSpaceInstructions, setEditingSpaceInstructions] = useState("");
+  const [editingSpacePreferredModel, setEditingSpacePreferredModel] = useState<
+    (typeof REQUEST_MODELS)[number]
+  >("auto");
   const [archivedSpaces, setArchivedSpaces] = useState<string[]>([]);
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>({});
   const [spaceTagDraft, setSpaceTagDraft] = useState("");
@@ -214,6 +230,9 @@ export default function ChatApp() {
   const [rewriteModel, setRewriteModel] = useState<(typeof REWRITE_MODELS)[number]>(
     "gpt-4.1-mini"
   );
+  const [requestModel, setRequestModel] = useState<(typeof REQUEST_MODELS)[number]>(
+    "auto"
+  );
   const [useThreadContext, setUseThreadContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
@@ -243,7 +262,14 @@ export default function ChatApp() {
     if (spaceStore) {
       try {
         const parsed = JSON.parse(spaceStore) as Space[];
-        setSpaces(parsed);
+        const normalized = parsed.map((space) => ({
+          ...space,
+          preferredModel:
+            normalizeRequestModel(space.preferredModel) === "auto"
+              ? null
+              : normalizeRequestModel(space.preferredModel),
+        }));
+        setSpaces(normalized);
       } catch {
         setSpaces([]);
       }
@@ -486,6 +512,17 @@ export default function ChatApp() {
     () => spaces.find((space) => space.id === activeSpaceId) ?? null,
     [spaces, activeSpaceId]
   );
+
+  const requestSpace = useMemo(() => {
+    if (followUpLocked && current?.spaceId) {
+      return spaces.find((space) => space.id === current.spaceId) ?? null;
+    }
+    return activeSpace;
+  }, [followUpLocked, current?.spaceId, spaces, activeSpace]);
+
+  const spacePreferredModelValue = requestSpace?.preferredModel?.trim() || undefined;
+  const effectiveRequestModel =
+    requestModel === "auto" ? spacePreferredModelValue : requestModel;
 
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -732,11 +769,12 @@ export default function ChatApp() {
       question,
       mode: effectiveMode,
       sources: effectiveSources,
+      model: effectiveRequestModel,
       context,
       attachments: requestAttachments,
-      spaceInstructions: activeSpace?.instructions ?? "",
-      spaceId: activeSpace?.id,
-      spaceName: activeSpace?.name,
+      spaceInstructions: requestSpace?.instructions ?? "",
+      spaceId: requestSpace?.id,
+      spaceName: requestSpace?.name,
     };
 
     if (!streamingEnabled) {
@@ -1809,12 +1847,15 @@ ${answer.citations
       id: nanoid(),
       name: spaceName.trim(),
       instructions: spaceInstructions.trim(),
+      preferredModel:
+        spacePreferredModel === "auto" ? null : spacePreferredModel,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
     setActiveSpaceId(space.id);
     setSpaceName("");
     setSpaceInstructions("");
+    setSpacePreferredModel("auto");
     setNotice("Space created.");
   }
 
@@ -1829,6 +1870,7 @@ ${answer.citations
       `# ${space.name}`,
       "",
       space.instructions ? `Instructions: ${space.instructions}` : "Instructions: none",
+      `Preferred model: ${space.preferredModel ?? "Auto"}`,
       "",
       `Total threads: ${spaceThreads.length}`,
       "",
@@ -1856,6 +1898,7 @@ ${answer.citations
     setEditingSpaceId(space.id);
     setEditingSpaceName(space.name);
     setEditingSpaceInstructions(space.instructions);
+    setEditingSpacePreferredModel(normalizeRequestModel(space.preferredModel));
   }
 
   function saveSpaceEdit(id: string) {
@@ -1870,6 +1913,10 @@ ${answer.citations
               ...space,
               name: editingSpaceName.trim(),
               instructions: editingSpaceInstructions.trim(),
+              preferredModel:
+                editingSpacePreferredModel === "auto"
+                  ? null
+                  : editingSpacePreferredModel,
             }
           : space
       )
@@ -1892,6 +1939,7 @@ ${answer.citations
     setEditingSpaceId(null);
     setEditingSpaceName("");
     setEditingSpaceInstructions("");
+    setEditingSpacePreferredModel("auto");
     setNotice("Space updated.");
   }
 
@@ -1899,6 +1947,7 @@ ${answer.citations
     setEditingSpaceId(null);
     setEditingSpaceName("");
     setEditingSpaceInstructions("");
+    setEditingSpacePreferredModel("auto");
   }
 
   function duplicateSpace(space: Space) {
@@ -2164,6 +2213,7 @@ ${answer.citations
           question: task.prompt,
           mode: task.mode,
           sources: task.sources,
+          model: space?.preferredModel ?? undefined,
           attachments: [],
           spaceInstructions: space?.instructions ?? "",
           spaceId: space?.id,
@@ -2435,6 +2485,9 @@ ${answer.citations
                   <p className="mt-1 text-xs text-signal-muted">
                     {activeSpace.instructions || "No instructions set."}
                   </p>
+                  <p className="mt-2 text-[11px] text-signal-muted">
+                    Preferred model: {activeSpace.preferredModel ?? "Auto"}
+                  </p>
                 </div>
               ) : null}
 
@@ -2446,6 +2499,32 @@ ${answer.citations
                   <span className="text-xs text-signal-muted">
                     {activeMode.label} mode
                   </span>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-signal-muted">
+                  <span className="rounded-full border border-white/10 px-3 py-1">
+                    Model: {effectiveRequestModel ?? "provider default"}
+                  </span>
+                  {requestModel === "auto" && spacePreferredModelValue ? (
+                    <span className="rounded-full border border-white/10 px-3 py-1">
+                      via {requestSpace?.name ?? "space"}
+                    </span>
+                  ) : null}
+                  <select
+                    value={requestModel}
+                    onChange={(event) =>
+                      setRequestModel(
+                        event.target.value as (typeof REQUEST_MODELS)[number]
+                      )
+                    }
+                    className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-signal-text"
+                  >
+                    <option value="auto">Auto model</option>
+                    {REWRITE_MODELS.map((modelOption) => (
+                      <option key={modelOption} value={modelOption}>
+                        {modelOption}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
                   <textarea
@@ -3822,6 +3901,22 @@ ${answer.citations
                 placeholder="Space instructions"
                 className="h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
               />
+              <select
+                value={spacePreferredModel}
+                onChange={(event) =>
+                  setSpacePreferredModel(
+                    event.target.value as (typeof REQUEST_MODELS)[number]
+                  )
+                }
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+              >
+                <option value="auto">Preferred model: Auto</option>
+                {REWRITE_MODELS.map((modelOption) => (
+                  <option key={modelOption} value={modelOption}>
+                    Preferred model: {modelOption}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={createSpace}
                 className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
@@ -3857,6 +3952,22 @@ ${answer.citations
                           }
                           className="h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none"
                         />
+                        <select
+                          value={editingSpacePreferredModel}
+                          onChange={(event) =>
+                            setEditingSpacePreferredModel(
+                              event.target.value as (typeof REQUEST_MODELS)[number]
+                            )
+                          }
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                        >
+                          <option value="auto">Preferred model: Auto</option>
+                          {REWRITE_MODELS.map((modelOption) => (
+                            <option key={modelOption} value={modelOption}>
+                              Preferred model: {modelOption}
+                            </option>
+                          ))}
+                        </select>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => saveSpaceEdit(space.id)}
@@ -3945,6 +4056,9 @@ ${answer.citations
                             </button>
                           </div>
                         </div>
+                        <p className="mt-2 text-[11px] text-signal-muted">
+                          Preferred model: {space.preferredModel ?? "Auto"}
+                        </p>
                       </>
                     )}
                     <div className="mt-2 text-[11px] text-signal-muted">

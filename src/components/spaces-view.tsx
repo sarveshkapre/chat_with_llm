@@ -17,6 +17,7 @@ const THREADS_KEY = "signal-history-v2";
 const ACTIVE_SPACE_KEY = "signal-space-active";
 const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
 const SPACE_TAGS_KEY = "signal-space-tags-v1";
+const REQUEST_MODELS = ["auto", "gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
 
 export default function SpacesView() {
   const [spaces, setSpaces] = useState<Space[]>(() => {
@@ -68,6 +69,9 @@ export default function SpacesView() {
   );
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [preferredModel, setPreferredModel] = useState<
+    (typeof REQUEST_MODELS)[number]
+  >("auto");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "activity">("activity");
   const [tagFilter, setTagFilter] = useState("");
@@ -175,11 +179,13 @@ export default function SpacesView() {
       id: nanoid(),
       name: name.trim(),
       instructions: instructions.trim(),
+      preferredModel: preferredModel === "auto" ? null : preferredModel,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
     setName("");
     setInstructions("");
+    setPreferredModel("auto");
     setNotice("Space created.");
   }
 
@@ -239,6 +245,7 @@ export default function SpacesView() {
       `# ${space.name}`,
       "",
       space.instructions ? `Instructions: ${space.instructions}` : "Instructions: none",
+      `Preferred model: ${space.preferredModel ?? "Auto"}`,
       "",
       `Total threads: ${spaceThreads.length}`,
       "",
@@ -271,7 +278,13 @@ export default function SpacesView() {
   }
 
   function exportSpacesData(
-    list: { id: string; name: string; instructions: string; createdAt: string }[],
+    list: {
+      id: string;
+      name: string;
+      instructions: string;
+      preferredModel?: string | null;
+      createdAt: string;
+    }[],
     filePrefix: string
   ) {
     const lines: string[] = [
@@ -290,6 +303,7 @@ export default function SpacesView() {
         return [
           `${index + 1}. ${space.name}`,
           `   - Threads: ${spaceThreads.length}`,
+          `   - Preferred model: ${space.preferredModel ?? "Auto"}`,
           `   - Tags: ${tags}`,
           `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
         ].join("\n");
@@ -354,6 +368,22 @@ export default function SpacesView() {
               placeholder="Space instructions"
               className="mt-3 h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />
+            <select
+              value={preferredModel}
+              onChange={(event) =>
+                setPreferredModel(
+                  event.target.value as (typeof REQUEST_MODELS)[number]
+                )
+              }
+              className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+            >
+              <option value="auto">Preferred model: Auto</option>
+              {REQUEST_MODELS.filter((item) => item !== "auto").map((item) => (
+                <option key={item} value={item}>
+                  Preferred model: {item}
+                </option>
+              ))}
+            </select>
             <button
               onClick={createSpace}
               className="mt-3 w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
@@ -470,6 +500,9 @@ export default function SpacesView() {
                   </div>
                   <p className="mt-4 text-xs text-signal-muted">
                     {space.instructions || "No instructions."}
+                  </p>
+                  <p className="mt-2 text-[11px] text-signal-muted">
+                    Preferred model: {space.preferredModel ?? "Auto"}
                   </p>
                   {space.preview.length ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
