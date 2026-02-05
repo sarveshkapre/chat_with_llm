@@ -26,6 +26,7 @@ npm install && npm run dev
 - Saved search presets + collection export to Markdown
 - Pinned saved searches + export filtered library
 - Archive threads + recent filters history
+- Recent filter pinning + header archive actions
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

@@ -168,6 +168,7 @@ export default function ChatApp() {
       sort: "newest" | "oldest";
       sortByTag: boolean;
       createdAt: string;
+      pinned?: boolean;
     }[]
   >([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -283,7 +284,11 @@ export default function ChatApp() {
     if (recentStore) {
       try {
         const parsed = JSON.parse(recentStore) as typeof recentFilters;
-        setRecentFilters(parsed);
+        const normalized = parsed.map((item) => ({
+          ...item,
+          pinned: item.pinned ?? false,
+        }));
+        setRecentFilters(normalized);
       } catch {
         setRecentFilters([]);
       }
@@ -1202,12 +1207,16 @@ ${answer.citations
       sort,
       sortByTag,
       createdAt: new Date().toISOString(),
+      pinned: false,
     };
 
     setRecentFilters((prev) => {
       if (prev[0]?.signature === entry.signature) return prev;
       const filtered = prev.filter((item) => item.signature !== entry.signature);
-      return [entry, ...filtered].slice(0, 5);
+      const next = [entry, ...filtered].slice(0, 5);
+      const pinned = next.filter((item) => item.pinned);
+      const unpinned = next.filter((item) => !item.pinned);
+      return [...pinned, ...unpinned].slice(0, 5);
     });
   }, [
     filterSignature,
@@ -1261,6 +1270,33 @@ ${answer.citations
     anchor.download = `signal-library-export-${Date.now()}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function applyRecentFilter(item: (typeof recentFilters)[number]) {
+    setSearch(item.query);
+    setFilterMode(item.filterMode);
+    setFavoritesOnly(item.favoritesOnly);
+    setPinnedOnly(item.pinnedOnly);
+    setArchivedOnly(item.archivedOnly);
+    setCollectionFilter(item.collectionFilter);
+    setTagFilter(item.tagFilter);
+    setSort(item.sort);
+    setSortByTag(item.sortByTag);
+    setNotice("Applied recent filter.");
+  }
+
+  function togglePinRecentFilter(id: string) {
+    setRecentFilters((prev) =>
+      prev
+        .map((item) =>
+          item.id === id ? { ...item, pinned: !item.pinned } : item
+        )
+        .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+    );
+  }
+
+  function deleteRecentFilter(id: string) {
+    setRecentFilters((prev) => prev.filter((item) => item.id !== id));
   }
 
   function startNoteEdit(threadId: string) {
@@ -2196,13 +2232,7 @@ ${answer.citations
                     </button>
                   </div>
                 </div>
-                <div className="flex flex-col gap-2">
-                  <button
-                    onClick={bulkDeleteThreads}
-                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                  >
-                    Delete selected
-                  </button>
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() =>
                       bulkArchive(
@@ -2222,6 +2252,14 @@ ${answer.citations
                       ? "Unarchive selected"
                       : "Archive selected"}
                   </button>
+                  <button
+                    onClick={bulkDeleteThreads}
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  >
+                    Delete selected
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
                     <select
                       value={bulkSpaceId}
@@ -2400,27 +2438,35 @@ ${answer.citations
                           <span className="text-sm text-signal-text">
                             {item.label}
                           </span>
-                          <button
-                            onClick={() => {
-                              setSearch(item.query);
-                              setFilterMode(item.filterMode);
-                              setFavoritesOnly(item.favoritesOnly);
-                              setPinnedOnly(item.pinnedOnly);
-                              setArchivedOnly(item.archivedOnly);
-                              setCollectionFilter(item.collectionFilter);
-                              setTagFilter(item.tagFilter);
-                              setSort(item.sort);
-                              setSortByTag(item.sortByTag);
-                              setNotice("Applied recent filter.");
-                            }}
-                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                          >
-                            Apply
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => togglePinRecentFilter(item.id)}
+                              className={cn(
+                                "rounded-full border px-2 py-1 text-[11px]",
+                                item.pinned
+                                  ? "border-signal-accent text-signal-text"
+                                  : "border-white/10"
+                              )}
+                            >
+                              {item.pinned ? "Pinned" : "Pin"}
+                            </button>
+                            <button
+                              onClick={() => deleteRecentFilter(item.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
                         <p className="mt-2 text-[11px]">
                           {new Date(item.createdAt).toLocaleString()}
                         </p>
+                        <button
+                          onClick={() => applyRecentFilter(item)}
+                          className="mt-2 rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Apply
+                        </button>
                       </div>
                     ))
                   )}
