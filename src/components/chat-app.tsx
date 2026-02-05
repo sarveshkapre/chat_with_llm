@@ -118,6 +118,7 @@ export default function ChatApp() {
   const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [liveAnswer, setLiveAnswer] = useState("");
+  const [showDetails, setShowDetails] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -491,6 +492,7 @@ export default function ChatApp() {
       attachments: data.attachments.map(stripAttachmentText),
     };
     setCurrent(thread);
+    setShowDetails(false);
     if (!incognito) {
       setThreads((prev) => [thread, ...prev].slice(0, 30));
     }
@@ -1063,6 +1065,12 @@ export default function ChatApp() {
                   Share link
                 </button>
                 <button
+                  onClick={() => setShowDetails((prev) => !prev)}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
+                >
+                  {showDetails ? "Hide details" : "Source details"}
+                </button>
+                <button
                   onClick={editQuestion}
                   className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
                 >
@@ -1090,6 +1098,75 @@ export default function ChatApp() {
                 >
                   👎
                 </button>
+              </div>
+            ) : null}
+            {current && showDetails ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-4 text-xs text-signal-muted">
+                <p className="text-xs uppercase tracking-[0.2em] text-signal-muted">
+                  Answer details
+                </p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Provider
+                    </p>
+                    <p className="text-sm text-signal-text">{current.provider}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Mode
+                    </p>
+                    <p className="text-sm text-signal-text">{current.mode}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Sources
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.sources === "web" ? "Web" : "Offline"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Latency
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.latencyMs}ms
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Attachments
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.attachments.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Citations
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.citations.length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Space
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.spaceName ?? "None"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Created
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {new Date(current.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : null}
             {current?.citations?.length ? (
