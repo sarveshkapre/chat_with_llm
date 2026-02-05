@@ -21,6 +21,7 @@ export type Answer = {
   answer: string;
   mode: AnswerMode;
   sources: SourceMode;
+  model?: string;
   createdAt: string;
   citations: Citation[];
   attachments: Attachment[];
@@ -32,6 +33,7 @@ export type AnswerRequest = {
   question: string;
   mode: AnswerMode;
   sources: SourceMode;
+  model?: string;
   context?: string;
   attachments?: Attachment[];
   spaceInstructions?: string;

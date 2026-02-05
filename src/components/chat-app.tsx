@@ -70,6 +70,8 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
   },
 ];
 
+const REWRITE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
+
 const TASK_CADENCES: { id: TaskCadence; label: string }[] = [
   { id: "once", label: "Once" },
   { id: "daily", label: "Daily" },
@@ -208,6 +210,9 @@ export default function ChatApp() {
   const [fileSearchQuery, setFileSearchQuery] = useState("");
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
+  const [rewriteModel, setRewriteModel] = useState<(typeof REWRITE_MODELS)[number]>(
+    "gpt-4.1-mini"
+  );
   const [useThreadContext, setUseThreadContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
@@ -979,6 +984,61 @@ ${answer.citations
     const url = `${window.location.origin}?thread=${current.id}`;
     navigator.clipboard.writeText(url).catch(() => null);
     setNotice("Share link copied.");
+  }
+
+  async function rewriteCurrentAnswer() {
+    if (!current || loading) return;
+    setLoading(true);
+    setError(null);
+    setNotice(`Rewriting with ${rewriteModel}...`);
+
+    try {
+      const space = spaces.find((item) => item.id === current.spaceId) ?? null;
+      const response = await fetch("/api/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: current.question,
+          mode: current.mode,
+          sources: current.sources,
+          model: rewriteModel,
+          attachments: [],
+          spaceInstructions: space?.instructions ?? "",
+          spaceId: space?.id,
+          spaceName: space?.name,
+        }),
+      });
+      const data = (await response.json()) as AnswerResponse & {
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Rewrite failed");
+      }
+
+      const rewritten: Thread = {
+        ...data,
+        id: current.id,
+        feedback: current.feedback ?? null,
+        title: current.title ?? current.question,
+        pinned: current.pinned ?? false,
+        favorite: current.favorite ?? false,
+        collectionId: current.collectionId ?? null,
+        tags: current.tags ?? [],
+        archived: current.archived ?? false,
+        attachments: data.attachments.map(stripAttachmentText),
+      };
+
+      setCurrent(rewritten);
+      setThreads((prev) =>
+        prev.map((thread) => (thread.id === rewritten.id ? rewritten : thread))
+      );
+      setShowDetails(false);
+      setNotice(`Rewritten with ${rewritten.model ?? rewriteModel}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Rewrite failed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   function editQuestion() {
@@ -2441,6 +2501,9 @@ ${answer.citations
                   {current?.provider ?? "mock"}
                 </span>
                 <span className="rounded-full border border-white/10 px-3 py-1">
+                  {current?.model ?? "default"}
+                </span>
+                <span className="rounded-full border border-white/10 px-3 py-1">
                   {current?.latencyMs ?? 0}ms
                 </span>
                 <span className="rounded-full border border-white/10 px-3 py-1">
@@ -2493,6 +2556,28 @@ ${answer.citations
             </div>
             {current ? (
               <div className="mt-6 flex flex-wrap gap-2">
+                <select
+                  value={rewriteModel}
+                  onChange={(event) =>
+                    setRewriteModel(
+                      event.target.value as (typeof REWRITE_MODELS)[number]
+                    )
+                  }
+                  className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs text-signal-text"
+                >
+                  {REWRITE_MODELS.map((modelOption) => (
+                    <option key={modelOption} value={modelOption}>
+                      {modelOption}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={rewriteCurrentAnswer}
+                  disabled={loading}
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Rewrite answer
+                </button>
                 <button
                   onClick={copyAnswer}
                   className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
@@ -2600,6 +2685,14 @@ ${answer.citations
                       Provider
                     </p>
                     <p className="text-sm text-signal-text">{current.provider}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Model
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.model ?? "default"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-[11px] uppercase text-signal-muted">

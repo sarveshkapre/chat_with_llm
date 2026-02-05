@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       question?: string;
       mode?: AnswerMode;
       sources?: SourceMode;
+      model?: string;
       context?: string;
       attachments?: Attachment[];
       spaceInstructions?: string;
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
       question,
       mode,
       sources,
+      body.model?.trim() || undefined,
       body.context?.trim() || undefined,
       body.attachments ?? [],
       body.spaceInstructions,

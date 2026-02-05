@@ -64,6 +64,7 @@ export async function POST(request: Request) {
     question?: string;
     mode?: AnswerMode;
     sources?: SourceMode;
+    model?: string;
     context?: string;
     attachments?: Attachment[];
     spaceInstructions?: string;
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
             question,
             mode,
             sources,
+            body.model?.trim() || undefined,
             body.context?.trim() || undefined,
             attachments,
             body.spaceInstructions,
@@ -129,7 +131,7 @@ export async function POST(request: Request) {
           apiKey: openaiKey,
           baseURL: process.env.OPENAI_BASE_URL || undefined,
         });
-        const model = process.env.OPENAI_MODEL ?? "gpt-4.1";
+        const model = body.model?.trim() || process.env.OPENAI_MODEL || "gpt-4.1";
 
         const tools =
           sources === "web" ? [{ type: "web_search_preview" as const }] : [];
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
           answer: extracted || answerText || "No answer returned.",
           mode,
           sources,
+          model,
           createdAt: new Date().toISOString(),
           citations,
           attachments: sanitizeAttachments(attachments),

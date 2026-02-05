@@ -55,6 +55,7 @@ export async function answerWithOpenAI(
   question: string,
   mode: AnswerMode,
   sources: SourceMode,
+  modelOverride: string | undefined,
   context: string | undefined,
   attachments: Attachment[],
   spaceInstructions?: string,
@@ -69,7 +70,7 @@ export async function answerWithOpenAI(
     apiKey,
     baseURL: process.env.OPENAI_BASE_URL || undefined,
   });
-  const model = process.env.OPENAI_MODEL ?? DEFAULT_MODEL;
+  const model = modelOverride || process.env.OPENAI_MODEL || DEFAULT_MODEL;
   const start = Date.now();
 
   const tools =
@@ -103,6 +104,7 @@ export async function answerWithOpenAI(
     answer: answerText || "No answer returned.",
     mode,
     sources,
+    model,
     createdAt: new Date().toISOString(),
     citations,
     attachments,

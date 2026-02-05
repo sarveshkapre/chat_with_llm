@@ -17,6 +17,7 @@ npm install && npm run dev
 - Thread library with search, filters, and share links
 - Conversational follow-ups with optional thread context toggle
 - Thread-scoped follow-up lock for mode/source with one-click new-thread reset
+- Rewrite current answer with a selected model + model visibility in answer details
 - Research report view with export + print
 - Bulk thread actions (delete, assign to space)
 - Thread renaming + compact library view
