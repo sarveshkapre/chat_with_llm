@@ -71,9 +71,12 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
 ];
 
 const TASK_CADENCES: { id: TaskCadence; label: string }[] = [
+  { id: "once", label: "Once" },
   { id: "daily", label: "Daily" },
   { id: "weekday", label: "Weekdays" },
   { id: "weekly", label: "Weekly" },
+  { id: "monthly", label: "Monthly" },
+  { id: "yearly", label: "Yearly" },
 ];
 
 const RESEARCH_STEPS = [
@@ -1873,10 +1876,69 @@ ${answer.citations
     return base;
   }
 
-  function computeNextRun(cadence: TaskCadence, time: string, day?: number) {
-    if (cadence === "weekday") return nextWeekday(time);
-    if (cadence === "weekly") return nextWeekly(time, day ?? new Date().getDay());
-    return nextDaily(time);
+  function daysInMonth(year: number, month: number) {
+    return new Date(year, month + 1, 0).getDate();
+  }
+
+  function nextMonthly(time: string, dayOfMonth: number, from = new Date()) {
+    const base = setTime(new Date(from.getFullYear(), from.getMonth(), 1), time);
+    base.setDate(Math.min(dayOfMonth, daysInMonth(base.getFullYear(), base.getMonth())));
+    if (base <= from) {
+      const nextMonth = new Date(base.getFullYear(), base.getMonth() + 1, 1);
+      nextMonth.setHours(base.getHours(), base.getMinutes(), 0, 0);
+      nextMonth.setDate(
+        Math.min(dayOfMonth, daysInMonth(nextMonth.getFullYear(), nextMonth.getMonth()))
+      );
+      return nextMonth;
+    }
+    return base;
+  }
+
+  function nextYearly(
+    time: string,
+    monthOfYear: number,
+    dayOfMonth: number,
+    from = new Date()
+  ) {
+    const month = Math.max(0, Math.min(11, monthOfYear));
+    const base = setTime(new Date(from.getFullYear(), month, 1), time);
+    base.setDate(Math.min(dayOfMonth, daysInMonth(base.getFullYear(), month)));
+    if (base <= from) {
+      const nextYear = new Date(base.getFullYear() + 1, month, 1);
+      nextYear.setHours(base.getHours(), base.getMinutes(), 0, 0);
+      nextYear.setDate(Math.min(dayOfMonth, daysInMonth(nextYear.getFullYear(), month)));
+      return nextYear;
+    }
+    return base;
+  }
+
+  function computeNextRun(
+    cadence: TaskCadence,
+    time: string,
+    options?: {
+      dayOfWeek?: number | null;
+      dayOfMonth?: number | null;
+      monthOfYear?: number | null;
+    },
+    from = new Date()
+  ) {
+    if (cadence === "once") return nextDaily(time, from);
+    if (cadence === "weekday") return nextWeekday(time, from);
+    if (cadence === "weekly") {
+      return nextWeekly(time, options?.dayOfWeek ?? from.getDay(), from);
+    }
+    if (cadence === "monthly") {
+      return nextMonthly(time, options?.dayOfMonth ?? from.getDate(), from);
+    }
+    if (cadence === "yearly") {
+      return nextYearly(
+        time,
+        options?.monthOfYear ?? from.getMonth(),
+        options?.dayOfMonth ?? from.getDate(),
+        from
+      );
+    }
+    return nextDaily(time, from);
   }
 
   function createTask() {
@@ -1887,7 +1949,21 @@ ${answer.citations
 
     const createdAt = new Date();
     const dayOfWeek = taskCadence === "weekly" ? createdAt.getDay() : null;
-    const nextRun = computeNextRun(taskCadence, taskTime, dayOfWeek ?? undefined);
+    const dayOfMonth =
+      taskCadence === "monthly" || taskCadence === "yearly"
+        ? createdAt.getDate()
+        : null;
+    const monthOfYear = taskCadence === "yearly" ? createdAt.getMonth() : null;
+    const nextRun = computeNextRun(
+      taskCadence,
+      taskTime,
+      {
+        dayOfWeek,
+        dayOfMonth,
+        monthOfYear,
+      },
+      createdAt
+    );
 
     const task: Task = {
       id: nanoid(),
@@ -1901,6 +1977,8 @@ ${answer.citations
       nextRun: nextRun.toISOString(),
       lastRun: null,
       dayOfWeek,
+      dayOfMonth,
+      monthOfYear,
       spaceId: activeSpace?.id ?? null,
       spaceName: activeSpace?.name ?? null,
     };
@@ -1913,6 +1991,10 @@ ${answer.citations
 
   async function runTask(task: Task) {
     if (taskRunningId) return;
+    if (task.cadence === "once" && task.lastRun) {
+      setNotice("This one-time task has already run.");
+      return;
+    }
     setTaskRunningId(task.id);
     setNotice("Running task...");
 
@@ -1941,17 +2023,26 @@ ${answer.citations
 
       handleStreamDone(data);
 
-      const nextRun = computeNextRun(
-        task.cadence,
-        task.time,
-        task.dayOfWeek ?? undefined
-      );
+      const now = new Date();
+      const nextRun =
+        task.cadence === "once"
+          ? now
+          : computeNextRun(
+              task.cadence,
+              task.time,
+              {
+                dayOfWeek: task.dayOfWeek,
+                dayOfMonth: task.dayOfMonth,
+                monthOfYear: task.monthOfYear,
+              },
+              now
+            );
       setTasks((prev) =>
         prev.map((item) =>
           item.id === task.id
             ? {
                 ...item,
-                lastRun: new Date().toISOString(),
+                lastRun: now.toISOString(),
                 nextRun: nextRun.toISOString(),
               }
             : item
@@ -3743,10 +3834,17 @@ ${answer.citations
                     <div className="mt-3 flex items-center gap-2">
                       <button
                         onClick={() => runTask(task)}
-                        disabled={taskRunningId === task.id}
+                        disabled={
+                          taskRunningId === task.id ||
+                          (task.cadence === "once" && Boolean(task.lastRun))
+                        }
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
                       >
-                        {taskRunningId === task.id ? "Running" : "Run now"}
+                        {taskRunningId === task.id
+                          ? "Running"
+                          : task.cadence === "once" && task.lastRun
+                            ? "Completed"
+                            : "Run now"}
                       </button>
                       <button
                         onClick={() => deleteTask(task.id)}
