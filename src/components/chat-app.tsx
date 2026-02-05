@@ -393,6 +393,7 @@ export default function ChatApp() {
     setLoading(true);
     setError(null);
     setLiveAnswer("");
+    setCurrent(null);
 
     const requestAttachments = buildRequestAttachments();
     const requestBody = {
