@@ -29,6 +29,7 @@ type Thread = AnswerResponse & {
   title?: string | null;
   pinned?: boolean;
   favorite?: boolean;
+  visibility?: "private" | "link";
   collectionId?: string | null;
   tags?: string[];
   archived?: boolean;
@@ -227,6 +228,7 @@ export default function ChatApp() {
           title: thread.title ?? thread.question,
           pinned: thread.pinned ?? false,
           favorite: thread.favorite ?? false,
+          visibility: thread.visibility ?? "private",
           collectionId: thread.collectionId ?? null,
           tags: thread.tags ?? [],
           archived: thread.archived ?? false,
@@ -822,6 +824,7 @@ export default function ChatApp() {
       title: data.question,
       pinned: false,
       favorite: false,
+      visibility: "private",
       collectionId: null,
       tags: [],
       archived: false,
@@ -874,7 +877,7 @@ small { color: #64748b; }
 <body>
 <header>
 <h1>${answer.title ?? answer.question}</h1>
-<small>Mode: ${answer.mode} · Sources: ${answer.sources === "web" ? "Web" : "Offline"}</small>
+<small>Mode: ${answer.mode} · Sources: ${answer.sources === "web" ? "Web" : "Offline"} · Visibility: ${answer.visibility === "link" ? "Anyone with link" : "Private"}</small>
 </header>
 ${answer.answer
   .split("\n\n")
@@ -899,6 +902,7 @@ ${answer.citations
       "",
       `Mode: ${current.mode}`,
       `Sources: ${current.sources === "web" ? "Web" : "Offline"}`,
+      `Visibility: ${current.visibility === "link" ? "Anyone with link" : "Private"}`,
       current.spaceName ? `Space: ${current.spaceName}` : null,
       "",
       "## Sources",
@@ -942,6 +946,8 @@ ${answer.citations
             new Paragraph(
               `Mode: ${current.mode} · Sources: ${
                 current.sources === "web" ? "Web" : "Offline"
+              } · Visibility: ${
+                current.visibility === "link" ? "Anyone with link" : "Private"
               }`
             ),
             ...paragraphs,
@@ -981,9 +987,12 @@ ${answer.citations
 
   function shareThread() {
     if (!current) return;
+    if (current.visibility !== "link") {
+      setThreadVisibility(current.id, "link");
+    }
     const url = `${window.location.origin}?thread=${current.id}`;
     navigator.clipboard.writeText(url).catch(() => null);
-    setNotice("Share link copied.");
+    setNotice("Share link copied. Visibility: anyone with the link.");
   }
 
   async function rewriteCurrentAnswer() {
@@ -1022,6 +1031,7 @@ ${answer.citations
         title: current.title ?? current.question,
         pinned: current.pinned ?? false,
         favorite: current.favorite ?? false,
+        visibility: current.visibility ?? "private",
         collectionId: current.collectionId ?? null,
         tags: current.tags ?? [],
         archived: current.archived ?? false,
@@ -1155,6 +1165,22 @@ ${answer.citations
         prev ? { ...prev, favorite: !prev.favorite } : prev
       );
     }
+  }
+
+  function setThreadVisibility(id: string, visibility: "private" | "link") {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id ? { ...thread, visibility } : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) => (prev ? { ...prev, visibility } : prev));
+    }
+    setNotice(
+      visibility === "link"
+        ? "Thread is now shareable by link."
+        : "Thread visibility set to private."
+    );
   }
 
   function assignCollection(id: string, collectionId: string | null) {
@@ -1447,9 +1473,14 @@ ${answer.citations
           : "Tags: none";
         const pinned = thread.pinned ? "Pinned: yes" : "Pinned: no";
         const favorite = thread.favorite ? "Favorite: yes" : "Favorite: no";
+        const visibility =
+          thread.visibility === "link"
+            ? "Visibility: anyone with link"
+            : "Visibility: private";
         return [
           `${index + 1}. ${title}`,
           `   - ${pinned} · ${favorite}`,
+          `   - ${visibility}`,
           `   - ${tags}`,
           `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
         ].join("\n");
@@ -1803,7 +1834,7 @@ ${answer.citations
         const title = thread.title ?? thread.question;
         return [
           `${index + 1}. ${title}`,
-          `   - Mode: ${thread.mode} · Sources: ${thread.sources === "web" ? "Web" : "Offline"}`,
+          `   - Mode: ${thread.mode} · Sources: ${thread.sources === "web" ? "Web" : "Offline"} · Visibility: ${thread.visibility === "link" ? "Anyone with link" : "Private"}`,
           `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
         ].join("\n");
       }),
@@ -2509,6 +2540,11 @@ ${answer.citations
                 <span className="rounded-full border border-white/10 px-3 py-1">
                   {current?.sources === "web" ? "Web" : "Offline"}
                 </span>
+                {current ? (
+                  <span className="rounded-full border border-white/10 px-3 py-1">
+                    {current.visibility === "link" ? "Link shared" : "Private"}
+                  </span>
+                ) : null}
                 {current?.spaceName ? (
                   <span className="rounded-full border border-white/10 px-3 py-1">
                     {current.spaceName}
@@ -2617,6 +2653,19 @@ ${answer.citations
                   Share link
                 </button>
                 <button
+                  onClick={() =>
+                    setThreadVisibility(
+                      current.id,
+                      current.visibility === "link" ? "private" : "link"
+                    )
+                  }
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
+                >
+                  {current.visibility === "link"
+                    ? "Set private"
+                    : "Enable link sharing"}
+                </button>
+                <button
                   onClick={() => setShowDetails((prev) => !prev)}
                   className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
                 >
@@ -2706,6 +2755,16 @@ ${answer.citations
                     </p>
                     <p className="text-sm text-signal-text">
                       {current.sources === "web" ? "Web" : "Offline"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Visibility
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.visibility === "link"
+                        ? "Anyone with link"
+                        : "Private"}
                     </p>
                   </div>
                   <div>
@@ -3303,7 +3362,8 @@ ${answer.citations
                       {libraryCompact ? (
                         <p className="mt-1 text-[11px] text-signal-muted">
                           {new Date(thread.createdAt).toLocaleString()} ·{" "}
-                          {thread.mode}
+                          {thread.mode} ·{" "}
+                          {thread.visibility === "link" ? "Link" : "Private"}
                         </p>
                       ) : (
                         <div className="mt-2 flex items-center gap-2 text-[11px] text-signal-muted">
@@ -3312,6 +3372,9 @@ ${answer.citations
                           </span>
                           <span className="rounded-full border border-white/10 px-2 py-0.5">
                             {thread.sources === "web" ? "Web" : "Offline"}
+                          </span>
+                          <span className="rounded-full border border-white/10 px-2 py-0.5">
+                            {thread.visibility === "link" ? "Link" : "Private"}
                           </span>
                           {thread.spaceName ? (
                             <span className="rounded-full border border-white/10 px-2 py-0.5">
@@ -3388,6 +3451,17 @@ ${answer.citations
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         Rename
+                      </button>
+                      <button
+                        onClick={() =>
+                          setThreadVisibility(
+                            thread.id,
+                            thread.visibility === "link" ? "private" : "link"
+                          )
+                        }
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        {thread.visibility === "link" ? "Private" : "Link"}
                       </button>
                       <select
                         value={thread.collectionId ?? ""}

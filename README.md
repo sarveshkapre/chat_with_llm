@@ -15,6 +15,7 @@ npm install && npm run dev
 - Source toggle (web or offline)
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
+- Thread visibility controls (private vs link) with share-state badges
 - Conversational follow-ups with optional thread context toggle
 - Thread-scoped follow-up lock for mode/source with one-click new-thread reset
 - Rewrite current answer with a selected model + model visibility in answer details
