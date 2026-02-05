@@ -53,7 +53,7 @@ npm install && npm run dev
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
-- Tasks scheduler (local-only) with once/daily/weekday/weekly/monthly/yearly cadences
+- Tasks scheduler (local-only) with once/daily/weekday/weekly/monthly/yearly cadences and explicit Space targeting
 - Pluggable provider interface (OpenAI now, OSS models next)
 
 ## Configuration

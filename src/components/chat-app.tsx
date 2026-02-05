@@ -197,6 +197,9 @@ export default function ChatApp() {
   const [taskTime, setTaskTime] = useState("09:00");
   const [taskMode, setTaskMode] = useState<AnswerMode>("quick");
   const [taskSources, setTaskSources] = useState<SourceMode>("web");
+  const [taskSpaceTarget, setTaskSpaceTarget] = useState<"active" | "none" | string>(
+    "active"
+  );
   const [taskRunningId, setTaskRunningId] = useState<string | null>(null);
   const [researchStepIndex, setResearchStepIndex] = useState(0);
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
@@ -1985,6 +1988,14 @@ ${answer.citations
         ? createdAt.getDate()
         : null;
     const monthOfYear = taskCadence === "yearly" ? createdAt.getMonth() : null;
+    const selectedSpaceId =
+      taskSpaceTarget === "active"
+        ? activeSpace?.id ?? null
+        : taskSpaceTarget === "none"
+          ? null
+          : taskSpaceTarget;
+    const selectedSpace =
+      spaces.find((space) => space.id === selectedSpaceId) ?? null;
     const nextRun = computeNextRun(
       taskCadence,
       taskTime,
@@ -2010,13 +2021,14 @@ ${answer.citations
       dayOfWeek,
       dayOfMonth,
       monthOfYear,
-      spaceId: activeSpace?.id ?? null,
-      spaceName: activeSpace?.name ?? null,
+      spaceId: selectedSpace?.id ?? null,
+      spaceName: selectedSpace?.name ?? null,
     };
 
     setTasks((prev) => [task, ...prev]);
     setTaskName("");
     setTaskPrompt("");
+    setTaskSpaceTarget("active");
     setNotice("Task created.");
   }
 
@@ -3853,6 +3865,21 @@ ${answer.citations
                   ))}
                 </select>
               </div>
+              <select
+                value={taskSpaceTarget}
+                onChange={(event) => setTaskSpaceTarget(event.target.value)}
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+              >
+                <option value="active">
+                  {activeSpace ? `Active space (${activeSpace.name})` : "Active space (none)"}
+                </option>
+                <option value="none">No space</option>
+                {spaces.map((space) => (
+                  <option key={space.id} value={space.id}>
+                    {space.name}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={createTask}
                 className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
@@ -3879,6 +3906,7 @@ ${answer.citations
                     </div>
                     <div className="mt-2 text-[11px]">
                       <p>Next: {new Date(task.nextRun).toLocaleString()}</p>
+                      <p>Space: {task.spaceName ?? "No space"}</p>
                       {task.lastRun ? (
                         <p>Last: {new Date(task.lastRun).toLocaleString()}</p>
                       ) : null}
