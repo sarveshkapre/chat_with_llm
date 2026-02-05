@@ -2874,6 +2874,14 @@ ${answer.citations
                       >
                         Duplicate
                       </button>
+                      <button
+                        onClick={() =>
+                          setActiveSpaceId(thread.spaceId ?? null)
+                        }
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        {thread.spaceId ? "Set active space" : "Clear active space"}
+                      </button>
                       <select
                         onChange={(event) => {
                           const value = event.target.value;
@@ -3195,6 +3203,19 @@ ${answer.citations
                       >
                         Delete
                       </button>
+                    </div>
+                    <div className="mt-2 text-[11px] text-signal-muted">
+                      {threads.filter((thread) => thread.spaceId === space.id).length}{" "}
+                      threads ·{" "}
+                      {(() => {
+                        const latest = threads
+                          .filter((thread) => thread.spaceId === space.id)
+                          .map((thread) => new Date(thread.createdAt).getTime());
+                        if (!latest.length) return "No activity yet";
+                        return `Last: ${new Date(
+                          Math.max(...latest)
+                        ).toLocaleDateString()}`;
+                      })()}
                     </div>
                   </div>
                 ))
