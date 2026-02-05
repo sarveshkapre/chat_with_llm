@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import type {
   AnswerMode,
   AnswerResponse,
@@ -89,6 +90,7 @@ const FILES_KEY = "signal-files-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
 const NOTES_KEY = "signal-notes-v1";
 const SEARCHES_KEY = "signal-saved-searches-v1";
+const PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -147,6 +149,7 @@ export default function ChatApp() {
     }[]
   >([]);
   const [savedSearchName, setSavedSearchName] = useState("");
+  const [pinnedSearchIds, setPinnedSearchIds] = useState<string[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -245,6 +248,16 @@ export default function ChatApp() {
       }
     }
 
+    const pinnedSearchStore = localStorage.getItem(PINNED_SEARCHES_KEY);
+    if (pinnedSearchStore) {
+      try {
+        const parsed = JSON.parse(pinnedSearchStore) as string[];
+        setPinnedSearchIds(parsed);
+      } catch {
+        setPinnedSearchIds([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -278,6 +291,13 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(SEARCHES_KEY, JSON.stringify(savedSearches));
   }, [savedSearches]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      PINNED_SEARCHES_KEY,
+      JSON.stringify(pinnedSearchIds)
+    );
+  }, [pinnedSearchIds]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -1054,6 +1074,52 @@ ${answer.citations
     setSavedSearches((prev) => prev.filter((item) => item.id !== id));
   }
 
+  function togglePinnedSearch(id: string) {
+    setPinnedSearchIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function exportFilteredLibrary() {
+    const lines: string[] = [
+      "# Signal Search Library Export",
+      "",
+      `Query: ${search || "None"}`,
+      `Mode: ${filterMode}`,
+      `Favorites: ${favoritesOnly ? "Yes" : "No"}`,
+      `Pinned: ${pinnedOnly ? "Yes" : "No"}`,
+      `Collection: ${collectionFilter || "All"}`,
+      `Tag: ${tagFilter || "All"}`,
+      `Sort: ${sort}${sortByTag ? " + tag" : ""}`,
+      "",
+      `Total threads: ${filteredThreads.length}`,
+      "",
+      "## Threads",
+      ...filteredThreads.map((thread, index) => {
+        const title = thread.title ?? thread.question;
+        const tags = (thread.tags ?? []).length
+          ? `Tags: ${(thread.tags ?? []).join(", ")}`
+          : "Tags: none";
+        const pinned = thread.pinned ? "Pinned: yes" : "Pinned: no";
+        const favorite = thread.favorite ? "Favorite: yes" : "Favorite: no";
+        return [
+          `${index + 1}. ${title}`,
+          `   - ${pinned} · ${favorite}`,
+          `   - ${tags}`,
+          `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-library-export-${Date.now()}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   function startNoteEdit(threadId: string) {
     setEditingNoteId(threadId);
     setNoteDraft(notes[threadId] ?? "");
@@ -1345,12 +1411,29 @@ ${answer.citations
           <span className="rounded-full border border-white/10 px-3 py-1">
             Library
           </span>
-          <a
+          {pinnedSearchIds.length ? (
+            <div className="flex items-center gap-2">
+              {pinnedSearchIds
+                .map((id) => savedSearches.find((item) => item.id === id))
+                .filter(Boolean)
+                .slice(0, 3)
+                .map((item) => (
+                  <button
+                    key={item?.id}
+                    onClick={() => item && applySavedSearch(item.id)}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs"
+                  >
+                    {item?.name}
+                  </button>
+                ))}
+            </div>
+          ) : null}
+          <Link
             href="/collections"
             className="rounded-full border border-white/10 px-3 py-1"
           >
             Collections
-          </a>
+          </Link>
           <span className="rounded-full border border-white/10 px-3 py-1">
             Spaces
           </span>
@@ -1925,6 +2008,12 @@ ${answer.citations
               >
                 {libraryCompact ? "Expanded view" : "Compact view"}
               </button>
+              <button
+                onClick={exportFilteredLibrary}
+                className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
+              >
+                Export filtered view
+              </button>
             </div>
             {selectedThreadIds.length ? (
               <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
@@ -2073,12 +2162,25 @@ ${answer.citations
                         <span className="text-sm text-signal-text">
                           {item.name}
                         </span>
-                        <button
-                          onClick={() => deleteSavedSearch(item.id)}
-                          className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                        >
-                          Delete
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => togglePinnedSearch(item.id)}
+                            className={cn(
+                              "rounded-full border px-2 py-1 text-[11px]",
+                              pinnedSearchIds.includes(item.id)
+                                ? "border-signal-accent text-signal-text"
+                                : "border-white/10"
+                            )}
+                          >
+                            {pinnedSearchIds.includes(item.id) ? "Pinned" : "Pin"}
+                          </button>
+                          <button
+                            onClick={() => deleteSavedSearch(item.id)}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                       <p className="mt-2 text-[11px]">
                         {item.query ? `Query: ${item.query}` : "No query"}

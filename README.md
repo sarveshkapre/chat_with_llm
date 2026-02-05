@@ -24,6 +24,7 @@ npm install && npm run dev
 - Collections dashboard + tag filters
 - Bulk tag assignment + tag-based sorting
 - Saved search presets + collection export to Markdown
+- Pinned saved searches + export filtered library
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
