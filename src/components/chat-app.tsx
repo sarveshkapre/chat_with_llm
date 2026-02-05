@@ -23,6 +23,7 @@ import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import { nanoid } from "nanoid";
 
 type Feedback = "up" | "down" | null;
+type ThreadRetention = "guest" | "incognito";
 
 type Thread = AnswerResponse & {
   feedback?: Feedback;
@@ -30,6 +31,8 @@ type Thread = AnswerResponse & {
   pinned?: boolean;
   favorite?: boolean;
   visibility?: "private" | "link";
+  retention?: ThreadRetention;
+  expiresAt?: string | null;
   collectionId?: string | null;
   tags?: string[];
   archived?: boolean;
@@ -136,6 +139,8 @@ const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
 const MAX_LIBRARY_FILES = 20;
 const MAX_LIBRARY_FILE_SIZE = 200_000;
+const GUEST_RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+const INCOGNITO_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 function normalizeRequestModel(
   value?: string | null
@@ -144,6 +149,47 @@ function normalizeRequestModel(
   return REQUEST_MODELS.includes(value as (typeof REQUEST_MODELS)[number])
     ? (value as (typeof REQUEST_MODELS)[number])
     : "auto";
+}
+
+function computeThreadExpiry(createdAt: string, retention: ThreadRetention) {
+  const start = Date.parse(createdAt);
+  const base = Number.isNaN(start) ? Date.now() : start;
+  const windowMs =
+    retention === "incognito" ? INCOGNITO_RETENTION_MS : GUEST_RETENTION_MS;
+  return new Date(base + windowMs).toISOString();
+}
+
+function isThreadExpired(thread: Thread, nowMs = Date.now()) {
+  const expiresMs = Date.parse(thread.expiresAt ?? "");
+  return !Number.isNaN(expiresMs) && expiresMs <= nowMs;
+}
+
+function normalizeThread(thread: Thread): Thread {
+  const retention: ThreadRetention = thread.retention ?? "guest";
+  const createdAt = thread.createdAt || new Date().toISOString();
+  return {
+    ...thread,
+    createdAt,
+    title: thread.title ?? thread.question,
+    pinned: thread.pinned ?? false,
+    favorite: thread.favorite ?? false,
+    visibility: thread.visibility ?? "private",
+    retention,
+    expiresAt: thread.expiresAt ?? computeThreadExpiry(createdAt, retention),
+    collectionId: thread.collectionId ?? null,
+    tags: thread.tags ?? [],
+    archived: thread.archived ?? false,
+  };
+}
+
+function threadRetentionLabel(thread: Thread) {
+  return thread.retention === "incognito" ? "Incognito (24h)" : "Guest (14d)";
+}
+
+function formatThreadExpiry(expiresAt?: string | null) {
+  const expiryMs = Date.parse(expiresAt ?? "");
+  if (Number.isNaN(expiryMs)) return "Unknown";
+  return new Date(expiryMs).toLocaleString();
 }
 
 export default function ChatApp() {
@@ -272,17 +318,13 @@ export default function ChatApp() {
     if (stored) {
       try {
         const parsed = JSON.parse(stored) as Thread[];
-        const normalized = parsed.map((thread) => ({
-          ...thread,
-          title: thread.title ?? thread.question,
-          pinned: thread.pinned ?? false,
-          favorite: thread.favorite ?? false,
-          visibility: thread.visibility ?? "private",
-          collectionId: thread.collectionId ?? null,
-          tags: thread.tags ?? [],
-          archived: thread.archived ?? false,
-        }));
-        setThreads(normalized);
+        const normalized = parsed.map((thread) => normalizeThread(thread));
+        const pruned = normalized.filter((thread) => !isThreadExpired(thread));
+        const removed = normalized.length - pruned.length;
+        if (removed > 0) {
+          setNotice(`Removed ${removed} expired thread${removed === 1 ? "" : "s"}.`);
+        }
+        setThreads(pruned);
       } catch {
         setThreads([]);
       }
@@ -413,6 +455,16 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
   }, [threads]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setThreads((prev) => prev.filter((thread) => !isThreadExpired(thread)));
+      setCurrent((prev) =>
+        prev && isThreadExpired(prev) ? null : prev
+      );
+    }, 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
@@ -571,6 +623,7 @@ export default function ChatApp() {
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     const filtered = threads.filter((thread) => {
+      if (isThreadExpired(thread)) return false;
       const matchesMode = filterMode === "all" || thread.mode === filterMode;
       const matchesSearch =
         !normalized ||
@@ -903,22 +956,29 @@ export default function ChatApp() {
     data: AnswerResponse,
     options?: { forceSave?: boolean }
   ) {
-    const thread: Thread = {
+    const retention: ThreadRetention =
+      options?.forceSave ? "guest" : incognito ? "incognito" : "guest";
+    const createdAt = data.createdAt || new Date().toISOString();
+    const thread = normalizeThread({
       ...data,
+      createdAt,
       feedback: null,
       title: data.question,
       pinned: false,
       favorite: false,
       visibility: "private",
+      retention,
+      expiresAt: computeThreadExpiry(createdAt, retention),
       collectionId: null,
       tags: [],
       archived: false,
       attachments: data.attachments.map(stripAttachmentText),
-    };
+    });
     setCurrent(thread);
     setShowDetails(false);
-    if (!incognito || options?.forceSave) {
-      setThreads((prev) => [thread, ...prev].slice(0, 30));
+    setThreads((prev) => [thread, ...prev].slice(0, 30));
+    if (retention === "incognito") {
+      setNotice("Incognito thread saved for 24 hours.");
     }
     setQuestion("");
     setAttachments([]);
@@ -962,7 +1022,7 @@ small { color: #64748b; }
 <body>
 <header>
 <h1>${answer.title ?? answer.question}</h1>
-<small>Mode: ${answer.mode} · Sources: ${answer.sources === "web" ? "Web" : "Offline"} · Visibility: ${answer.visibility === "link" ? "Anyone with link" : "Private"}</small>
+<small>Mode: ${answer.mode} · Sources: ${answer.sources === "web" ? "Web" : "Offline"} · Visibility: ${answer.visibility === "link" ? "Anyone with link" : "Private"} · Retention: ${threadRetentionLabel(answer)} · Expires: ${formatThreadExpiry(answer.expiresAt)}</small>
 </header>
 ${answer.answer
   .split("\n\n")
@@ -988,6 +1048,8 @@ ${answer.citations
       `Mode: ${current.mode}`,
       `Sources: ${current.sources === "web" ? "Web" : "Offline"}`,
       `Visibility: ${current.visibility === "link" ? "Anyone with link" : "Private"}`,
+      `Retention: ${threadRetentionLabel(current)}`,
+      `Expires: ${formatThreadExpiry(current.expiresAt)}`,
       current.spaceName ? `Space: ${current.spaceName}` : null,
       "",
       "## Sources",
@@ -1033,7 +1095,9 @@ ${answer.citations
                 current.sources === "web" ? "Web" : "Offline"
               } · Visibility: ${
                 current.visibility === "link" ? "Anyone with link" : "Private"
-              }`
+              } · Retention: ${threadRetentionLabel(current)} · Expires: ${formatThreadExpiry(
+                current.expiresAt
+              )}`
             ),
             ...paragraphs,
             new Paragraph({
@@ -1072,6 +1136,10 @@ ${answer.citations
 
   function shareThread() {
     if (!current) return;
+    if (current.retention === "incognito") {
+      setNotice("Incognito threads cannot be shared.");
+      return;
+    }
     if (current.visibility !== "link") {
       setThreadVisibility(current.id, "link");
     }
@@ -1117,6 +1185,8 @@ ${answer.citations
         pinned: current.pinned ?? false,
         favorite: current.favorite ?? false,
         visibility: current.visibility ?? "private",
+        retention: current.retention ?? "guest",
+        expiresAt: current.expiresAt ?? null,
         collectionId: current.collectionId ?? null,
         tags: current.tags ?? [],
         archived: current.archived ?? false,
@@ -1253,6 +1323,13 @@ ${answer.citations
   }
 
   function setThreadVisibility(id: string, visibility: "private" | "link") {
+    const target = threads.find((thread) => thread.id === id);
+    const fallbackTarget = current?.id === id ? current : null;
+    const resolved = target ?? fallbackTarget;
+    if (visibility === "link" && resolved?.retention === "incognito") {
+      setNotice("Incognito threads cannot use link sharing.");
+      return;
+    }
     setThreads((prev) =>
       prev.map((thread) =>
         thread.id === id ? { ...thread, visibility } : thread
@@ -1558,6 +1635,8 @@ ${answer.citations
           : "Tags: none";
         const pinned = thread.pinned ? "Pinned: yes" : "Pinned: no";
         const favorite = thread.favorite ? "Favorite: yes" : "Favorite: no";
+        const retention = `Retention: ${threadRetentionLabel(thread)}`;
+        const expires = `Expires: ${formatThreadExpiry(thread.expiresAt)}`;
         const visibility =
           thread.visibility === "link"
             ? "Visibility: anyone with link"
@@ -1566,6 +1645,8 @@ ${answer.citations
           `${index + 1}. ${title}`,
           `   - ${pinned} · ${favorite}`,
           `   - ${visibility}`,
+          `   - ${retention}`,
+          `   - ${expires}`,
           `   - ${tags}`,
           `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
         ].join("\n");
@@ -1628,13 +1709,16 @@ ${answer.citations
   }
 
   function duplicateThread(thread: Thread) {
+    const createdAt = new Date().toISOString();
     const copy: Thread = {
       ...thread,
       id: nanoid(),
-      createdAt: new Date().toISOString(),
+      createdAt,
       question: `${thread.question} (copy)`,
       title: `${thread.title ?? thread.question} (copy)`,
       feedback: null,
+      retention: "guest",
+      expiresAt: computeThreadExpiry(createdAt, "guest"),
     };
     setThreads((prev) => [copy, ...prev]);
     setCurrent(copy);
@@ -1643,15 +1727,18 @@ ${answer.citations
 
   function duplicateThreadToSpace(thread: Thread, spaceId: string | null) {
     const space = spaces.find((item) => item.id === spaceId) ?? null;
+    const createdAt = new Date().toISOString();
     const copy: Thread = {
       ...thread,
       id: nanoid(),
-      createdAt: new Date().toISOString(),
+      createdAt,
       question: `${thread.question} (copy)`,
       title: `${thread.title ?? thread.question} (copy)`,
       feedback: null,
       spaceId: space?.id ?? null,
       spaceName: space?.name ?? null,
+      retention: "guest",
+      expiresAt: computeThreadExpiry(createdAt, "guest"),
     };
     setThreads((prev) => [copy, ...prev]);
     setCurrent(copy);
@@ -1665,16 +1752,21 @@ ${answer.citations
     const space = spaces.find((item) => item.id === spaceId) ?? null;
     const copies = threads
       .filter((thread) => selectedThreadIds.includes(thread.id))
-      .map((thread) => ({
-        ...thread,
-        id: nanoid(),
-        createdAt: new Date().toISOString(),
-        question: `${thread.question} (copy)`,
-        title: `${thread.title ?? thread.question} (copy)`,
-        feedback: null,
-        spaceId: space?.id ?? null,
-        spaceName: space?.name ?? null,
-      }));
+      .map((thread) => {
+        const createdAt = new Date().toISOString();
+        return {
+          ...thread,
+          id: nanoid(),
+          createdAt,
+          question: `${thread.question} (copy)`,
+          title: `${thread.title ?? thread.question} (copy)`,
+          feedback: null,
+          spaceId: space?.id ?? null,
+          spaceName: space?.name ?? null,
+          retention: "guest" as ThreadRetention,
+          expiresAt: computeThreadExpiry(createdAt, "guest"),
+        };
+      });
     if (!copies.length) return;
     setThreads((prev) => [...copies, ...prev]);
     setNotice(
@@ -1937,7 +2029,7 @@ ${answer.citations
         const title = thread.title ?? thread.question;
         return [
           `${index + 1}. ${title}`,
-          `   - Mode: ${thread.mode} · Sources: ${thread.sources === "web" ? "Web" : "Offline"} · Visibility: ${thread.visibility === "link" ? "Anyone with link" : "Private"}`,
+          `   - Mode: ${thread.mode} · Sources: ${thread.sources === "web" ? "Web" : "Offline"} · Visibility: ${thread.visibility === "link" ? "Anyone with link" : "Private"} · Retention: ${threadRetentionLabel(thread)}`,
           `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
         ].join("\n");
       }),
@@ -2018,15 +2110,20 @@ ${answer.citations
     setSpaces((prev) => [copy, ...prev]);
     const spaceThreads = threads.filter((thread) => thread.spaceId === space.id);
     if (spaceThreads.length) {
-      const copies = spaceThreads.map((thread) => ({
-        ...thread,
-        id: nanoid(),
-        createdAt: new Date().toISOString(),
-        question: `${thread.question} (copy)`,
-        title: `${thread.title ?? thread.question} (copy)`,
-        spaceId: copy.id,
-        spaceName: copy.name,
-      }));
+      const copies = spaceThreads.map((thread) => {
+        const createdAt = new Date().toISOString();
+        return {
+          ...thread,
+          id: nanoid(),
+          createdAt,
+          question: `${thread.question} (copy)`,
+          title: `${thread.title ?? thread.question} (copy)`,
+          spaceId: copy.id,
+          spaceName: copy.name,
+          retention: "guest" as ThreadRetention,
+          expiresAt: computeThreadExpiry(createdAt, "guest"),
+        };
+      });
       setThreads((prev) => [...copies, ...prev]);
     }
     setNotice("Space duplicated.");
@@ -2702,6 +2799,11 @@ ${answer.citations
                     {current.visibility === "link" ? "Link shared" : "Private"}
                   </span>
                 ) : null}
+                {current ? (
+                  <span className="rounded-full border border-white/10 px-3 py-1">
+                    {threadRetentionLabel(current)}
+                  </span>
+                ) : null}
                 {current?.spaceName ? (
                   <span className="rounded-full border border-white/10 px-3 py-1">
                     {current.spaceName}
@@ -2834,6 +2936,7 @@ ${answer.citations
                       current.visibility === "link" ? "private" : "link"
                     )
                   }
+                  disabled={current.retention === "incognito"}
                   className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
                 >
                   {current.visibility === "link"
@@ -2940,6 +3043,22 @@ ${answer.citations
                       {current.visibility === "link"
                         ? "Anyone with link"
                         : "Private"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Retention
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {threadRetentionLabel(current)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
+                      Expires
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {formatThreadExpiry(current.expiresAt)}
                     </p>
                   </div>
                   <div>
@@ -3538,7 +3657,8 @@ ${answer.citations
                         <p className="mt-1 text-[11px] text-signal-muted">
                           {new Date(thread.createdAt).toLocaleString()} ·{" "}
                           {thread.mode} ·{" "}
-                          {thread.visibility === "link" ? "Link" : "Private"}
+                          {thread.visibility === "link" ? "Link" : "Private"} ·{" "}
+                          {thread.retention === "incognito" ? "Incognito" : "Guest"}
                         </p>
                       ) : (
                         <div className="mt-2 flex items-center gap-2 text-[11px] text-signal-muted">
@@ -3551,13 +3671,17 @@ ${answer.citations
                           <span className="rounded-full border border-white/10 px-2 py-0.5">
                             {thread.visibility === "link" ? "Link" : "Private"}
                           </span>
+                          <span className="rounded-full border border-white/10 px-2 py-0.5">
+                            {thread.retention === "incognito" ? "Incognito" : "Guest"}
+                          </span>
                           {thread.spaceName ? (
                             <span className="rounded-full border border-white/10 px-2 py-0.5">
                               {thread.spaceName}
                             </span>
                           ) : null}
                           <span>
-                            {new Date(thread.createdAt).toLocaleString()}
+                            {new Date(thread.createdAt).toLocaleString()} · expires{" "}
+                            {formatThreadExpiry(thread.expiresAt)}
                           </span>
                         </div>
                       )}
@@ -3634,6 +3758,7 @@ ${answer.citations
                             thread.visibility === "link" ? "private" : "link"
                           )
                         }
+                        disabled={thread.retention === "incognito"}
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         {thread.visibility === "link" ? "Private" : "Link"}
