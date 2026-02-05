@@ -21,6 +21,7 @@ npm install && npm run dev
 - Export answers to Markdown, DOCX, and PDF
 - Favorites, pinned threads, and collections
 - Collection filter pills + thread notes
+- Collections dashboard + tag filters
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

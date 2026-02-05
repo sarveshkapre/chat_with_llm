@@ -29,6 +29,7 @@ type Thread = AnswerResponse & {
   pinned?: boolean;
   favorite?: boolean;
   collectionId?: string | null;
+  tags?: string[];
 };
 
 type StreamMessage =
@@ -119,11 +120,14 @@ export default function ChatApp() {
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [collectionFilter, setCollectionFilter] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
+  const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
+  const [tagDraft, setTagDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -154,6 +158,7 @@ export default function ChatApp() {
           pinned: thread.pinned ?? false,
           favorite: thread.favorite ?? false,
           collectionId: thread.collectionId ?? null,
+          tags: thread.tags ?? [],
         }));
         setThreads(normalized);
       } catch {
@@ -252,12 +257,21 @@ export default function ChatApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const threadId = params.get("thread");
-    if (!threadId) return;
-    const match = threads.find((thread) => thread.id === threadId);
-    if (match) {
-      setCurrent(match);
-    } else if (threads.length) {
-      setNotice("Shared thread not found in this browser library.");
+    const collectionId = params.get("collection");
+    const tag = params.get("tag");
+    if (threadId) {
+      const match = threads.find((thread) => thread.id === threadId);
+      if (match) {
+        setCurrent(match);
+      } else if (threads.length) {
+        setNotice("Shared thread not found in this browser library.");
+      }
+    }
+    if (collectionId) {
+      setCollectionFilter(collectionId);
+    }
+    if (tag) {
+      setTagFilter(tag);
     }
   }, [threads]);
 
@@ -300,17 +314,22 @@ export default function ChatApp() {
       const matchesSearch =
         !normalized ||
         thread.question.toLowerCase().includes(normalized) ||
-        (thread.title ?? "").toLowerCase().includes(normalized);
+        (thread.title ?? "").toLowerCase().includes(normalized) ||
+        (thread.tags ?? []).some((tagItem) =>
+          tagItem.toLowerCase().includes(normalized)
+        );
       const matchesFavorite = !favoritesOnly || thread.favorite;
       const matchesPinned = !pinnedOnly || thread.pinned;
       const matchesCollection =
         !collectionFilter || thread.collectionId === collectionFilter;
+      const matchesTag = !tagFilter || thread.tags?.includes(tagFilter);
       return (
         matchesMode &&
         matchesSearch &&
         matchesFavorite &&
         matchesPinned &&
-        matchesCollection
+        matchesCollection &&
+        matchesTag
       );
     });
 
@@ -330,6 +349,7 @@ export default function ChatApp() {
     favoritesOnly,
     pinnedOnly,
     collectionFilter,
+    tagFilter,
   ]);
 
   const filteredFiles = useMemo(() => {
@@ -339,6 +359,18 @@ export default function ChatApp() {
       file.name.toLowerCase().includes(normalized)
     );
   }, [libraryFiles, fileSearchQuery]);
+
+  const tagOptions = useMemo(() => {
+    const counter = new Map<string, number>();
+    threads.forEach((thread) => {
+      (thread.tags ?? []).forEach((tag) => {
+        counter.set(tag, (counter.get(tag) ?? 0) + 1);
+      });
+    });
+    return Array.from(counter.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
+  }, [threads]);
 
   async function handleFiles(files: FileList | null) {
     if (!files) return;
@@ -572,6 +604,7 @@ export default function ChatApp() {
       pinned: false,
       favorite: false,
       collectionId: null,
+      tags: [],
       attachments: data.attachments.map(stripAttachmentText),
     };
     setCurrent(thread);
@@ -818,6 +851,81 @@ ${answer.citations
     if (current?.id === id) {
       setCurrent((prev) => (prev ? { ...prev, collectionId } : prev));
     }
+  }
+
+  function startTagEdit(threadId: string) {
+    setEditingTagsId(threadId);
+    setTagDraft("");
+  }
+
+  function addTags(threadId: string) {
+    const nextTags = tagDraft
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+    if (!nextTags.length) {
+      setNotice("Enter a tag.");
+      return;
+    }
+
+    setThreads((prev) =>
+      prev.map((thread) => {
+        if (thread.id !== threadId) return thread;
+        const existing = thread.tags ?? [];
+        const merged = [...existing];
+        nextTags.forEach((tag) => {
+          if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+            merged.push(tag);
+          }
+        });
+        return { ...thread, tags: merged };
+      })
+    );
+
+    if (current?.id === threadId) {
+      setCurrent((prev) => {
+        if (!prev) return prev;
+        const existing = prev.tags ?? [];
+        const merged = [...existing];
+        nextTags.forEach((tag) => {
+          if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+            merged.push(tag);
+          }
+        });
+        return { ...prev, tags: merged };
+      });
+    }
+
+    setEditingTagsId(null);
+    setTagDraft("");
+  }
+
+  function removeTag(threadId: string, tag: string) {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              tags: (thread.tags ?? []).filter((item) => item !== tag),
+            }
+          : thread
+      )
+    );
+    if (current?.id === threadId) {
+      setCurrent((prev) =>
+        prev
+          ? {
+              ...prev,
+              tags: (prev.tags ?? []).filter((item) => item !== tag),
+            }
+          : prev
+      );
+    }
+  }
+
+  function cancelTagEdit() {
+    setEditingTagsId(null);
+    setTagDraft("");
   }
 
   function startNoteEdit(threadId: string) {
@@ -1111,6 +1219,12 @@ ${answer.citations
           <span className="rounded-full border border-white/10 px-3 py-1">
             Library
           </span>
+          <a
+            href="/collections"
+            className="rounded-full border border-white/10 px-3 py-1"
+          >
+            Collections
+          </a>
           <span className="rounded-full border border-white/10 px-3 py-1">
             Spaces
           </span>
@@ -1538,6 +1652,14 @@ ${answer.citations
                   </div>
                   <div>
                     <p className="text-[11px] uppercase text-signal-muted">
+                      Tags
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {(current.tags ?? []).length}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
                       Note
                     </p>
                     <p className="text-sm text-signal-text">
@@ -1747,6 +1869,26 @@ ${answer.citations
                 })}
               </div>
             ) : null}
+            {tagOptions.length ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {tagOptions.map(({ tag, count }) => (
+                  <button
+                    key={tag}
+                    onClick={() =>
+                      setTagFilter((prev) => (prev === tag ? "" : tag))
+                    }
+                    className={cn(
+                      "rounded-full border px-3 py-1 text-[11px] transition",
+                      tagFilter === tag
+                        ? "border-signal-accent text-signal-text"
+                        : "border-white/10 text-signal-muted"
+                    )}
+                  >
+                    #{tag} · {count}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-4 space-y-3">
               {filteredThreads.length === 0 ? (
                 <p className="text-xs text-signal-muted">
@@ -1888,6 +2030,54 @@ ${answer.citations
                       >
                         Delete
                       </button>
+                    </div>
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
+                      <div className="flex flex-wrap gap-2">
+                        {(thread.tags ?? []).length ? (
+                          (thread.tags ?? []).map((tag) => (
+                            <button
+                              key={`${thread.id}-${tag}`}
+                              onClick={() => removeTag(thread.id, tag)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              #{tag} ×
+                            </button>
+                          ))
+                        ) : (
+                          <span>No tags</span>
+                        )}
+                      </div>
+                      {editingTagsId === thread.id ? (
+                        <div className="mt-2 space-y-2">
+                          <input
+                            value={tagDraft}
+                            onChange={(event) => setTagDraft(event.target.value)}
+                            placeholder="Add tags (comma separated)"
+                            className="w-full rounded-full border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-text outline-none"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => addTags(thread.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              Add tags
+                            </button>
+                            <button
+                              onClick={cancelTagEdit}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startTagEdit(thread.id)}
+                          className="mt-2 rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                        >
+                          Add tags
+                        </button>
+                      )}
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
                       {editingNoteId === thread.id ? (
