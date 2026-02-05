@@ -93,6 +93,7 @@ const NOTES_KEY = "signal-notes-v1";
 const SEARCHES_KEY = "signal-saved-searches-v1";
 const PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
 const RECENT_FILTERS_KEY = "signal-recent-filters-v1";
+const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -124,6 +125,7 @@ export default function ChatApp() {
   const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
   const [editingSpaceName, setEditingSpaceName] = useState("");
   const [editingSpaceInstructions, setEditingSpaceInstructions] = useState("");
+  const [archivedSpaces, setArchivedSpaces] = useState<string[]>([]);
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [libraryCompact, setLibraryCompact] = useState(false);
@@ -299,6 +301,16 @@ export default function ChatApp() {
       }
     }
 
+    const archivedSpaceStore = localStorage.getItem(ARCHIVED_SPACES_KEY);
+    if (archivedSpaceStore) {
+      try {
+        const parsed = JSON.parse(archivedSpaceStore) as string[];
+        setArchivedSpaces(parsed);
+      } catch {
+        setArchivedSpaces([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -343,6 +355,13 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(RECENT_FILTERS_KEY, JSON.stringify(recentFilters));
   }, [recentFilters]);
+
+  useEffect(() => {
+    localStorage.setItem(
+      ARCHIVED_SPACES_KEY,
+      JSON.stringify(archivedSpaces)
+    );
+  }, [archivedSpaces]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -1662,6 +1681,41 @@ ${answer.citations
     setEditingSpaceId(null);
     setEditingSpaceName("");
     setEditingSpaceInstructions("");
+  }
+
+  function duplicateSpace(space: Space) {
+    const copy: Space = {
+      ...space,
+      id: nanoid(),
+      name: `${space.name} (copy)`,
+      createdAt: new Date().toISOString(),
+    };
+    setSpaces((prev) => [copy, ...prev]);
+    const spaceThreads = threads.filter((thread) => thread.spaceId === space.id);
+    if (spaceThreads.length) {
+      const copies = spaceThreads.map((thread) => ({
+        ...thread,
+        id: nanoid(),
+        createdAt: new Date().toISOString(),
+        question: `${thread.question} (copy)`,
+        title: `${thread.title ?? thread.question} (copy)`,
+        spaceId: copy.id,
+        spaceName: copy.name,
+      }));
+      setThreads((prev) => [...copies, ...prev]);
+    }
+    setNotice("Space duplicated.");
+  }
+
+  function toggleArchiveSpace(spaceId: string) {
+    setArchivedSpaces((prev) =>
+      prev.includes(spaceId)
+        ? prev.filter((item) => item !== spaceId)
+        : [...prev, spaceId]
+    );
+    if (activeSpaceId === spaceId) {
+      setActiveSpaceId(null);
+    }
   }
 
   function parseTime(time: string) {
@@ -3251,10 +3305,13 @@ ${answer.citations
               </button>
             </div>
             <div className="mt-4 space-y-2">
-              {spaces.length === 0 ? (
+              {spaces.filter((space) => !archivedSpaces.includes(space.id))
+                .length === 0 ? (
                 <p className="text-xs text-signal-muted">No spaces yet.</p>
               ) : (
-                spaces.map((space) => (
+                spaces
+                  .filter((space) => !archivedSpaces.includes(space.id))
+                  .map((space) => (
                   <div
                     key={space.id}
                     className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -3325,6 +3382,18 @@ ${answer.citations
                               Export
                             </button>
                             <button
+                              onClick={() => duplicateSpace(space)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Duplicate
+                            </button>
+                            <button
+                              onClick={() => toggleArchiveSpace(space.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Archive
+                            </button>
+                            <button
                               onClick={() => deleteSpace(space.id)}
                               className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
                             >
@@ -3351,6 +3420,33 @@ ${answer.citations
                 ))
               )}
             </div>
+            {archivedSpaces.length ? (
+              <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
+                <p className="text-xs uppercase tracking-[0.2em] text-signal-muted">
+                  Archived spaces
+                </p>
+                <div className="mt-2 space-y-2">
+                  {spaces
+                    .filter((space) => archivedSpaces.includes(space.id))
+                    .map((space) => (
+                      <div
+                        key={space.id}
+                        className="flex items-center justify-between rounded-2xl border border-white/10 px-3 py-2 text-[11px]"
+                      >
+                        <span className="text-sm text-signal-text">
+                          {space.name}
+                        </span>
+                        <button
+                          onClick={() => toggleArchiveSpace(space.id)}
+                          className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
