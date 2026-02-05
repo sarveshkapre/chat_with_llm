@@ -88,6 +88,7 @@ const TASKS_KEY = "signal-tasks-v1";
 const FILES_KEY = "signal-files-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
 const NOTES_KEY = "signal-notes-v1";
+const SEARCHES_KEY = "signal-saved-searches-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -130,6 +131,22 @@ export default function ChatApp() {
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
   const [bulkTagDraft, setBulkTagDraft] = useState("");
+  const [savedSearches, setSavedSearches] = useState<
+    {
+      id: string;
+      name: string;
+      query: string;
+      filterMode: AnswerMode | "all";
+      favoritesOnly: boolean;
+      pinnedOnly: boolean;
+      collectionFilter: string;
+      tagFilter: string;
+      sort: "newest" | "oldest";
+      sortByTag: boolean;
+      createdAt: string;
+    }[]
+  >([]);
+  const [savedSearchName, setSavedSearchName] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -218,6 +235,16 @@ export default function ChatApp() {
       }
     }
 
+    const searchStore = localStorage.getItem(SEARCHES_KEY);
+    if (searchStore) {
+      try {
+        const parsed = JSON.parse(searchStore) as typeof savedSearches;
+        setSavedSearches(parsed);
+      } catch {
+        setSavedSearches([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -247,6 +274,10 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
   }, [notes]);
+
+  useEffect(() => {
+    localStorage.setItem(SEARCHES_KEY, JSON.stringify(savedSearches));
+  }, [savedSearches]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -979,6 +1010,48 @@ ${answer.citations
 
     setBulkTagDraft("");
     setNotice("Tags added to selected threads.");
+  }
+
+  function saveSearch() {
+    const name = savedSearchName.trim();
+    if (!name) {
+      setNotice("Saved search needs a name.");
+      return;
+    }
+    const entry = {
+      id: nanoid(),
+      name,
+      query: search.trim(),
+      filterMode,
+      favoritesOnly,
+      pinnedOnly,
+      collectionFilter,
+      tagFilter,
+      sort,
+      sortByTag,
+      createdAt: new Date().toISOString(),
+    };
+    setSavedSearches((prev) => [entry, ...prev]);
+    setSavedSearchName("");
+    setNotice("Saved search created.");
+  }
+
+  function applySavedSearch(id: string) {
+    const entry = savedSearches.find((item) => item.id === id);
+    if (!entry) return;
+    setSearch(entry.query);
+    setFilterMode(entry.filterMode);
+    setFavoritesOnly(entry.favoritesOnly);
+    setPinnedOnly(entry.pinnedOnly);
+    setCollectionFilter(entry.collectionFilter);
+    setTagFilter(entry.tagFilter);
+    setSort(entry.sort);
+    setSortByTag(entry.sortByTag);
+    setNotice(`Applied ${entry.name}.`);
+  }
+
+  function deleteSavedSearch(id: string) {
+    setSavedSearches((prev) => prev.filter((item) => item.id !== id));
   }
 
   function startNoteEdit(threadId: string) {
@@ -1967,6 +2040,65 @@ ${answer.citations
                 ))}
               </div>
             ) : null}
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
+              <p className="text-xs uppercase tracking-[0.2em] text-signal-muted">
+                Saved searches
+              </p>
+              <div className="mt-3 space-y-2">
+                <input
+                  value={savedSearchName}
+                  onChange={(event) => setSavedSearchName(event.target.value)}
+                  placeholder="Name this filter"
+                  className="w-full rounded-full border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-text outline-none"
+                />
+                <button
+                  onClick={saveSearch}
+                  className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px]"
+                >
+                  Save current filter
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {savedSearches.length === 0 ? (
+                  <p className="text-[11px] text-signal-muted">
+                    No saved searches yet.
+                  </p>
+                ) : (
+                  savedSearches.map((item) => (
+                    <div
+                      key={item.id}
+                      className="rounded-2xl border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-signal-text">
+                          {item.name}
+                        </span>
+                        <button
+                          onClick={() => deleteSavedSearch(item.id)}
+                          className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      <p className="mt-2 text-[11px]">
+                        {item.query ? `Query: ${item.query}` : "No query"}
+                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <button
+                          onClick={() => applySavedSearch(item.id)}
+                          className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Apply
+                        </button>
+                        <span>
+                          {item.filterMode} · {item.sort}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
             <div className="mt-4 space-y-3">
               {filteredThreads.length === 0 ? (
                 <p className="text-xs text-signal-muted">

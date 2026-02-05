@@ -43,6 +43,7 @@ export default function CollectionsView() {
   const [collectionName, setCollectionName] = useState("");
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
@@ -122,6 +123,43 @@ export default function CollectionsView() {
     setNotice("Collection deleted.");
   }
 
+  function exportMarkdown(collectionId: string) {
+    const collection = collections.find((item) => item.id === collectionId);
+    if (!collection) return;
+    setExportingId(collectionId);
+    const items = threads.filter((thread) => thread.collectionId === collectionId);
+    const lines: string[] = [
+      `# ${collection.name}`,
+      "",
+      `Total threads: ${items.length}`,
+      "",
+      "## Threads",
+      ...items.map((thread, index) => {
+        const title = thread.title ?? thread.question;
+        const tags = (thread.tags ?? []).length
+          ? `Tags: ${(thread.tags ?? []).join(", ")}`
+          : "Tags: none";
+        const pinned = thread.pinned ? "Pinned: yes" : "Pinned: no";
+        const favorite = thread.favorite ? "Favorite: yes" : "Favorite: no";
+        return [
+          `${index + 1}. ${title}`,
+          `   - ${pinned} · ${favorite}`,
+          `   - ${tags}`,
+          `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-collection-${collection.id}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setExportingId(null);
+  }
+
   return (
     <div className="min-h-screen bg-signal-bg text-signal-text">
       <header className="flex items-center justify-between border-b border-white/10 px-6 py-6">
@@ -197,6 +235,13 @@ export default function CollectionsView() {
                       >
                         Open in Library
                       </Link>
+                      <button
+                        onClick={() => exportMarkdown(collection.id)}
+                        className="rounded-full border border-white/10 px-3 py-1 text-signal-text"
+                        disabled={exportingId === collection.id}
+                      >
+                        {exportingId === collection.id ? "Exporting" : "Export"}
+                      </button>
                       <button
                         onClick={() => deleteCollection(collection.id)}
                         className="rounded-full border border-white/10 px-3 py-1 text-signal-text"
