@@ -1048,6 +1048,14 @@ export default function ChatApp() {
                 >
                   Export Markdown
                 </button>
+                <a
+                  href={`/report?id=${current.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
+                >
+                  Open report
+                </a>
                 <button
                   onClick={shareThread}
                   className="rounded-full border border-white/10 px-3 py-1 text-xs text-signal-text transition hover:border-signal-accent"
@@ -1180,6 +1188,14 @@ export default function ChatApp() {
                       </div>
                     </button>
                     <div className="mt-3 flex items-center gap-2">
+                      <a
+                        href={`/report?id=${thread.id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        Report
+                      </a>
                       <button
                         onClick={() => deleteThread(thread.id)}
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"

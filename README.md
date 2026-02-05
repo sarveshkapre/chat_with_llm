@@ -15,6 +15,7 @@ npm install && npm run dev
 - Source toggle (web or offline)
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
+- Research report view with export + print
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
