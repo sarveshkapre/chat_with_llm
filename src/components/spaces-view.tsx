@@ -141,12 +141,16 @@ export default function SpacesView() {
             ).toLocaleString()
           : "No activity yet";
       const tags = spaceTags[space.id] ?? [];
+      const preview = items
+        .slice(0, 3)
+        .map((thread) => thread.title ?? thread.question);
       return {
         ...space,
         count: items.length,
         lastUpdated,
         tags,
         archived: archivedSpaces.includes(space.id),
+        preview,
       };
     });
   }, [spaces, threads, search, spaceTags, archivedSpaces, tagFilter]);
@@ -446,6 +450,20 @@ export default function SpacesView() {
                   <p className="mt-4 text-xs text-signal-muted">
                     {space.instructions || "No instructions."}
                   </p>
+                  {space.preview.length ? (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
+                      <p className="text-xs uppercase tracking-[0.2em] text-signal-muted">
+                        Recent threads
+                      </p>
+                      <ul className="mt-2 space-y-1 text-[11px] text-signal-text">
+                        {space.preview.map((title) => (
+                          <li key={`${space.id}-${title}`} className="truncate">
+                            {title}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
                   <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
                     <div className="flex flex-wrap gap-2">
                       {space.tags.length ? (
