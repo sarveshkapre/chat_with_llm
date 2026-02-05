@@ -46,6 +46,7 @@ npm install && npm run dev
 - Unified search filters + export results
 - Unified search recent queries + CSV export
 - Unified search top results summary + clear recent
+- Unified search now includes collections and files
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

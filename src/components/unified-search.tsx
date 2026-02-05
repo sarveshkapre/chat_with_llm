@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
+import type { Collection } from "@/lib/types/collection";
+import type { LibraryFile } from "@/lib/types/file";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -14,11 +16,15 @@ type Thread = AnswerResponse & {
 
 const THREADS_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
+const COLLECTIONS_KEY = "signal-collections-v1";
+const FILES_KEY = "signal-files-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 
 export default function UnifiedSearch() {
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<"all" | "threads" | "spaces">("all");
+  const [filter, setFilter] = useState<
+    "all" | "threads" | "spaces" | "collections" | "files"
+  >("all");
   const [recentQueries, setRecentQueries] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(RECENT_SEARCH_KEY);
@@ -48,6 +54,28 @@ export default function UnifiedSearch() {
       return JSON.parse(storedSpaces) as Space[];
     } catch {
       return [] as Space[];
+    }
+  }, []);
+
+  const collections = useMemo(() => {
+    if (typeof window === "undefined") return [] as Collection[];
+    const storedCollections = localStorage.getItem(COLLECTIONS_KEY);
+    if (!storedCollections) return [] as Collection[];
+    try {
+      return JSON.parse(storedCollections) as Collection[];
+    } catch {
+      return [] as Collection[];
+    }
+  }, []);
+
+  const files = useMemo(() => {
+    if (typeof window === "undefined") return [] as LibraryFile[];
+    const storedFiles = localStorage.getItem(FILES_KEY);
+    if (!storedFiles) return [] as LibraryFile[];
+    try {
+      return JSON.parse(storedFiles) as LibraryFile[];
+    } catch {
+      return [] as LibraryFile[];
     }
   }, []);
 
@@ -83,6 +111,23 @@ export default function UnifiedSearch() {
     });
   }, [spaces, normalized]);
 
+  const filteredCollections = useMemo(() => {
+    if (!normalized) return collections;
+    return collections.filter((collection) =>
+      collection.name.toLowerCase().includes(normalized)
+    );
+  }, [collections, normalized]);
+
+  const filteredFiles = useMemo(() => {
+    if (!normalized) return files;
+    return files.filter((file) => {
+      return (
+        file.name.toLowerCase().includes(normalized) ||
+        file.text.toLowerCase().includes(normalized)
+      );
+    });
+  }, [files, normalized]);
+
   const topThreadResults = useMemo(
     () => filteredThreads.slice(0, 3),
     [filteredThreads]
@@ -91,6 +136,14 @@ export default function UnifiedSearch() {
   const topSpaceResults = useMemo(
     () => filteredSpaces.slice(0, 3),
     [filteredSpaces]
+  );
+  const topCollectionResults = useMemo(
+    () => filteredCollections.slice(0, 3),
+    [filteredCollections]
+  );
+  const topFileResults = useMemo(
+    () => filteredFiles.slice(0, 3),
+    [filteredFiles]
   );
 
   function pushRecentQuery(value: string) {
@@ -111,6 +164,8 @@ export default function UnifiedSearch() {
       "",
       `Threads: ${filteredThreads.length}`,
       `Spaces: ${filteredSpaces.length}`,
+      `Collections: ${filteredCollections.length}`,
+      `Files: ${filteredFiles.length}`,
       "",
       "## Threads",
       ...filteredThreads.map((thread, index) => {
@@ -128,6 +183,23 @@ export default function UnifiedSearch() {
           `${index + 1}. ${space.name}`,
           `   - Instructions: ${space.instructions || "None"}`,
           `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+      "",
+      "## Collections",
+      ...filteredCollections.map((collection, index) => {
+        return [
+          `${index + 1}. ${collection.name}`,
+          `   - Created: ${new Date(collection.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+      "",
+      "## Files",
+      ...filteredFiles.map((file, index) => {
+        return [
+          `${index + 1}. ${file.name}`,
+          `   - Size: ${Math.round(file.size / 1024)} KB`,
+          `   - Added: ${new Date(file.addedAt).toLocaleString()}`,
         ].join("\n");
       }),
     ];
@@ -160,6 +232,24 @@ export default function UnifiedSearch() {
           "",
           "",
           space.createdAt,
+        ].join(",")
+      ),
+      ...filteredCollections.map((collection) =>
+        [
+          "collection",
+          `"${collection.name.replace(/\"/g, '""')}"`,
+          "",
+          "",
+          collection.createdAt,
+        ].join(",")
+      ),
+      ...filteredFiles.map((file) =>
+        [
+          "file",
+          `"${file.name.replace(/\"/g, '""')}"`,
+          "",
+          "",
+          file.addedAt,
         ].join(",")
       ),
     ];
@@ -219,11 +309,13 @@ export default function UnifiedSearch() {
               pushRecentQuery(value);
             }}
             onBlur={() => pushRecentQuery(query)}
-            placeholder="Search threads and spaces"
+            placeholder="Search threads, spaces, collections, and files"
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           <div className="flex flex-wrap gap-2 text-xs">
-            {(["all", "threads", "spaces"] as const).map((option) => (
+            {(
+              ["all", "threads", "spaces", "collections", "files"] as const
+            ).map((option) => (
               <button
                 key={option}
                 onClick={() => setFilter(option)}
@@ -237,7 +329,11 @@ export default function UnifiedSearch() {
                   ? "All"
                   : option === "threads"
                     ? "Threads only"
-                    : "Spaces only"}
+                    : option === "spaces"
+                      ? "Spaces only"
+                      : option === "collections"
+                        ? "Collections only"
+                        : "Files only"}
               </button>
             ))}
           </div>
@@ -313,12 +409,53 @@ export default function UnifiedSearch() {
                   )}
                 </div>
               </div>
+              <div>
+                <p className="text-xs text-signal-muted">
+                  Collections: {filteredCollections.length}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {topCollectionResults.length ? (
+                    topCollectionResults.map((collection) => (
+                      <Link
+                        key={`top-collection-${collection.id}`}
+                        href={`/?collection=${collection.id}`}
+                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
+                      >
+                        {collection.name}
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="text-xs text-signal-muted">
+                      No collection hits.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-signal-muted">
+                  Files: {filteredFiles.length}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {topFileResults.length ? (
+                    topFileResults.map((file) => (
+                      <p
+                        key={`top-file-${file.id}`}
+                        className="truncate text-xs text-signal-text"
+                      >
+                        {file.name}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-xs text-signal-muted">No file hits.</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          {filter !== "spaces" ? (
+          {filter === "all" || filter === "threads" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Threads
@@ -353,7 +490,7 @@ export default function UnifiedSearch() {
             </section>
           ) : null}
 
-          {filter !== "threads" ? (
+          {filter === "all" || filter === "spaces" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Spaces
@@ -379,6 +516,69 @@ export default function UnifiedSearch() {
                       >
                         Open
                       </Link>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {filter === "all" || filter === "collections" ? (
+            <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
+              <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
+                Collections
+              </p>
+              <div className="mt-4 space-y-2">
+                {filteredCollections.length === 0 ? (
+                  <p className="text-xs text-signal-muted">
+                    No matching collections.
+                  </p>
+                ) : (
+                  filteredCollections.slice(0, 20).map((collection) => (
+                    <div
+                      key={collection.id}
+                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                    >
+                      <p className="text-sm text-signal-text">
+                        {collection.name}
+                      </p>
+                      <p className="mt-1 text-[11px] text-signal-muted">
+                        {new Date(collection.createdAt).toLocaleString()}
+                      </p>
+                      <Link
+                        href={`/?collection=${collection.id}`}
+                        className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      >
+                        Open
+                      </Link>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {filter === "all" || filter === "files" ? (
+            <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
+              <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
+                Files
+              </p>
+              <div className="mt-4 space-y-2">
+                {filteredFiles.length === 0 ? (
+                  <p className="text-xs text-signal-muted">No matching files.</p>
+                ) : (
+                  filteredFiles.slice(0, 20).map((file) => (
+                    <div
+                      key={file.id}
+                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                    >
+                      <p className="text-sm text-signal-text">{file.name}</p>
+                      <p className="mt-1 text-[11px] text-signal-muted">
+                        {Math.round(file.size / 1024)} KB
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
+                        {file.text.slice(0, 180).replace(/\s+/g, " ").trim()}
+                      </p>
                     </div>
                   ))
                 )}
