@@ -20,6 +20,7 @@ npm install && npm run dev
 - Thread renaming + compact library view
 - Export answers to Markdown, DOCX, and PDF
 - Favorites, pinned threads, and collections
+- Collection filter pills + thread notes
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

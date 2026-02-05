@@ -86,6 +86,7 @@ const ACTIVE_SPACE_KEY = "signal-space-active";
 const TASKS_KEY = "signal-tasks-v1";
 const FILES_KEY = "signal-files-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
+const NOTES_KEY = "signal-notes-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -120,6 +121,9 @@ export default function ChatApp() {
   const [collectionFilter, setCollectionFilter] = useState("");
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -197,6 +201,16 @@ export default function ChatApp() {
       }
     }
 
+    const notesStore = localStorage.getItem(NOTES_KEY);
+    if (notesStore) {
+      try {
+        const parsed = JSON.parse(notesStore) as Record<string, string>;
+        setNotes(parsed);
+      } catch {
+        setNotes({});
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -222,6 +236,10 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
   }, [collections]);
+
+  useEffect(() => {
+    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+  }, [notes]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -800,6 +818,36 @@ ${answer.citations
     if (current?.id === id) {
       setCurrent((prev) => (prev ? { ...prev, collectionId } : prev));
     }
+  }
+
+  function startNoteEdit(threadId: string) {
+    setEditingNoteId(threadId);
+    setNoteDraft(notes[threadId] ?? "");
+  }
+
+  function saveNote(threadId: string) {
+    if (!noteDraft.trim()) {
+      setNotice("Note cannot be empty.");
+      return;
+    }
+    setNotes((prev) => ({ ...prev, [threadId]: noteDraft.trim() }));
+    setEditingNoteId(null);
+    setNoteDraft("");
+  }
+
+  function clearNote(threadId: string) {
+    setNotes((prev) => {
+      const next = { ...prev };
+      delete next[threadId];
+      return next;
+    });
+    setEditingNoteId(null);
+    setNoteDraft("");
+  }
+
+  function cancelNoteEdit() {
+    setEditingNoteId(null);
+    setNoteDraft("");
   }
 
   function toggleThreadSelection(id: string) {
@@ -1490,6 +1538,14 @@ ${answer.citations
                   </div>
                   <div>
                     <p className="text-[11px] uppercase text-signal-muted">
+                      Note
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {notes[current.id] ? "Yes" : "No"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
                       Space
                     </p>
                     <p className="text-sm text-signal-text">
@@ -1664,6 +1720,33 @@ ${answer.citations
                 </div>
               </div>
             ) : null}
+            {collections.length ? (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {collections.map((collection) => {
+                  const count = threads.filter(
+                    (thread) => thread.collectionId === collection.id
+                  ).length;
+                  return (
+                    <button
+                      key={collection.id}
+                      onClick={() =>
+                        setCollectionFilter((prev) =>
+                          prev === collection.id ? "" : collection.id
+                        )
+                      }
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-[11px] transition",
+                        collectionFilter === collection.id
+                          ? "border-signal-accent text-signal-text"
+                          : "border-white/10 text-signal-muted"
+                      )}
+                    >
+                      {collection.name} · {count}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
             <div className="mt-4 space-y-3">
               {filteredThreads.length === 0 ? (
                 <p className="text-xs text-signal-muted">
@@ -1805,6 +1888,46 @@ ${answer.citations
                       >
                         Delete
                       </button>
+                    </div>
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
+                      {editingNoteId === thread.id ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={noteDraft}
+                            onChange={(event) => setNoteDraft(event.target.value)}
+                            className="h-20 w-full resize-none rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-text outline-none"
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => saveNote(thread.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              Save note
+                            </button>
+                            <button
+                              onClick={() => clearNote(thread.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              Clear
+                            </button>
+                            <button
+                              onClick={cancelNoteEdit}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startNoteEdit(thread.id)}
+                          className="w-full text-left"
+                        >
+                          {notes[thread.id]
+                            ? notes[thread.id]
+                            : "Add a note"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
