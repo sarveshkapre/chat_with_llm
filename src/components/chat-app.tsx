@@ -31,6 +31,7 @@ type Thread = AnswerResponse & {
   favorite?: boolean;
   collectionId?: string | null;
   tags?: string[];
+  archived?: boolean;
 };
 
 type StreamMessage =
@@ -91,6 +92,7 @@ const COLLECTIONS_KEY = "signal-collections-v1";
 const NOTES_KEY = "signal-notes-v1";
 const SEARCHES_KEY = "signal-saved-searches-v1";
 const PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
+const RECENT_FILTERS_KEY = "signal-recent-filters-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -122,6 +124,7 @@ export default function ChatApp() {
   const [libraryCompact, setLibraryCompact] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [archivedOnly, setArchivedOnly] = useState(false);
   const [collectionFilter, setCollectionFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
   const [sortByTag, setSortByTag] = useState(false);
@@ -150,6 +153,23 @@ export default function ChatApp() {
   >([]);
   const [savedSearchName, setSavedSearchName] = useState("");
   const [pinnedSearchIds, setPinnedSearchIds] = useState<string[]>([]);
+  const [recentFilters, setRecentFilters] = useState<
+    {
+      id: string;
+      signature: string;
+      label: string;
+      query: string;
+      filterMode: AnswerMode | "all";
+      favoritesOnly: boolean;
+      pinnedOnly: boolean;
+      archivedOnly: boolean;
+      collectionFilter: string;
+      tagFilter: string;
+      sort: "newest" | "oldest";
+      sortByTag: boolean;
+      createdAt: string;
+    }[]
+  >([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -181,6 +201,7 @@ export default function ChatApp() {
           favorite: thread.favorite ?? false,
           collectionId: thread.collectionId ?? null,
           tags: thread.tags ?? [],
+          archived: thread.archived ?? false,
         }));
         setThreads(normalized);
       } catch {
@@ -258,6 +279,16 @@ export default function ChatApp() {
       }
     }
 
+    const recentStore = localStorage.getItem(RECENT_FILTERS_KEY);
+    if (recentStore) {
+      try {
+        const parsed = JSON.parse(recentStore) as typeof recentFilters;
+        setRecentFilters(parsed);
+      } catch {
+        setRecentFilters([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -298,6 +329,10 @@ export default function ChatApp() {
       JSON.stringify(pinnedSearchIds)
     );
   }, [pinnedSearchIds]);
+
+  useEffect(() => {
+    localStorage.setItem(RECENT_FILTERS_KEY, JSON.stringify(recentFilters));
+  }, [recentFilters]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -373,6 +408,7 @@ export default function ChatApp() {
         );
       const matchesFavorite = !favoritesOnly || thread.favorite;
       const matchesPinned = !pinnedOnly || thread.pinned;
+      const matchesArchived = archivedOnly ? thread.archived : !thread.archived;
       const matchesCollection =
         !collectionFilter || thread.collectionId === collectionFilter;
       const matchesTag = !tagFilter || thread.tags?.includes(tagFilter);
@@ -381,6 +417,7 @@ export default function ChatApp() {
         matchesSearch &&
         matchesFavorite &&
         matchesPinned &&
+        matchesArchived &&
         matchesCollection &&
         matchesTag
       );
@@ -408,6 +445,7 @@ export default function ChatApp() {
     sort,
     favoritesOnly,
     pinnedOnly,
+    archivedOnly,
     collectionFilter,
     tagFilter,
     sortByTag,
@@ -666,6 +704,7 @@ export default function ChatApp() {
       favorite: false,
       collectionId: null,
       tags: [],
+      archived: false,
       attachments: data.attachments.map(stripAttachmentText),
     };
     setCurrent(thread);
@@ -877,6 +916,38 @@ ${answer.citations
     setAttachments((prev) => prev.filter((item) => item.id !== id));
   }
 
+  function toggleArchive(id: string, next?: boolean) {
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === id
+          ? { ...thread, archived: next ?? !thread.archived }
+          : thread
+      )
+    );
+    if (current?.id === id) {
+      setCurrent((prev) =>
+        prev
+          ? { ...prev, archived: next ?? !prev.archived }
+          : prev
+      );
+    }
+  }
+
+  function bulkArchive(next: boolean) {
+    if (!selectedThreadIds.length) return;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        selectedThreadIds.includes(thread.id)
+          ? { ...thread, archived: next }
+          : thread
+      )
+    );
+    if (current && selectedThreadIds.includes(current.id)) {
+      setCurrent((prev) => (prev ? { ...prev, archived: next } : prev));
+    }
+    setNotice(next ? "Threads archived." : "Threads unarchived.");
+  }
+
   function togglePin(id: string) {
     setThreads((prev) =>
       prev.map((thread) =>
@@ -1080,6 +1151,77 @@ ${answer.citations
     );
   }
 
+  const filterSignature = useMemo(
+    () =>
+      JSON.stringify({
+        search: search.trim(),
+        filterMode,
+        favoritesOnly,
+        pinnedOnly,
+        archivedOnly,
+        collectionFilter,
+        tagFilter,
+        sort,
+        sortByTag,
+      }),
+    [
+      search,
+      filterMode,
+      favoritesOnly,
+      pinnedOnly,
+      archivedOnly,
+      collectionFilter,
+      tagFilter,
+      sort,
+      sortByTag,
+    ]
+  );
+
+  useEffect(() => {
+    const labelParts = [
+      filterMode !== "all" ? filterMode : null,
+      favoritesOnly ? "favorites" : null,
+      pinnedOnly ? "pinned" : null,
+      archivedOnly ? "archived" : null,
+      collectionFilter ? "collection" : null,
+      tagFilter ? `#${tagFilter}` : null,
+      search.trim() ? `"${search.trim()}"` : null,
+    ].filter(Boolean) as string[];
+
+    const entry = {
+      id: nanoid(),
+      signature: filterSignature,
+      label: labelParts.length ? labelParts.join(" · ") : "All threads",
+      query: search.trim(),
+      filterMode,
+      favoritesOnly,
+      pinnedOnly,
+      archivedOnly,
+      collectionFilter,
+      tagFilter,
+      sort,
+      sortByTag,
+      createdAt: new Date().toISOString(),
+    };
+
+    setRecentFilters((prev) => {
+      if (prev[0]?.signature === entry.signature) return prev;
+      const filtered = prev.filter((item) => item.signature !== entry.signature);
+      return [entry, ...filtered].slice(0, 5);
+    });
+  }, [
+    filterSignature,
+    search,
+    filterMode,
+    favoritesOnly,
+    pinnedOnly,
+    archivedOnly,
+    collectionFilter,
+    tagFilter,
+    sort,
+    sortByTag,
+  ]);
+
   function exportFilteredLibrary() {
     const lines: string[] = [
       "# Signal Search Library Export",
@@ -1088,6 +1230,7 @@ ${answer.citations
       `Mode: ${filterMode}`,
       `Favorites: ${favoritesOnly ? "Yes" : "No"}`,
       `Pinned: ${pinnedOnly ? "Yes" : "No"}`,
+      `Archived: ${archivedOnly ? "Yes" : "No"}`,
       `Collection: ${collectionFilter || "All"}`,
       `Tag: ${tagFilter || "All"}`,
       `Sort: ${sort}${sortByTag ? " + tag" : ""}`,
@@ -1877,6 +2020,14 @@ ${answer.citations
                   </div>
                   <div>
                     <p className="text-[11px] uppercase text-signal-muted">
+                      Archived
+                    </p>
+                    <p className="text-sm text-signal-text">
+                      {current.archived ? "Yes" : "No"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase text-signal-muted">
                       Space
                     </p>
                     <p className="text-sm text-signal-text">
@@ -1980,6 +2131,17 @@ ${answer.citations
                 </button>
               </div>
               <button
+                onClick={() => setArchivedOnly((prev) => !prev)}
+                className={cn(
+                  "w-full rounded-full border px-3 py-2 text-xs transition",
+                  archivedOnly
+                    ? "border-signal-accent text-signal-text"
+                    : "border-white/10 text-signal-muted"
+                )}
+              >
+                Archived
+              </button>
+              <button
                 onClick={() => setSortByTag((prev) => !prev)}
                 className={cn(
                   "w-full rounded-full border px-3 py-2 text-xs transition",
@@ -2040,6 +2202,25 @@ ${answer.citations
                     className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
                   >
                     Delete selected
+                  </button>
+                  <button
+                    onClick={() =>
+                      bulkArchive(
+                        !selectedThreadIds.every(
+                          (id) =>
+                            threads.find((thread) => thread.id === id)
+                              ?.archived
+                        )
+                      )
+                    }
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  >
+                    {selectedThreadIds.every(
+                      (id) =>
+                        threads.find((thread) => thread.id === id)?.archived
+                    )
+                      ? "Unarchive selected"
+                      : "Archive selected"}
                   </button>
                   <div className="flex items-center gap-2">
                     <select
@@ -2200,6 +2381,51 @@ ${answer.citations
                   ))
                 )}
               </div>
+              <div className="mt-4">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                  Recent filters
+                </p>
+                <div className="mt-2 space-y-2">
+                  {recentFilters.length === 0 ? (
+                    <p className="text-[11px] text-signal-muted">
+                      No recent filters.
+                    </p>
+                  ) : (
+                    recentFilters.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-signal-text">
+                            {item.label}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setSearch(item.query);
+                              setFilterMode(item.filterMode);
+                              setFavoritesOnly(item.favoritesOnly);
+                              setPinnedOnly(item.pinnedOnly);
+                              setArchivedOnly(item.archivedOnly);
+                              setCollectionFilter(item.collectionFilter);
+                              setTagFilter(item.tagFilter);
+                              setSort(item.sort);
+                              setSortByTag(item.sortByTag);
+                              setNotice("Applied recent filter.");
+                            }}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                        <p className="mt-2 text-[11px]">
+                          {new Date(item.createdAt).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
             <div className="mt-4 space-y-3">
               {filteredThreads.length === 0 ? (
@@ -2341,6 +2567,14 @@ ${answer.citations
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         Delete
+                      </button>
+                      <button
+                        onClick={() =>
+                          toggleArchive(thread.id, !thread.archived)
+                        }
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        {thread.archived ? "Unarchive" : "Archive"}
                       </button>
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
