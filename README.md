@@ -35,6 +35,7 @@ npm install && npm run dev
 - Space stats + set active space from thread
 - Edit spaces + export space to Markdown
 - Duplicate space + archive/restore spaces
+- Merge spaces + space tags
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

@@ -94,6 +94,7 @@ const SEARCHES_KEY = "signal-saved-searches-v1";
 const PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
 const RECENT_FILTERS_KEY = "signal-recent-filters-v1";
 const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
+const SPACE_TAGS_KEY = "signal-space-tags-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -126,6 +127,9 @@ export default function ChatApp() {
   const [editingSpaceName, setEditingSpaceName] = useState("");
   const [editingSpaceInstructions, setEditingSpaceInstructions] = useState("");
   const [archivedSpaces, setArchivedSpaces] = useState<string[]>([]);
+  const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>({});
+  const [spaceTagDraft, setSpaceTagDraft] = useState("");
+  const [mergeTargetSpaceId, setMergeTargetSpaceId] = useState("");
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [libraryCompact, setLibraryCompact] = useState(false);
@@ -311,6 +315,16 @@ export default function ChatApp() {
       }
     }
 
+    const spaceTagsStore = localStorage.getItem(SPACE_TAGS_KEY);
+    if (spaceTagsStore) {
+      try {
+        const parsed = JSON.parse(spaceTagsStore) as Record<string, string[]>;
+        setSpaceTags(parsed);
+      } catch {
+        setSpaceTags({});
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -362,6 +376,10 @@ export default function ChatApp() {
       JSON.stringify(archivedSpaces)
     );
   }, [archivedSpaces]);
+
+  useEffect(() => {
+    localStorage.setItem(SPACE_TAGS_KEY, JSON.stringify(spaceTags));
+  }, [spaceTags]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -1716,6 +1734,50 @@ ${answer.citations
     if (activeSpaceId === spaceId) {
       setActiveSpaceId(null);
     }
+  }
+
+  function addSpaceTags(spaceId: string) {
+    const nextTags = spaceTagDraft
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+    if (!nextTags.length) {
+      setNotice("Enter a space tag.");
+      return;
+    }
+    setSpaceTags((prev) => {
+      const existing = prev[spaceId] ?? [];
+      const merged = [...existing];
+      nextTags.forEach((tag) => {
+        if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+          merged.push(tag);
+        }
+      });
+      return { ...prev, [spaceId]: merged };
+    });
+    setSpaceTagDraft("");
+  }
+
+  function removeSpaceTag(spaceId: string, tag: string) {
+    setSpaceTags((prev) => {
+      const next = { ...prev };
+      next[spaceId] = (next[spaceId] ?? []).filter((item) => item !== tag);
+      return next;
+    });
+  }
+
+  function mergeSpaces(source: Space, targetId: string | null) {
+    if (!targetId) return;
+    const target = spaces.find((space) => space.id === targetId);
+    if (!target) return;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.spaceId === source.id
+          ? { ...thread, spaceId: target.id, spaceName: target.name }
+          : thread
+      )
+    );
+    setNotice(`Merged ${source.name} into ${target.name}.`);
   }
 
   function parseTime(time: string) {
@@ -3387,6 +3449,25 @@ ${answer.citations
                             >
                               Duplicate
                             </button>
+                            <select
+                              value={mergeTargetSpaceId}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                if (!value) return;
+                                mergeSpaces(space, value);
+                                setMergeTargetSpaceId("");
+                              }}
+                              className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                            >
+                              <option value="">Merge into…</option>
+                              {spaces
+                                .filter((item) => item.id !== space.id)
+                                .map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                            </select>
                             <button
                               onClick={() => toggleArchiveSpace(space.id)}
                               className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
@@ -3415,6 +3496,37 @@ ${answer.citations
                           Math.max(...latest)
                         ).toLocaleDateString()}`;
                       })()}
+                    </div>
+                    <div className="mt-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">
+                      <div className="flex flex-wrap gap-2">
+                        {(spaceTags[space.id] ?? []).length ? (
+                          (spaceTags[space.id] ?? []).map((tag) => (
+                            <button
+                              key={`${space.id}-${tag}`}
+                              onClick={() => removeSpaceTag(space.id, tag)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              #{tag} ×
+                            </button>
+                          ))
+                        ) : (
+                          <span>No tags</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center gap-2">
+                        <input
+                          value={spaceTagDraft}
+                          onChange={(event) => setSpaceTagDraft(event.target.value)}
+                          placeholder="Add space tags"
+                          className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text outline-none"
+                        />
+                        <button
+                          onClick={() => addSpaceTags(space.id)}
+                          className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Add
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))
