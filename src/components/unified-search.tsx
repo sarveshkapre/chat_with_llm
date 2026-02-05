@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
@@ -14,10 +14,21 @@ type Thread = AnswerResponse & {
 
 const THREADS_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
+const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 
 export default function UnifiedSearch() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "threads" | "spaces">("all");
+  const [recentQueries, setRecentQueries] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    const stored = localStorage.getItem(RECENT_SEARCH_KEY);
+    if (!stored) return [];
+    try {
+      return JSON.parse(stored) as string[];
+    } catch {
+      return [];
+    }
+  });
   const threads = useMemo(() => {
     if (typeof window === "undefined") return [] as Thread[];
     const storedThreads = localStorage.getItem(THREADS_KEY);
@@ -41,6 +52,11 @@ export default function UnifiedSearch() {
   }, []);
 
   const normalized = query.trim().toLowerCase();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recentQueries));
+  }, [recentQueries]);
 
   const filteredThreads = useMemo(() => {
     if (!normalized) return threads;
@@ -66,6 +82,15 @@ export default function UnifiedSearch() {
       );
     });
   }, [spaces, normalized]);
+
+  function pushRecentQuery(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setRecentQueries((prev) => {
+      const next = [trimmed, ...prev.filter((item) => item !== trimmed)];
+      return next.slice(0, 5);
+    });
+  }
 
   function exportResults() {
     const lines: string[] = [
@@ -106,6 +131,38 @@ export default function UnifiedSearch() {
     URL.revokeObjectURL(url);
   }
 
+  function exportCsv() {
+    const lines = [
+      ["type", "title", "space", "mode", "created_at"].join(","),
+      ...filteredThreads.map((thread) =>
+        [
+          "thread",
+          `"${(thread.title ?? thread.question).replace(/\"/g, '""')}"`,
+          `"${(thread.spaceName ?? "None").replace(/\"/g, '""')}"`,
+          thread.mode,
+          thread.createdAt,
+        ].join(",")
+      ),
+      ...filteredSpaces.map((space) =>
+        [
+          "space",
+          `"${space.name.replace(/\"/g, '""')}"`,
+          "",
+          "",
+          space.createdAt,
+        ].join(",")
+      ),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-search-export-${Date.now()}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="min-h-screen bg-signal-bg text-signal-text">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-6">
@@ -128,6 +185,12 @@ export default function UnifiedSearch() {
           >
             Export results
           </button>
+          <button
+            onClick={exportCsv}
+            className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
+          >
+            Export CSV
+          </button>
         </div>
       </header>
 
@@ -135,7 +198,13 @@ export default function UnifiedSearch() {
         <div className="max-w-3xl space-y-3">
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setQuery(value);
+              if (!value.endsWith(" ")) return;
+              pushRecentQuery(value);
+            }}
+            onBlur={() => pushRecentQuery(query)}
             placeholder="Search threads and spaces"
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
@@ -158,6 +227,22 @@ export default function UnifiedSearch() {
               </button>
             ))}
           </div>
+          {recentQueries.length ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {recentQueries.map((item) => (
+                <button
+                  key={item}
+                  onClick={() => {
+                    setQuery(item);
+                    pushRecentQuery(item);
+                  }}
+                  className="rounded-full border border-white/10 px-3 py-1 text-signal-muted"
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
