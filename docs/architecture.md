@@ -8,6 +8,7 @@ Signal Search is a Next.js app with an API route that calls a provider layer. Th
 - `src/lib/providers`: Provider abstraction (OpenAI + mock).
 - `src/lib/citations.ts`: Citation extraction helpers.
 - `src/lib/attachments.ts`: Attachment parsing and stripping.
+- `src/lib/file-search.ts`: Lightweight library search.
 - `src/components/chat-app.tsx`: Main UI.
 
 ## Data flow
@@ -18,3 +19,6 @@ Signal Search is a Next.js app with an API route that calls a provider layer. Th
 
 ## Local automation
 Tasks are stored in localStorage and run on-demand. Each run creates a thread in the library.
+
+## File library
+Files are stored in localStorage (text only). File search auto-attaches top matches into the request payload.

@@ -9,12 +9,14 @@ import type {
 } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
 import type { Task, TaskCadence } from "@/lib/types/task";
+import type { LibraryFile } from "@/lib/types/file";
 import { cn } from "@/lib/utils";
 import {
   canReadAsText,
   readFileAsText,
   stripAttachmentText,
 } from "@/lib/attachments";
+import { searchLibraryFiles } from "@/lib/file-search";
 import { nanoid } from "nanoid";
 
 type Feedback = "up" | "down" | null;
@@ -71,9 +73,12 @@ const STORAGE_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
 const ACTIVE_SPACE_KEY = "signal-space-active";
 const TASKS_KEY = "signal-tasks-v1";
+const FILES_KEY = "signal-files-v1";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
+const MAX_LIBRARY_FILES = 20;
+const MAX_LIBRARY_FILE_SIZE = 200_000;
 
 export default function ChatApp() {
   const [question, setQuestion] = useState("");
@@ -102,7 +107,12 @@ export default function ChatApp() {
   const [taskSources, setTaskSources] = useState<SourceMode>("web");
   const [taskRunningId, setTaskRunningId] = useState<string | null>(null);
   const [researchStepIndex, setResearchStepIndex] = useState(0);
+  const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
+  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
+  const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
+  const [fileSearchQuery, setFileSearchQuery] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -135,6 +145,16 @@ export default function ChatApp() {
       }
     }
 
+    const fileStore = localStorage.getItem(FILES_KEY);
+    if (fileStore) {
+      try {
+        const parsed = JSON.parse(fileStore) as LibraryFile[];
+        setLibraryFiles(parsed);
+      } catch {
+        setLibraryFiles([]);
+      }
+    }
+
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
     if (active) {
       setActiveSpaceId(active);
@@ -152,6 +172,10 @@ export default function ChatApp() {
   useEffect(() => {
     localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
   }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem(FILES_KEY, JSON.stringify(libraryFiles));
+  }, [libraryFiles]);
 
   useEffect(() => {
     if (activeSpaceId) {
@@ -221,6 +245,14 @@ export default function ChatApp() {
     });
   }, [threads, search, filterMode, sort]);
 
+  const filteredFiles = useMemo(() => {
+    const normalized = fileSearchQuery.trim().toLowerCase();
+    if (!normalized) return libraryFiles;
+    return libraryFiles.filter((file) =>
+      file.name.toLowerCase().includes(normalized)
+    );
+  }, [libraryFiles, fileSearchQuery]);
+
   async function handleFiles(files: FileList | null) {
     if (!files) return;
     const incoming = Array.from(files).slice(0, MAX_ATTACHMENTS);
@@ -276,12 +308,81 @@ export default function ChatApp() {
     setAttachments((prev) => [...prev, ...next].slice(0, MAX_ATTACHMENTS));
   }
 
+  async function handleLibraryUpload(files: FileList | null) {
+    if (!files) return;
+    const incoming = Array.from(files).slice(0, MAX_LIBRARY_FILES);
+    const next: LibraryFile[] = [];
+
+    for (const file of incoming) {
+      if (file.size > MAX_LIBRARY_FILE_SIZE) {
+        setNotice("File too large for library storage.");
+        continue;
+      }
+
+      if (!canReadAsText(file)) {
+        setNotice("Only text files are supported in the library.");
+        continue;
+      }
+
+      try {
+        const text = await readFileAsText(file);
+        next.push({
+          id: nanoid(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          text: text.slice(0, 12000),
+          addedAt: new Date().toISOString(),
+        });
+      } catch {
+        setNotice("Failed to read a library file.");
+      }
+    }
+
+    setLibraryFiles((prev) => [
+      ...next,
+      ...prev,
+    ].slice(0, MAX_LIBRARY_FILES));
+  }
+
+  function toggleLibrarySelection(id: string) {
+    setSelectedFileIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function removeLibraryFile(id: string) {
+    setLibraryFiles((prev) => prev.filter((item) => item.id !== id));
+    setSelectedFileIds((prev) => prev.filter((item) => item !== id));
+  }
+
   async function submitQuestion() {
     if (!question.trim() || loading) return;
     setLoading(true);
     setError(null);
 
     try {
+      const selectedFiles = libraryFiles.filter((file) =>
+        selectedFileIds.includes(file.id)
+      );
+
+      const searchMatches = fileSearchEnabled
+        ? searchLibraryFiles(libraryFiles, question, 3).map((match) => match.file)
+        : [];
+
+      const combinedLibrary = [...selectedFiles, ...searchMatches].filter(
+        (file, index, array) => array.findIndex((item) => item.id === file.id) === index
+      );
+
+      const libraryAttachments: Attachment[] = combinedLibrary.map((file) => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        text: file.text,
+        error: null,
+      }));
+
       const response = await fetch("/api/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -289,7 +390,7 @@ export default function ChatApp() {
           question,
           mode,
           sources,
-          attachments,
+          attachments: [...attachments, ...libraryAttachments],
           spaceInstructions: activeSpace?.instructions ?? "",
           spaceId: activeSpace?.id,
           spaceName: activeSpace?.name,
@@ -667,6 +768,27 @@ export default function ChatApp() {
                     {incognito ? "On" : "Off"}
                   </button>
                 </div>
+                <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-xs text-signal-muted">
+                  <div>
+                    <p className="text-sm font-semibold text-signal-text">
+                      File search
+                    </p>
+                    <p className="text-xs text-signal-muted">
+                      Auto-attach top matching library files.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setFileSearchEnabled((prev) => !prev)}
+                    className={cn(
+                      "rounded-full border px-4 py-1 text-xs transition",
+                      fileSearchEnabled
+                        ? "border-signal-accent text-signal-text"
+                        : "border-white/10 text-signal-muted"
+                    )}
+                  >
+                    {fileSearchEnabled ? "On" : "Off"}
+                  </button>
+                </div>
               </div>
 
               {activeSpace ? (
@@ -985,6 +1107,77 @@ export default function ChatApp() {
                 Clear library
               </button>
             ) : null}
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
+            <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
+              Files
+            </p>
+            <p className="mt-2 text-sm text-signal-muted">
+              Upload text files and include them as internal sources.
+            </p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => libraryInputRef.current?.click()}
+                className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
+              >
+                Add to library
+              </button>
+              <input
+                ref={libraryInputRef}
+                type="file"
+                multiple
+                onChange={(event) => handleLibraryUpload(event.target.files)}
+                className="hidden"
+              />
+              <input
+                value={fileSearchQuery}
+                onChange={(event) => setFileSearchQuery(event.target.value)}
+                placeholder="Filter files"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+            </div>
+            <div className="mt-4 space-y-2">
+              {filteredFiles.length === 0 ? (
+                <p className="text-xs text-signal-muted">No files yet.</p>
+              ) : (
+                filteredFiles.map((file) => (
+                  <div
+                    key={file.id}
+                    className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-signal-text">
+                        {file.name}
+                      </span>
+                      <button
+                        onClick={() => toggleLibrarySelection(file.id)}
+                        className={cn(
+                          "rounded-full border px-2 py-1 text-[11px]",
+                          selectedFileIds.includes(file.id)
+                            ? "border-signal-accent text-signal-text"
+                            : "border-white/10"
+                        )}
+                      >
+                        {selectedFileIds.includes(file.id) ? "Using" : "Use"}
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <span>{Math.round(file.size / 1024)} KB</span>
+                      <button
+                        onClick={() => removeLibraryFile(file.id)}
+                        className="rounded-full border border-white/10 px-2 py-1"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    <p className="mt-2 text-[11px] text-signal-muted">
+                      {file.text.slice(0, 120).replace(/\s+/g, " ").trim()}…
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
