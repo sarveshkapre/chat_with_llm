@@ -1272,19 +1272,23 @@ ${answer.citations
     URL.revokeObjectURL(url);
   }
 
-  function archiveFilteredThreads() {
+  function archiveFilteredThreads(next = true) {
     if (!filteredThreads.length) return;
     setThreads((prev) =>
       prev.map((thread) =>
         filteredThreads.some((item) => item.id === thread.id)
-          ? { ...thread, archived: true }
+          ? { ...thread, archived: next }
           : thread
       )
     );
     if (current && filteredThreads.some((item) => item.id === current.id)) {
-      setCurrent((prev) => (prev ? { ...prev, archived: true } : prev));
+      setCurrent((prev) => (prev ? { ...prev, archived: next } : prev));
     }
-    setNotice(`Archived ${filteredThreads.length} threads.`);
+    setNotice(
+      next
+        ? `Archived ${filteredThreads.length} threads.`
+        : `Unarchived ${filteredThreads.length} threads.`
+    );
   }
 
   function bumpThread(id: string) {
@@ -1298,6 +1302,20 @@ ${answer.citations
       setCurrent((prev) => (prev ? { ...prev, createdAt: now } : prev));
     }
     setNotice("Thread bumped.");
+  }
+
+  function duplicateThread(thread: Thread) {
+    const copy: Thread = {
+      ...thread,
+      id: nanoid(),
+      createdAt: new Date().toISOString(),
+      question: `${thread.question} (copy)`,
+      title: `${thread.title ?? thread.question} (copy)`,
+      feedback: null,
+    };
+    setThreads((prev) => [copy, ...prev]);
+    setCurrent(copy);
+    setNotice("Thread duplicated.");
   }
 
   function applyRecentFilter(item: (typeof recentFilters)[number]) {
@@ -2241,10 +2259,10 @@ ${answer.citations
                 Export filtered view
               </button>
               <button
-                onClick={archiveFilteredThreads}
+                onClick={() => archiveFilteredThreads(!archivedOnly)}
                 className="w-full rounded-full border border-white/10 px-3 py-2 text-xs text-signal-muted"
               >
-                Archive filtered
+                {archivedOnly ? "Unarchive filtered" : "Archive filtered"}
               </button>
             </div>
             {selectedThreadIds.length ? (
@@ -2661,6 +2679,12 @@ ${answer.citations
                         className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
                       >
                         Bump
+                      </button>
+                      <button
+                        onClick={() => duplicateThread(thread)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] text-signal-muted"
+                      >
+                        Duplicate
                       </button>
                     </div>
                     <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-[11px] text-signal-muted">

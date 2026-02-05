@@ -28,6 +28,7 @@ npm install && npm run dev
 - Archive threads + recent filters history
 - Recent filter pinning + header archive actions
 - Archive filtered view + bump thread
+- Unarchive filtered + duplicate thread
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
