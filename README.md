@@ -22,6 +22,7 @@ npm install && npm run dev
 - Favorites, pinned threads, and collections
 - Collection filter pills + thread notes
 - Collections dashboard + tag filters
+- Bulk tag assignment + tag-based sorting
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

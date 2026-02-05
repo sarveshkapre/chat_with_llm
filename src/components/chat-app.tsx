@@ -121,6 +121,7 @@ export default function ChatApp() {
   const [pinnedOnly, setPinnedOnly] = useState(false);
   const [collectionFilter, setCollectionFilter] = useState("");
   const [tagFilter, setTagFilter] = useState("");
+  const [sortByTag, setSortByTag] = useState(false);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [collectionName, setCollectionName] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
@@ -128,6 +129,7 @@ export default function ChatApp() {
   const [noteDraft, setNoteDraft] = useState("");
   const [editingTagsId, setEditingTagsId] = useState<string | null>(null);
   const [tagDraft, setTagDraft] = useState("");
+  const [bulkTagDraft, setBulkTagDraft] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskName, setTaskName] = useState("");
@@ -337,6 +339,13 @@ export default function ChatApp() {
       if ((a.pinned ?? false) !== (b.pinned ?? false)) {
         return a.pinned ? -1 : 1;
       }
+      if (sortByTag && tagFilter) {
+        const hasTagA = (a.tags ?? []).includes(tagFilter);
+        const hasTagB = (b.tags ?? []).includes(tagFilter);
+        if (hasTagA !== hasTagB) {
+          return hasTagA ? -1 : 1;
+        }
+      }
       const left = new Date(a.createdAt).getTime();
       const right = new Date(b.createdAt).getTime();
       return sort === "newest" ? right - left : left - right;
@@ -350,6 +359,7 @@ export default function ChatApp() {
     pinnedOnly,
     collectionFilter,
     tagFilter,
+    sortByTag,
   ]);
 
   const filteredFiles = useMemo(() => {
@@ -926,6 +936,49 @@ ${answer.citations
   function cancelTagEdit() {
     setEditingTagsId(null);
     setTagDraft("");
+  }
+
+  function bulkAddTags() {
+    const nextTags = bulkTagDraft
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+    if (!selectedThreadIds.length) return;
+    if (!nextTags.length) {
+      setNotice("Enter tags to add.");
+      return;
+    }
+
+    setThreads((prev) =>
+      prev.map((thread) => {
+        if (!selectedThreadIds.includes(thread.id)) return thread;
+        const existing = thread.tags ?? [];
+        const merged = [...existing];
+        nextTags.forEach((tag) => {
+          if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+            merged.push(tag);
+          }
+        });
+        return { ...thread, tags: merged };
+      })
+    );
+
+    if (current && selectedThreadIds.includes(current.id)) {
+      setCurrent((prev) => {
+        if (!prev) return prev;
+        const existing = prev.tags ?? [];
+        const merged = [...existing];
+        nextTags.forEach((tag) => {
+          if (!merged.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+            merged.push(tag);
+          }
+        });
+        return { ...prev, tags: merged };
+      });
+    }
+
+    setBulkTagDraft("");
+    setNotice("Tags added to selected threads.");
   }
 
   function startNoteEdit(threadId: string) {
@@ -1770,6 +1823,17 @@ ${answer.citations
                   Pinned
                 </button>
               </div>
+              <button
+                onClick={() => setSortByTag((prev) => !prev)}
+                className={cn(
+                  "w-full rounded-full border px-3 py-2 text-xs transition",
+                  sortByTag
+                    ? "border-signal-accent text-signal-text"
+                    : "border-white/10 text-signal-muted"
+                )}
+              >
+                Sort by tag
+              </button>
               <select
                 value={collectionFilter}
                 onChange={(event) => setCollectionFilter(event.target.value)}
@@ -1837,6 +1901,20 @@ ${answer.citations
                       disabled={!spaces.length}
                     >
                       Apply
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      value={bulkTagDraft}
+                      onChange={(event) => setBulkTagDraft(event.target.value)}
+                      placeholder="Add tags (comma separated)"
+                      className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text outline-none"
+                    />
+                    <button
+                      onClick={bulkAddTags}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    >
+                      Add
                     </button>
                   </div>
                 </div>

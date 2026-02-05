@@ -68,6 +68,16 @@ export default function CollectionsView() {
       );
       const favoriteCount = items.filter((item) => item.favorite).length;
       const pinnedCount = items.filter((item) => item.pinned).length;
+      const tagCounts = new Map<string, number>();
+      items.forEach((item) => {
+        (item.tags ?? []).forEach((tag) => {
+          tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+        });
+      });
+      const topTags = Array.from(tagCounts.entries())
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+        .slice(0, 4);
       const lastUpdated =
         items.length > 0
           ? new Date(
@@ -81,6 +91,7 @@ export default function CollectionsView() {
         count: items.length,
         favoriteCount,
         pinnedCount,
+        topTags,
         lastUpdated,
       };
     });
@@ -197,6 +208,23 @@ export default function CollectionsView() {
                   <p className="mt-4 text-xs text-signal-muted">
                     Last updated: {collection.lastUpdated}
                   </p>
+                  {collection.topTags.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {collection.topTags.map((tag) => (
+                        <Link
+                          key={`${collection.id}-${tag.tag}`}
+                          href={`/?collection=${collection.id}&tag=${tag.tag}`}
+                          className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
+                        >
+                          #{tag.tag} · {tag.count}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-xs text-signal-muted">
+                      No tags in this collection yet.
+                    </p>
+                  )}
                 </div>
               ))
             )}
