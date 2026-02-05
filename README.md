@@ -31,6 +31,7 @@ npm install && npm run dev
 - Unarchive filtered + duplicate thread
 - Duplicate threads into spaces + bulk duplicate
 - Bulk duplicate + bulk move/remove from space
+- Move to active space + remove from all spaces
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

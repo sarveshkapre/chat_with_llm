@@ -2502,6 +2502,22 @@ ${answer.citations
                     </button>
                   </div>
                   <button
+                    onClick={() =>
+                      moveThreadsToSpace(activeSpaceId ?? null)
+                    }
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    disabled={!selectedThreadIds.length || !activeSpaceId}
+                  >
+                    Move to active space
+                  </button>
+                  <button
+                    onClick={() => moveThreadsToSpace(null)}
+                    className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    disabled={!selectedThreadIds.length}
+                  >
+                    Remove from all spaces
+                  </button>
+                  <button
                     onClick={() => bulkDuplicate(null)}
                     className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
                     disabled={!selectedThreadIds.length}
