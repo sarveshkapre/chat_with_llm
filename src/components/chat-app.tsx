@@ -121,6 +121,9 @@ export default function ChatApp() {
   const [bulkMoveSpaceId, setBulkMoveSpaceId] = useState("");
   const [spaceName, setSpaceName] = useState("");
   const [spaceInstructions, setSpaceInstructions] = useState("");
+  const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
+  const [editingSpaceName, setEditingSpaceName] = useState("");
+  const [editingSpaceInstructions, setEditingSpaceInstructions] = useState("");
   const [editingThreadId, setEditingThreadId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState("");
   const [libraryCompact, setLibraryCompact] = useState(false);
@@ -1581,6 +1584,84 @@ ${answer.citations
   function deleteSpace(id: string) {
     setSpaces((prev) => prev.filter((space) => space.id !== id));
     if (activeSpaceId === id) setActiveSpaceId(null);
+  }
+
+  function exportSpace(space: Space) {
+    const spaceThreads = threads.filter((thread) => thread.spaceId === space.id);
+    const lines: string[] = [
+      `# ${space.name}`,
+      "",
+      space.instructions ? `Instructions: ${space.instructions}` : "Instructions: none",
+      "",
+      `Total threads: ${spaceThreads.length}`,
+      "",
+      "## Threads",
+      ...spaceThreads.map((thread, index) => {
+        const title = thread.title ?? thread.question;
+        return [
+          `${index + 1}. ${title}`,
+          `   - Mode: ${thread.mode} · Sources: ${thread.sources === "web" ? "Web" : "Offline"}`,
+          `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-space-${space.id}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function startEditSpace(space: Space) {
+    setEditingSpaceId(space.id);
+    setEditingSpaceName(space.name);
+    setEditingSpaceInstructions(space.instructions);
+  }
+
+  function saveSpaceEdit(id: string) {
+    if (!editingSpaceName.trim()) {
+      setNotice("Space needs a name.");
+      return;
+    }
+    setSpaces((prev) =>
+      prev.map((space) =>
+        space.id === id
+          ? {
+              ...space,
+              name: editingSpaceName.trim(),
+              instructions: editingSpaceInstructions.trim(),
+            }
+          : space
+      )
+    );
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.spaceId === id
+          ? { ...thread, spaceName: editingSpaceName.trim() }
+          : thread
+      )
+    );
+    if (activeSpaceId === id) {
+      setActiveSpaceId(id);
+    }
+    if (current?.spaceId === id) {
+      setCurrent((prev) =>
+        prev ? { ...prev, spaceName: editingSpaceName.trim() } : prev
+      );
+    }
+    setEditingSpaceId(null);
+    setEditingSpaceName("");
+    setEditingSpaceInstructions("");
+    setNotice("Space updated.");
+  }
+
+  function cancelSpaceEdit() {
+    setEditingSpaceId(null);
+    setEditingSpaceName("");
+    setEditingSpaceInstructions("");
   }
 
   function parseTime(time: string) {
@@ -3178,32 +3259,81 @@ ${answer.citations
                     key={space.id}
                     className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                   >
-                    <button
-                      onClick={() =>
-                        setActiveSpaceId(
-                          activeSpaceId === space.id ? null : space.id
-                        )
-                      }
-                      className="flex w-full items-center justify-between"
-                    >
-                      <span className="text-sm text-signal-text">
-                        {space.name}
-                      </span>
-                      <span>
-                        {activeSpaceId === space.id ? "Active" : "Use"}
-                      </span>
-                    </button>
-                    <div className="mt-2 flex items-center justify-between">
-                      <span className="text-[11px]">
-                        {space.instructions || "No instructions"}
-                      </span>
-                      <button
-                        onClick={() => deleteSpace(space.id)}
-                        className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    {editingSpaceId === space.id ? (
+                      <div className="space-y-2">
+                        <input
+                          value={editingSpaceName}
+                          onChange={(event) =>
+                            setEditingSpaceName(event.target.value)
+                          }
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none"
+                        />
+                        <textarea
+                          value={editingSpaceInstructions}
+                          onChange={(event) =>
+                            setEditingSpaceInstructions(event.target.value)
+                          }
+                          className="h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => saveSpaceEdit(space.id)}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={cancelSpaceEdit}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() =>
+                            setActiveSpaceId(
+                              activeSpaceId === space.id ? null : space.id
+                            )
+                          }
+                          className="flex w-full items-center justify-between"
+                        >
+                          <span className="text-sm text-signal-text">
+                            {space.name}
+                          </span>
+                          <span>
+                            {activeSpaceId === space.id ? "Active" : "Use"}
+                          </span>
+                        </button>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-[11px]">
+                            {space.instructions || "No instructions"}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startEditSpace(space)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => exportSpace(space)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Export
+                            </button>
+                            <button
+                              onClick={() => deleteSpace(space.id)}
+                              className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
                     <div className="mt-2 text-[11px] text-signal-muted">
                       {threads.filter((thread) => thread.spaceId === space.id).length}{" "}
                       threads ·{" "}

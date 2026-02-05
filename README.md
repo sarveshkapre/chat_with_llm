@@ -33,6 +33,7 @@ npm install && npm run dev
 - Bulk duplicate + bulk move/remove from space
 - Move to active space + remove from all spaces
 - Space stats + set active space from thread
+- Edit spaces + export space to Markdown
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
