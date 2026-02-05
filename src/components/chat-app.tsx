@@ -1395,6 +1395,35 @@ ${answer.citations
     );
   }
 
+  function moveThreadToSpace(threadId: string, spaceId: string | null) {
+    const space = spaces.find((item) => item.id === spaceId) ?? null;
+    setThreads((prev) =>
+      prev.map((thread) =>
+        thread.id === threadId
+          ? {
+              ...thread,
+              spaceId: space?.id ?? null,
+              spaceName: space?.name ?? null,
+            }
+          : thread
+      )
+    );
+    if (current?.id === threadId) {
+      setCurrent((prev) =>
+        prev
+          ? {
+              ...prev,
+              spaceId: space?.id ?? null,
+              spaceName: space?.name ?? null,
+            }
+          : prev
+      );
+    }
+    setNotice(
+      space ? `Moved to ${space.name}.` : "Removed from space."
+    );
+  }
+
   function applyRecentFilter(item: (typeof recentFilters)[number]) {
     setSearch(item.query);
     setFilterMode(item.filterMode);
@@ -2436,7 +2465,7 @@ ${answer.citations
                         bulkDuplicate(bulkDuplicateSpaceId || null)
                       }
                       className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
-                      disabled={!spaces.length && !selectedThreadIds.length}
+                      disabled={!selectedThreadIds.length}
                     >
                       Duplicate
                     </button>
@@ -2446,11 +2475,12 @@ ${answer.citations
                       value={bulkMoveSpaceId}
                       onChange={(event) => setBulkMoveSpaceId(event.target.value)}
                       className="w-full rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
-                      disabled={!spaces.length}
+                      disabled={!selectedThreadIds.length}
                     >
                       <option value="">
-                        {spaces.length ? "Move to space" : "No spaces yet"}
+                        {spaces.length ? "Move to space" : "Remove from spaces"}
                       </option>
+                      <option value="__none__">Remove from spaces</option>
                       {spaces.map((space) => (
                         <option key={space.id} value={space.id}>
                           {space.name}
@@ -2458,7 +2488,13 @@ ${answer.citations
                       ))}
                     </select>
                     <button
-                      onClick={() => moveThreadsToSpace(bulkMoveSpaceId || null)}
+                      onClick={() =>
+                        moveThreadsToSpace(
+                          bulkMoveSpaceId === "__none__"
+                            ? null
+                            : bulkMoveSpaceId || null
+                        )
+                      }
                       className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
                       disabled={!selectedThreadIds.length}
                     >
@@ -2832,6 +2868,26 @@ ${answer.citations
                         className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
                       >
                         <option value="">Duplicate to space</option>
+                        {spaces.map((space) => (
+                          <option key={space.id} value={space.id}>
+                            {space.name}
+                          </option>
+                        ))}
+                      </select>
+                      <select
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          if (!value) return;
+                          moveThreadToSpace(
+                            thread.id,
+                            value === "__none__" ? null : value
+                          );
+                          event.currentTarget.selectedIndex = 0;
+                        }}
+                        className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[11px] text-signal-text"
+                      >
+                        <option value="">Move to space</option>
+                        <option value="__none__">Remove from space</option>
                         {spaces.map((space) => (
                           <option key={space.id} value={space.id}>
                             {space.name}
