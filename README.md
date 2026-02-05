@@ -48,6 +48,7 @@ npm install && npm run dev
 - Unified search top results summary + clear recent
 - Unified search now includes collections and files
 - Unified search now includes tasks
+- Unified search sort controls (relevance/newest/oldest) + per-section result limits
 - Spaces with custom instructions (local-only)
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search

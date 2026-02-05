@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
@@ -27,6 +27,10 @@ export default function UnifiedSearch() {
   const [filter, setFilter] = useState<
     "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
   >("all");
+  const [sortBy, setSortBy] = useState<"relevance" | "newest" | "oldest">(
+    "relevance"
+  );
+  const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
   const [recentQueries, setRecentQueries] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
     const stored = localStorage.getItem(RECENT_SEARCH_KEY);
@@ -93,6 +97,33 @@ export default function UnifiedSearch() {
   }, []);
 
   const normalized = query.trim().toLowerCase();
+  const normalizedTokens = useMemo(
+    () => normalized.split(/\s+/).filter(Boolean),
+    [normalized]
+  );
+
+  function toTime(value?: string) {
+    const parsed = Date.parse(value ?? "");
+    return Number.isNaN(parsed) ? 0 : parsed;
+  }
+
+  const relevanceScore = useCallback(
+    (parts: string[]) => {
+      if (!normalized) return 0;
+      let score = 0;
+      parts.forEach((part) => {
+        const text = part.toLowerCase();
+        if (!text) return;
+        if (text.includes(normalized)) score += 8;
+        if (text.startsWith(normalized)) score += 4;
+        normalizedTokens.forEach((token) => {
+          if (text.includes(token)) score += 1;
+        });
+      });
+      return score;
+    },
+    [normalized, normalizedTokens]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -154,27 +185,122 @@ export default function UnifiedSearch() {
     });
   }, [tasks, normalized]);
 
-  const topThreadResults = useMemo(
-    () => filteredThreads.slice(0, 3),
-    [filteredThreads]
+  const sortedThreads = useMemo(() => {
+    const next = [...filteredThreads];
+    next.sort((a, b) => {
+      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
+      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
+      const scoreA = relevanceScore([
+        a.title ?? a.question,
+        a.question,
+        (a.tags ?? []).join(" "),
+        a.spaceName ?? "",
+      ]);
+      const scoreB = relevanceScore([
+        b.title ?? b.question,
+        b.question,
+        (b.tags ?? []).join(" "),
+        b.spaceName ?? "",
+      ]);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return toTime(b.createdAt) - toTime(a.createdAt);
+    });
+    return next;
+  }, [filteredThreads, relevanceScore, sortBy]);
+
+  const sortedSpaces = useMemo(() => {
+    const next = [...filteredSpaces];
+    next.sort((a, b) => {
+      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
+      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
+      const scoreA = relevanceScore([a.name, a.instructions ?? ""]);
+      const scoreB = relevanceScore([b.name, b.instructions ?? ""]);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return toTime(b.createdAt) - toTime(a.createdAt);
+    });
+    return next;
+  }, [filteredSpaces, relevanceScore, sortBy]);
+
+  const sortedCollections = useMemo(() => {
+    const next = [...filteredCollections];
+    next.sort((a, b) => {
+      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
+      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
+      const scoreA = relevanceScore([a.name]);
+      const scoreB = relevanceScore([b.name]);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return toTime(b.createdAt) - toTime(a.createdAt);
+    });
+    return next;
+  }, [filteredCollections, relevanceScore, sortBy]);
+
+  const sortedFiles = useMemo(() => {
+    const next = [...filteredFiles];
+    next.sort((a, b) => {
+      if (sortBy === "newest") return toTime(b.addedAt) - toTime(a.addedAt);
+      if (sortBy === "oldest") return toTime(a.addedAt) - toTime(b.addedAt);
+      const scoreA = relevanceScore([a.name, a.text]);
+      const scoreB = relevanceScore([b.name, b.text]);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return toTime(b.addedAt) - toTime(a.addedAt);
+    });
+    return next;
+  }, [filteredFiles, relevanceScore, sortBy]);
+
+  const sortedTasks = useMemo(() => {
+    const next = [...filteredTasks];
+    next.sort((a, b) => {
+      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
+      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
+      const scoreA = relevanceScore([
+        a.name,
+        a.prompt,
+        a.spaceName ?? "",
+        a.mode,
+        a.cadence,
+      ]);
+      const scoreB = relevanceScore([
+        b.name,
+        b.prompt,
+        b.spaceName ?? "",
+        b.mode,
+        b.cadence,
+      ]);
+      if (scoreB !== scoreA) return scoreB - scoreA;
+      return toTime(b.createdAt) - toTime(a.createdAt);
+    });
+    return next;
+  }, [filteredTasks, relevanceScore, sortBy]);
+
+  const shownThreads = useMemo(
+    () => sortedThreads.slice(0, resultLimit),
+    [sortedThreads, resultLimit]
+  );
+  const shownSpaces = useMemo(
+    () => sortedSpaces.slice(0, resultLimit),
+    [sortedSpaces, resultLimit]
+  );
+  const shownCollections = useMemo(
+    () => sortedCollections.slice(0, resultLimit),
+    [sortedCollections, resultLimit]
+  );
+  const shownFiles = useMemo(
+    () => sortedFiles.slice(0, resultLimit),
+    [sortedFiles, resultLimit]
+  );
+  const shownTasks = useMemo(
+    () => sortedTasks.slice(0, resultLimit),
+    [sortedTasks, resultLimit]
   );
 
-  const topSpaceResults = useMemo(
-    () => filteredSpaces.slice(0, 3),
-    [filteredSpaces]
-  );
+  const topThreadResults = useMemo(() => sortedThreads.slice(0, 3), [sortedThreads]);
+  const topSpaceResults = useMemo(() => sortedSpaces.slice(0, 3), [sortedSpaces]);
   const topCollectionResults = useMemo(
-    () => filteredCollections.slice(0, 3),
-    [filteredCollections]
+    () => sortedCollections.slice(0, 3),
+    [sortedCollections]
   );
-  const topFileResults = useMemo(
-    () => filteredFiles.slice(0, 3),
-    [filteredFiles]
-  );
-  const topTaskResults = useMemo(
-    () => filteredTasks.slice(0, 3),
-    [filteredTasks]
-  );
+  const topFileResults = useMemo(() => sortedFiles.slice(0, 3), [sortedFiles]);
+  const topTaskResults = useMemo(() => sortedTasks.slice(0, 3), [sortedTasks]);
 
   function pushRecentQuery(value: string) {
     const trimmed = value.trim();
@@ -191,6 +317,8 @@ export default function UnifiedSearch() {
       "",
       `Query: ${query || "None"}`,
       `Filter: ${filter}`,
+      `Sort: ${sortBy}`,
+      `Result limit (UI): ${resultLimit}`,
       "",
       `Threads: ${filteredThreads.length}`,
       `Spaces: ${filteredSpaces.length}`,
@@ -199,7 +327,7 @@ export default function UnifiedSearch() {
       `Tasks: ${filteredTasks.length}`,
       "",
       "## Threads",
-      ...filteredThreads.map((thread, index) => {
+      ...sortedThreads.map((thread, index) => {
         const title = thread.title ?? thread.question;
         return [
           `${index + 1}. ${title}`,
@@ -209,7 +337,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Spaces",
-      ...filteredSpaces.map((space, index) => {
+      ...sortedSpaces.map((space, index) => {
         return [
           `${index + 1}. ${space.name}`,
           `   - Instructions: ${space.instructions || "None"}`,
@@ -218,7 +346,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Collections",
-      ...filteredCollections.map((collection, index) => {
+      ...sortedCollections.map((collection, index) => {
         return [
           `${index + 1}. ${collection.name}`,
           `   - Created: ${new Date(collection.createdAt).toLocaleString()}`,
@@ -226,7 +354,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Files",
-      ...filteredFiles.map((file, index) => {
+      ...sortedFiles.map((file, index) => {
         return [
           `${index + 1}. ${file.name}`,
           `   - Size: ${Math.round(file.size / 1024)} KB`,
@@ -235,7 +363,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Tasks",
-      ...filteredTasks.map((task, index) => {
+      ...sortedTasks.map((task, index) => {
         return [
           `${index + 1}. ${task.name}`,
           `   - Cadence: ${task.cadence} at ${task.time}`,
@@ -258,7 +386,7 @@ export default function UnifiedSearch() {
   function exportCsv() {
     const lines = [
       ["type", "title", "space", "mode", "created_at"].join(","),
-      ...filteredThreads.map((thread) =>
+      ...sortedThreads.map((thread) =>
         [
           "thread",
           `"${(thread.title ?? thread.question).replace(/\"/g, '""')}"`,
@@ -267,7 +395,7 @@ export default function UnifiedSearch() {
           thread.createdAt,
         ].join(",")
       ),
-      ...filteredSpaces.map((space) =>
+      ...sortedSpaces.map((space) =>
         [
           "space",
           `"${space.name.replace(/\"/g, '""')}"`,
@@ -276,7 +404,7 @@ export default function UnifiedSearch() {
           space.createdAt,
         ].join(",")
       ),
-      ...filteredCollections.map((collection) =>
+      ...sortedCollections.map((collection) =>
         [
           "collection",
           `"${collection.name.replace(/\"/g, '""')}"`,
@@ -285,7 +413,7 @@ export default function UnifiedSearch() {
           collection.createdAt,
         ].join(",")
       ),
-      ...filteredFiles.map((file) =>
+      ...sortedFiles.map((file) =>
         [
           "file",
           `"${file.name.replace(/\"/g, '""')}"`,
@@ -294,7 +422,7 @@ export default function UnifiedSearch() {
           file.addedAt,
         ].join(",")
       ),
-      ...filteredTasks.map((task) =>
+      ...sortedTasks.map((task) =>
         [
           "task",
           `"${task.name.replace(/\"/g, '""')}"`,
@@ -396,6 +524,38 @@ export default function UnifiedSearch() {
                           : "Tasks only"}
               </button>
             ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs">
+            <label className="flex items-center gap-2 text-signal-muted">
+              Sort
+              <select
+                value={sortBy}
+                onChange={(event) =>
+                  setSortBy(
+                    event.target.value as "relevance" | "newest" | "oldest"
+                  )
+                }
+                className="rounded-full border border-white/10 bg-transparent px-3 py-1 text-xs text-signal-text"
+              >
+                <option value="relevance">Relevance</option>
+                <option value="newest">Newest</option>
+                <option value="oldest">Oldest</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-signal-muted">
+              Show
+              <select
+                value={resultLimit}
+                onChange={(event) =>
+                  setResultLimit(Number(event.target.value) as 10 | 20 | 50)
+                }
+                className="rounded-full border border-white/10 bg-transparent px-3 py-1 text-xs text-signal-text"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </label>
           </div>
           {recentQueries.length ? (
             <div className="space-y-2">
@@ -545,7 +705,7 @@ export default function UnifiedSearch() {
                     No matching threads.
                   </p>
                 ) : (
-                  filteredThreads.slice(0, 20).map((thread) => (
+                  shownThreads.map((thread) => (
                     <div
                       key={thread.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -580,7 +740,7 @@ export default function UnifiedSearch() {
                     No matching spaces.
                   </p>
                 ) : (
-                  filteredSpaces.slice(0, 20).map((space) => (
+                  shownSpaces.map((space) => (
                     <div
                       key={space.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -613,7 +773,7 @@ export default function UnifiedSearch() {
                     No matching collections.
                   </p>
                 ) : (
-                  filteredCollections.slice(0, 20).map((collection) => (
+                  shownCollections.map((collection) => (
                     <div
                       key={collection.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -646,7 +806,7 @@ export default function UnifiedSearch() {
                 {filteredFiles.length === 0 ? (
                   <p className="text-xs text-signal-muted">No matching files.</p>
                 ) : (
-                  filteredFiles.slice(0, 20).map((file) => (
+                  shownFiles.map((file) => (
                     <div
                       key={file.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
@@ -674,7 +834,7 @@ export default function UnifiedSearch() {
                 {filteredTasks.length === 0 ? (
                   <p className="text-xs text-signal-muted">No matching tasks.</p>
                 ) : (
-                  filteredTasks.slice(0, 20).map((task) => (
+                  shownTasks.map((task) => (
                     <div
                       key={task.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
