@@ -1,6 +1,11 @@
 import OpenAI from "openai";
 import { nanoid } from "nanoid";
-import type { AnswerMode, AnswerResponse, SourceMode } from "@/lib/types/answer";
+import type {
+  AnswerMode,
+  AnswerResponse,
+  SourceMode,
+  Attachment,
+} from "@/lib/types/answer";
 import {
   extractCitationsFromOutput,
   extractTextFromOutput,
@@ -23,10 +28,30 @@ const SOURCE_INSTRUCTIONS: Record<SourceMode, string> = {
     "Do not browse the web or use external sources. Answer from general knowledge and say when uncertain.",
 };
 
+function formatAttachments(attachments: Attachment[]): string {
+  if (!attachments.length) return "";
+
+  const usable = attachments
+    .filter((attachment) => attachment.text && !attachment.error)
+    .slice(0, 5);
+
+  if (!usable.length) return "";
+
+  const blocks = usable.map((attachment) => {
+    const content = attachment.text?.slice(0, 4000) ?? "";
+    return `Attachment: ${attachment.name}\n${content}`;
+  });
+
+  return `\n\nContext from attached files:\n${blocks.join("\n\n")}`;
+}
+
 export async function answerWithOpenAI(
   question: string,
   mode: AnswerMode,
-  sources: SourceMode
+  sources: SourceMode,
+  attachments: Attachment[],
+  spaceInstructions?: string,
+  spaceMeta?: { id?: string; name?: string }
 ): Promise<AnswerResponse> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -43,10 +68,20 @@ export async function answerWithOpenAI(
   const tools =
     sources === "web" ? [{ type: "web_search_preview" as const }] : [];
 
+  const spaceBlock = spaceInstructions
+    ? `Space instructions: ${spaceInstructions}`
+    : "";
+
   const response = await client.responses.create({
     model,
-    input: question,
-    instructions: `${MODE_INSTRUCTIONS[mode]} ${SOURCE_INSTRUCTIONS[sources]}`,
+    input: `${question}${formatAttachments(attachments)}`,
+    instructions: [
+      MODE_INSTRUCTIONS[mode],
+      SOURCE_INSTRUCTIONS[sources],
+      spaceBlock,
+    ]
+      .filter(Boolean)
+      .join(" "),
     tools,
     tool_choice: tools.length ? "auto" : "none",
   });
@@ -63,6 +98,9 @@ export async function answerWithOpenAI(
     sources,
     createdAt: new Date().toISOString(),
     citations,
+    attachments,
+    spaceId: spaceMeta?.id ?? null,
+    spaceName: spaceMeta?.name ?? null,
     provider: "openai",
     latencyMs: Date.now() - start,
   };

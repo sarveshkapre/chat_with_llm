@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import type { AnswerMode, AnswerResponse, SourceMode } from "@/lib/types/answer";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  AnswerMode,
+  AnswerResponse,
+  SourceMode,
+  Attachment,
+} from "@/lib/types/answer";
+import type { Space } from "@/lib/types/space";
 import { cn } from "@/lib/utils";
+import {
+  canReadAsText,
+  readFileAsText,
+  stripAttachmentText,
+} from "@/lib/attachments";
+import { nanoid } from "nanoid";
 
 type Feedback = "up" | "down" | null;
 
@@ -41,7 +53,12 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
   },
 ];
 
-const STORAGE_KEY = "signal-history-v1";
+const STORAGE_KEY = "signal-history-v2";
+const SPACES_KEY = "signal-spaces-v1";
+const ACTIVE_SPACE_KEY = "signal-space-active";
+
+const MAX_ATTACHMENTS = 5;
+const MAX_ATTACHMENT_SIZE = 1_000_000;
 
 export default function ChatApp() {
   const [question, setQuestion] = useState("");
@@ -56,6 +73,12 @@ export default function ChatApp() {
   const [filterMode, setFilterMode] = useState<AnswerMode | "all">("all");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [notice, setNotice] = useState<string | null>(null);
+  const [spaces, setSpaces] = useState<Space[]>([]);
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [spaceName, setSpaceName] = useState("");
+  const [spaceInstructions, setSpaceInstructions] = useState("");
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -67,11 +90,38 @@ export default function ChatApp() {
         setThreads([]);
       }
     }
+
+    const spaceStore = localStorage.getItem(SPACES_KEY);
+    if (spaceStore) {
+      try {
+        const parsed = JSON.parse(spaceStore) as Space[];
+        setSpaces(parsed);
+      } catch {
+        setSpaces([]);
+      }
+    }
+
+    const active = localStorage.getItem(ACTIVE_SPACE_KEY);
+    if (active) {
+      setActiveSpaceId(active);
+    }
   }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
   }, [threads]);
+
+  useEffect(() => {
+    localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
+  }, [spaces]);
+
+  useEffect(() => {
+    if (activeSpaceId) {
+      localStorage.setItem(ACTIVE_SPACE_KEY, activeSpaceId);
+    } else {
+      localStorage.removeItem(ACTIVE_SPACE_KEY);
+    }
+  }, [activeSpaceId]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,6 +146,11 @@ export default function ChatApp() {
     [mode]
   );
 
+  const activeSpace = useMemo(
+    () => spaces.find((space) => space.id === activeSpaceId) ?? null,
+    [spaces, activeSpaceId]
+  );
+
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     const filtered = threads.filter((thread) => {
@@ -112,6 +167,61 @@ export default function ChatApp() {
     });
   }, [threads, search, filterMode, sort]);
 
+  async function handleFiles(files: FileList | null) {
+    if (!files) return;
+    const incoming = Array.from(files).slice(0, MAX_ATTACHMENTS);
+    const next: Attachment[] = [];
+
+    for (const file of incoming) {
+      if (file.size > MAX_ATTACHMENT_SIZE) {
+        next.push({
+          id: nanoid(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          text: null,
+          error: "File too large for preview.",
+        });
+        continue;
+      }
+
+      if (!canReadAsText(file)) {
+        next.push({
+          id: nanoid(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          text: null,
+          error: "Binary files are not supported yet.",
+        });
+        continue;
+      }
+
+      try {
+        const text = await readFileAsText(file);
+        next.push({
+          id: nanoid(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          text,
+          error: null,
+        });
+      } catch {
+        next.push({
+          id: nanoid(),
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          text: null,
+          error: "Failed to read file.",
+        });
+      }
+    }
+
+    setAttachments((prev) => [...prev, ...next].slice(0, MAX_ATTACHMENTS));
+  }
+
   async function submitQuestion() {
     if (!question.trim() || loading) return;
     setLoading(true);
@@ -121,7 +231,15 @@ export default function ChatApp() {
       const response = await fetch("/api/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, mode, sources }),
+        body: JSON.stringify({
+          question,
+          mode,
+          sources,
+          attachments,
+          spaceInstructions: activeSpace?.instructions ?? "",
+          spaceId: activeSpace?.id,
+          spaceName: activeSpace?.name,
+        }),
       });
       const data = (await response.json()) as AnswerResponse & {
         error?: string;
@@ -131,12 +249,17 @@ export default function ChatApp() {
         throw new Error(data.error ?? "Request failed");
       }
 
-      const thread: Thread = { ...data, feedback: null };
+      const thread: Thread = {
+        ...data,
+        feedback: null,
+        attachments: data.attachments.map(stripAttachmentText),
+      };
       setCurrent(thread);
       if (!incognito) {
         setThreads((prev) => [thread, ...prev].slice(0, 30));
       }
       setQuestion("");
+      setAttachments([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -175,6 +298,7 @@ export default function ChatApp() {
       "",
       `Mode: ${current.mode}`,
       `Sources: ${current.sources === "web" ? "Web" : "Offline"}`,
+      current.spaceName ? `Space: ${current.spaceName}` : null,
       "",
       "## Sources",
       ...(current.citations.length
@@ -182,7 +306,7 @@ export default function ChatApp() {
             `${index + 1}. [${source.title}](${source.url})`
           )
         : ["No citations."]),
-    ];
+    ].filter(Boolean) as string[];
 
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
@@ -213,6 +337,34 @@ export default function ChatApp() {
   function clearLibrary() {
     setThreads([]);
     setCurrent(null);
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  function createSpace() {
+    if (!spaceName.trim()) {
+      setNotice("Space needs a name.");
+      return;
+    }
+
+    const space: Space = {
+      id: nanoid(),
+      name: spaceName.trim(),
+      instructions: spaceInstructions.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setSpaces((prev) => [space, ...prev]);
+    setActiveSpaceId(space.id);
+    setSpaceName("");
+    setSpaceInstructions("");
+    setNotice("Space created.");
+  }
+
+  function deleteSpace(id: string) {
+    setSpaces((prev) => prev.filter((space) => space.id !== id));
+    if (activeSpaceId === id) setActiveSpaceId(null);
   }
 
   return (
@@ -317,6 +469,17 @@ export default function ChatApp() {
                 </div>
               </div>
 
+              {activeSpace ? (
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-xs text-signal-muted">
+                  <p className="text-sm font-semibold text-signal-text">
+                    Active Space: {activeSpace.name}
+                  </p>
+                  <p className="mt-1 text-xs text-signal-muted">
+                    {activeSpace.instructions || "No instructions set."}
+                  </p>
+                </div>
+              ) : null}
+
               <div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
@@ -336,14 +499,14 @@ export default function ChatApp() {
                   />
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3 text-xs text-signal-muted">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className="rounded-full border border-white/10 px-3 py-1 text-xs"
+                      >
+                        Attach files
+                      </button>
                       <span className="rounded-full border border-white/10 px-3 py-1">
-                        Web
-                      </span>
-                      <span className="rounded-full border border-white/10 px-3 py-1">
-                        Files (soon)
-                      </span>
-                      <span className="rounded-full border border-white/10 px-3 py-1">
-                        Spaces (soon)
+                        Files {attachments.length}/{MAX_ATTACHMENTS}
                       </span>
                     </div>
                     <button
@@ -354,6 +517,39 @@ export default function ChatApp() {
                       {loading ? "Thinking…" : "Send"}
                     </button>
                   </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={(event) => handleFiles(event.target.files)}
+                    className="hidden"
+                  />
+                  {attachments.length ? (
+                    <div className="mt-4 space-y-2">
+                      {attachments.map((file) => (
+                        <div
+                          key={file.id}
+                          className="flex items-center justify-between rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                        >
+                          <div>
+                            <p className="text-sm text-signal-text">
+                              {file.name}
+                            </p>
+                            <p className="text-[11px] text-signal-muted">
+                              {file.error ??
+                                `${Math.round(file.size / 1024)} KB`}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => removeAttachment(file.id)}
+                            className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 {error ? (
                   <p className="mt-3 text-sm text-rose-300">{error}</p>
@@ -377,6 +573,11 @@ export default function ChatApp() {
                 <span className="rounded-full border border-white/10 px-3 py-1">
                   {current?.sources === "web" ? "Web" : "Offline"}
                 </span>
+                {current?.spaceName ? (
+                  <span className="rounded-full border border-white/10 px-3 py-1">
+                    {current.spaceName}
+                  </span>
+                ) : null}
               </div>
             </div>
             <div className="mt-4 space-y-4 text-sm leading-7 text-signal-text/90">
@@ -530,6 +731,11 @@ export default function ChatApp() {
                         <span className="rounded-full border border-white/10 px-2 py-0.5">
                           {thread.sources === "web" ? "Web" : "Offline"}
                         </span>
+                        {thread.spaceName ? (
+                          <span className="rounded-full border border-white/10 px-2 py-0.5">
+                            {thread.spaceName}
+                          </span>
+                        ) : null}
                         <span>{new Date(thread.createdAt).toLocaleString()}</span>
                       </div>
                     </button>
@@ -562,9 +768,65 @@ export default function ChatApp() {
             <p className="mt-2 text-sm text-signal-muted">
               Create focused workspaces with custom instructions and sources.
             </p>
-            <button className="mt-4 w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted">
-              Create a space (soon)
-            </button>
+            <div className="mt-4 space-y-2">
+              <input
+                value={spaceName}
+                onChange={(event) => setSpaceName(event.target.value)}
+                placeholder="Space name"
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+              <textarea
+                value={spaceInstructions}
+                onChange={(event) => setSpaceInstructions(event.target.value)}
+                placeholder="Space instructions"
+                className="h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+              />
+              <button
+                onClick={createSpace}
+                className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
+              >
+                Create space
+              </button>
+            </div>
+            <div className="mt-4 space-y-2">
+              {spaces.length === 0 ? (
+                <p className="text-xs text-signal-muted">No spaces yet.</p>
+              ) : (
+                spaces.map((space) => (
+                  <div
+                    key={space.id}
+                    className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                  >
+                    <button
+                      onClick={() =>
+                        setActiveSpaceId(
+                          activeSpaceId === space.id ? null : space.id
+                        )
+                      }
+                      className="flex w-full items-center justify-between"
+                    >
+                      <span className="text-sm text-signal-text">
+                        {space.name}
+                      </span>
+                      <span>
+                        {activeSpaceId === space.id ? "Active" : "Use"}
+                      </span>
+                    </button>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[11px]">
+                        {space.instructions || "No instructions"}
+                      </span>
+                      <button
+                        onClick={() => deleteSpace(space.id)}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">

@@ -14,6 +14,8 @@ npm install && npm run dev
 - Quick, Research, and Learn modes
 - Source toggle (web or offline)
 - Thread library with search, filters, and share links
+- Spaces with custom instructions (local-only)
+- Local file attachments for context (text formats)
 - Pluggable provider interface (OpenAI now, OSS models next)
 
 ## Configuration

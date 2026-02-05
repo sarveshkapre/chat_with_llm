@@ -1,5 +1,10 @@
 import { nanoid } from "nanoid";
-import type { AnswerMode, AnswerResponse, SourceMode } from "@/lib/types/answer";
+import type {
+  AnswerMode,
+  AnswerResponse,
+  SourceMode,
+  Attachment,
+} from "@/lib/types/answer";
 
 const PLACEHOLDER_SOURCES = [
   {
@@ -11,7 +16,10 @@ const PLACEHOLDER_SOURCES = [
 export async function answerWithMock(
   question: string,
   mode: AnswerMode,
-  sources: SourceMode
+  sources: SourceMode,
+  attachments: Attachment[],
+  spaceInstructions?: string,
+  spaceMeta?: { id?: string; name?: string }
 ): Promise<AnswerResponse> {
   const createdAt = new Date().toISOString();
   const answer =
@@ -29,6 +37,9 @@ export async function answerWithMock(
     sources,
     createdAt,
     citations: sources === "web" ? PLACEHOLDER_SOURCES : [],
+    attachments,
+    spaceId: spaceMeta?.id ?? null,
+    spaceName: spaceMeta?.name ?? null,
     provider: "mock",
     latencyMs: 1,
   };

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { answerWithProvider } from "@/lib/providers";
-import type { AnswerMode, SourceMode } from "@/lib/types/answer";
+import type {
+  AnswerMode,
+  SourceMode,
+  Attachment,
+} from "@/lib/types/answer";
 
 const MODES: AnswerMode[] = ["quick", "research", "learn"];
 const SOURCES: SourceMode[] = ["web", "none"];
@@ -11,6 +15,10 @@ export async function POST(request: Request) {
       question?: string;
       mode?: AnswerMode;
       sources?: SourceMode;
+      attachments?: Attachment[];
+      spaceInstructions?: string;
+      spaceId?: string;
+      spaceName?: string;
     };
 
     const question = body.question?.trim() ?? "";
@@ -28,7 +36,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const response = await answerWithProvider(question, mode, sources);
+    const response = await answerWithProvider(
+      question,
+      mode,
+      sources,
+      body.attachments ?? [],
+      body.spaceInstructions,
+      { id: body.spaceId, name: body.spaceName }
+    );
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
