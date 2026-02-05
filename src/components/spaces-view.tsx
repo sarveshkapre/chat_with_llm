@@ -18,6 +18,44 @@ const ACTIVE_SPACE_KEY = "signal-space-active";
 const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
 const SPACE_TAGS_KEY = "signal-space-tags-v1";
 const REQUEST_MODELS = ["auto", "gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
+type SpaceTemplate = {
+  id: string;
+  name: string;
+  instructions: string;
+  preferredModel: (typeof REQUEST_MODELS)[number];
+};
+const SPACE_TEMPLATES: SpaceTemplate[] = [
+  {
+    id: "research-briefs",
+    name: "Research Briefs",
+    instructions:
+      "Summarize with sections for key findings, evidence, risks, and concrete next actions.",
+    preferredModel: "gpt-4.1",
+  },
+  {
+    id: "market-watch",
+    name: "Market Watch",
+    instructions:
+      "Track market, product, and competitor changes. Prioritize recent updates and cite sources.",
+    preferredModel: "gpt-4.1-mini",
+  },
+  {
+    id: "study-coach",
+    name: "Study Coach",
+    instructions:
+      "Teach step-by-step with concise explanations and quick checks for understanding.",
+    preferredModel: "gpt-4o-mini",
+  },
+];
+
+function normalizeRequestModel(
+  value?: string | null
+): (typeof REQUEST_MODELS)[number] {
+  if (!value) return "auto";
+  return REQUEST_MODELS.includes(value as (typeof REQUEST_MODELS)[number])
+    ? (value as (typeof REQUEST_MODELS)[number])
+    : "auto";
+}
 
 export default function SpacesView() {
   const [spaces, setSpaces] = useState<Space[]>(() => {
@@ -25,7 +63,14 @@ export default function SpacesView() {
     const stored = localStorage.getItem(SPACES_KEY);
     if (!stored) return [];
     try {
-      return JSON.parse(stored) as Space[];
+      const parsed = JSON.parse(stored) as Space[];
+      return parsed.map((space) => ({
+        ...space,
+        preferredModel:
+          normalizeRequestModel(space.preferredModel) === "auto"
+            ? null
+            : normalizeRequestModel(space.preferredModel),
+      }));
     } catch {
       return [];
     }
@@ -187,6 +232,20 @@ export default function SpacesView() {
     setInstructions("");
     setPreferredModel("auto");
     setNotice("Space created.");
+  }
+
+  function createSpaceFromTemplate(template: SpaceTemplate) {
+    const space: Space = {
+      id: nanoid(),
+      name: template.name,
+      instructions: template.instructions,
+      preferredModel:
+        template.preferredModel === "auto" ? null : template.preferredModel,
+      createdAt: new Date().toISOString(),
+    };
+    setSpaces((prev) => [space, ...prev]);
+    setActiveSpaceId(space.id);
+    setNotice(`Space created from template: ${template.name}.`);
   }
 
   function deleteSpace(id: string) {
@@ -368,6 +427,22 @@ export default function SpacesView() {
               placeholder="Space instructions"
               className="mt-3 h-20 w-full resize-none rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />
+            <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+              <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                Templates
+              </p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {SPACE_TEMPLATES.map((template) => (
+                  <button
+                    key={template.id}
+                    onClick={() => createSpaceFromTemplate(template)}
+                    className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
+                  >
+                    {template.name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <select
               value={preferredModel}
               onChange={(event) =>

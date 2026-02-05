@@ -12,6 +12,7 @@ npm install && npm run dev
 ## Features
 - Web-grounded answers with citations
 - Quick, Research, and Learn modes with research progress states
+- Research mode key findings panel while answers are still streaming
 - Source toggle (web or offline)
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links
@@ -54,6 +55,7 @@ npm install && npm run dev
 - Unified search now includes tasks
 - Unified search sort controls (relevance/newest/oldest) + per-section result limits
 - Spaces with custom instructions and preferred model routing (local-only)
+- Space templates gallery for one-click workspace setup
 - Local file attachments for context (text formats)
 - File library with lightweight full-text search
 - Tasks scheduler (local-only) with once/daily/weekday/weekly/monthly/yearly cadences, explicit Space targeting, and last-result links

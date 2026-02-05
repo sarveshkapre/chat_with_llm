@@ -73,6 +73,35 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
 
 const REWRITE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
 const REQUEST_MODELS = ["auto", ...REWRITE_MODELS] as const;
+type SpaceTemplate = {
+  id: string;
+  name: string;
+  instructions: string;
+  preferredModel: (typeof REQUEST_MODELS)[number];
+};
+const SPACE_TEMPLATES: SpaceTemplate[] = [
+  {
+    id: "research-briefs",
+    name: "Research Briefs",
+    instructions:
+      "Summarize sources into clear sections: key findings, evidence, risks, and next actions.",
+    preferredModel: "gpt-4.1",
+  },
+  {
+    id: "market-watch",
+    name: "Market Watch",
+    instructions:
+      "Track market, product, and competitor updates. Prioritize recent changes and cite every claim.",
+    preferredModel: "gpt-4.1-mini",
+  },
+  {
+    id: "study-coach",
+    name: "Study Coach",
+    instructions:
+      "Teach concepts step-by-step, include checks for understanding, and keep language concise.",
+    preferredModel: "gpt-4o-mini",
+  },
+];
 
 const TASK_CADENCES: { id: TaskCadence; label: string }[] = [
   { id: "once", label: "Once" },
@@ -221,6 +250,7 @@ export default function ChatApp() {
   );
   const [taskRunningId, setTaskRunningId] = useState<string | null>(null);
   const [researchStepIndex, setResearchStepIndex] = useState(0);
+  const [researchFindings, setResearchFindings] = useState<string[]>([]);
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
@@ -523,6 +553,20 @@ export default function ChatApp() {
   const spacePreferredModelValue = requestSpace?.preferredModel?.trim() || undefined;
   const effectiveRequestModel =
     requestModel === "auto" ? spacePreferredModelValue : requestModel;
+
+  useEffect(() => {
+    if (!loading || effectiveMode !== "research") {
+      setResearchFindings([]);
+      return;
+    }
+    const findings = liveAnswer
+      .split(/(?<=[.!?])\s+/)
+      .map((line) => line.replace(/\s+/g, " ").trim())
+      .filter((line) => line.length >= 70)
+      .filter((line, index, array) => array.indexOf(line) === index)
+      .slice(0, 3);
+    setResearchFindings(findings);
+  }, [loading, effectiveMode, liveAnswer]);
 
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -1859,6 +1903,20 @@ ${answer.citations
     setNotice("Space created.");
   }
 
+  function createSpaceFromTemplate(template: SpaceTemplate) {
+    const space: Space = {
+      id: nanoid(),
+      name: template.name,
+      instructions: template.instructions,
+      preferredModel:
+        template.preferredModel === "auto" ? null : template.preferredModel,
+      createdAt: new Date().toISOString(),
+    };
+    setSpaces((prev) => [space, ...prev]);
+    setActiveSpaceId(space.id);
+    setNotice(`Space created from template: ${template.name}.`);
+  }
+
   function deleteSpace(id: string) {
     setSpaces((prev) => prev.filter((space) => space.id !== id));
     if (activeSpaceId === id) setActiveSpaceId(null);
@@ -2651,7 +2709,7 @@ ${answer.citations
                 ) : null}
               </div>
             </div>
-            {loading && mode === "research" ? (
+            {loading && effectiveMode === "research" ? (
               <div className="mt-4 space-y-2 text-xs text-signal-muted">
                 {RESEARCH_STEPS.map((step, index) => {
                   const state =
@@ -2675,6 +2733,24 @@ ${answer.citations
                     </div>
                   );
                 })}
+                <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                  <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                    Key findings
+                  </p>
+                  {researchFindings.length ? (
+                    <ul className="mt-2 space-y-1 text-[11px] text-signal-text">
+                      {researchFindings.map((finding, index) => (
+                        <li key={`${index}-${finding.slice(0, 20)}`}>
+                          {index + 1}. {finding}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-signal-muted">
+                      Extracting early findings from in-progress answer...
+                    </p>
+                  )}
+                </div>
               </div>
             ) : null}
             <div className="mt-4 space-y-4 text-sm leading-7 text-signal-text/90">
@@ -3889,6 +3965,22 @@ ${answer.citations
               Create focused workspaces with custom instructions and sources.
             </p>
             <div className="mt-4 space-y-2">
+              <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                  Templates
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {SPACE_TEMPLATES.map((template) => (
+                    <button
+                      key={template.id}
+                      onClick={() => createSpaceFromTemplate(template)}
+                      className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                    >
+                      {template.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <input
                 value={spaceName}
                 onChange={(event) => setSpaceName(event.target.value)}
