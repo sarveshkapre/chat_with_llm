@@ -19,6 +19,7 @@ export type Task = {
   createdAt: string;
   nextRun: string;
   lastRun?: string | null;
+  lastThreadId?: string | null;
   dayOfWeek?: number | null;
   dayOfMonth?: number | null;
   monthOfYear?: number | null;

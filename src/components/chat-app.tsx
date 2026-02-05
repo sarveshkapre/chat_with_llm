@@ -809,7 +809,7 @@ export default function ChatApp() {
         throw new Error(data.error ?? "Request failed");
       }
 
-      handleStreamDone(data);
+      handleStreamDone(data, { forceSave: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -817,7 +817,10 @@ export default function ChatApp() {
     }
   }
 
-  function handleStreamDone(data: AnswerResponse) {
+  function handleStreamDone(
+    data: AnswerResponse,
+    options?: { forceSave?: boolean }
+  ) {
     const thread: Thread = {
       ...data,
       feedback: null,
@@ -832,7 +835,7 @@ export default function ChatApp() {
     };
     setCurrent(thread);
     setShowDetails(false);
-    if (!incognito) {
+    if (!incognito || options?.forceSave) {
       setThreads((prev) => [thread, ...prev].slice(0, 30));
     }
     setQuestion("");
@@ -2128,6 +2131,7 @@ ${answer.citations
       createdAt: createdAt.toISOString(),
       nextRun: nextRun.toISOString(),
       lastRun: null,
+      lastThreadId: null,
       dayOfWeek,
       dayOfMonth,
       monthOfYear,
@@ -2197,6 +2201,7 @@ ${answer.citations
                 ...item,
                 lastRun: now.toISOString(),
                 nextRun: nextRun.toISOString(),
+                lastThreadId: data.id,
               }
             : item
         )
@@ -2211,6 +2216,21 @@ ${answer.citations
 
   function deleteTask(id: string) {
     setTasks((prev) => prev.filter((task) => task.id !== id));
+  }
+
+  function openTaskResult(task: Task) {
+    if (!task.lastThreadId) {
+      setNotice("No result thread yet.");
+      return;
+    }
+    const thread = threads.find((item) => item.id === task.lastThreadId);
+    if (!thread) {
+      setNotice("Last result thread was not found in local history.");
+      return;
+    }
+    setCurrent(thread);
+    setUseThreadContext(true);
+    setNotice("Opened last task result.");
   }
 
   const displayAnswer = loading && streamingEnabled ? liveAnswer : current?.answer;
@@ -4133,6 +4153,13 @@ ${answer.citations
                           : task.cadence === "once" && task.lastRun
                             ? "Completed"
                             : "Run now"}
+                      </button>
+                      <button
+                        onClick={() => openTaskResult(task)}
+                        disabled={!task.lastThreadId}
+                        className="rounded-full border border-white/10 px-2 py-1 text-[11px] disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Open result
                       </button>
                       <button
                         onClick={() => deleteTask(task.id)}
