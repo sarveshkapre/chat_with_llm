@@ -6,6 +6,7 @@ import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
 import type { Collection } from "@/lib/types/collection";
 import type { LibraryFile } from "@/lib/types/file";
+import type { Task } from "@/lib/types/task";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -18,12 +19,13 @@ const THREADS_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
 const FILES_KEY = "signal-files-v1";
+const TASKS_KEY = "signal-tasks-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 
 export default function UnifiedSearch() {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<
-    "all" | "threads" | "spaces" | "collections" | "files"
+    "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
   >("all");
   const [recentQueries, setRecentQueries] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -79,6 +81,17 @@ export default function UnifiedSearch() {
     }
   }, []);
 
+  const tasks = useMemo(() => {
+    if (typeof window === "undefined") return [] as Task[];
+    const storedTasks = localStorage.getItem(TASKS_KEY);
+    if (!storedTasks) return [] as Task[];
+    try {
+      return JSON.parse(storedTasks) as Task[];
+    } catch {
+      return [] as Task[];
+    }
+  }, []);
+
   const normalized = query.trim().toLowerCase();
 
   useEffect(() => {
@@ -128,6 +141,19 @@ export default function UnifiedSearch() {
     });
   }, [files, normalized]);
 
+  const filteredTasks = useMemo(() => {
+    if (!normalized) return tasks;
+    return tasks.filter((task) => {
+      return (
+        task.name.toLowerCase().includes(normalized) ||
+        task.prompt.toLowerCase().includes(normalized) ||
+        (task.spaceName ?? "").toLowerCase().includes(normalized) ||
+        task.mode.toLowerCase().includes(normalized) ||
+        task.cadence.toLowerCase().includes(normalized)
+      );
+    });
+  }, [tasks, normalized]);
+
   const topThreadResults = useMemo(
     () => filteredThreads.slice(0, 3),
     [filteredThreads]
@@ -144,6 +170,10 @@ export default function UnifiedSearch() {
   const topFileResults = useMemo(
     () => filteredFiles.slice(0, 3),
     [filteredFiles]
+  );
+  const topTaskResults = useMemo(
+    () => filteredTasks.slice(0, 3),
+    [filteredTasks]
   );
 
   function pushRecentQuery(value: string) {
@@ -166,6 +196,7 @@ export default function UnifiedSearch() {
       `Spaces: ${filteredSpaces.length}`,
       `Collections: ${filteredCollections.length}`,
       `Files: ${filteredFiles.length}`,
+      `Tasks: ${filteredTasks.length}`,
       "",
       "## Threads",
       ...filteredThreads.map((thread, index) => {
@@ -200,6 +231,17 @@ export default function UnifiedSearch() {
           `${index + 1}. ${file.name}`,
           `   - Size: ${Math.round(file.size / 1024)} KB`,
           `   - Added: ${new Date(file.addedAt).toLocaleString()}`,
+        ].join("\n");
+      }),
+      "",
+      "## Tasks",
+      ...filteredTasks.map((task, index) => {
+        return [
+          `${index + 1}. ${task.name}`,
+          `   - Cadence: ${task.cadence} at ${task.time}`,
+          `   - Mode: ${task.mode} · Sources: ${task.sources === "web" ? "Web" : "Offline"}`,
+          `   - Space: ${task.spaceName ?? "None"}`,
+          `   - Next run: ${new Date(task.nextRun).toLocaleString()}`,
         ].join("\n");
       }),
     ];
@@ -250,6 +292,15 @@ export default function UnifiedSearch() {
           "",
           "",
           file.addedAt,
+        ].join(",")
+      ),
+      ...filteredTasks.map((task) =>
+        [
+          "task",
+          `"${task.name.replace(/\"/g, '""')}"`,
+          `"${(task.spaceName ?? "None").replace(/\"/g, '""')}"`,
+          task.mode,
+          task.nextRun,
         ].join(",")
       ),
     ];
@@ -309,12 +360,19 @@ export default function UnifiedSearch() {
               pushRecentQuery(value);
             }}
             onBlur={() => pushRecentQuery(query)}
-            placeholder="Search threads, spaces, collections, and files"
+            placeholder="Search threads, spaces, collections, files, and tasks"
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           <div className="flex flex-wrap gap-2 text-xs">
             {(
-              ["all", "threads", "spaces", "collections", "files"] as const
+              [
+                "all",
+                "threads",
+                "spaces",
+                "collections",
+                "files",
+                "tasks",
+              ] as const
             ).map((option) => (
               <button
                 key={option}
@@ -333,7 +391,9 @@ export default function UnifiedSearch() {
                       ? "Spaces only"
                       : option === "collections"
                         ? "Collections only"
-                        : "Files only"}
+                        : option === "files"
+                          ? "Files only"
+                          : "Tasks only"}
               </button>
             ))}
           </div>
@@ -447,6 +507,25 @@ export default function UnifiedSearch() {
                     ))
                   ) : (
                     <p className="text-xs text-signal-muted">No file hits.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs text-signal-muted">
+                  Tasks: {filteredTasks.length}
+                </p>
+                <div className="mt-2 space-y-1">
+                  {topTaskResults.length ? (
+                    topTaskResults.map((task) => (
+                      <p
+                        key={`top-task-${task.id}`}
+                        className="truncate text-xs text-signal-text"
+                      >
+                        {task.name}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-xs text-signal-muted">No task hits.</p>
                   )}
                 </div>
               </div>
@@ -578,6 +657,37 @@ export default function UnifiedSearch() {
                       </p>
                       <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
                         {file.text.slice(0, 180).replace(/\s+/g, " ").trim()}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          ) : null}
+
+          {filter === "all" || filter === "tasks" ? (
+            <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
+              <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
+                Tasks
+              </p>
+              <div className="mt-4 space-y-2">
+                {filteredTasks.length === 0 ? (
+                  <p className="text-xs text-signal-muted">No matching tasks.</p>
+                ) : (
+                  filteredTasks.slice(0, 20).map((task) => (
+                    <div
+                      key={task.id}
+                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                    >
+                      <p className="text-sm text-signal-text">{task.name}</p>
+                      <p className="mt-1 text-[11px] text-signal-muted">
+                        {task.cadence} at {task.time} · {task.mode}
+                      </p>
+                      <p className="mt-1 text-[11px] text-signal-muted">
+                        Next run: {new Date(task.nextRun).toLocaleString()}
+                      </p>
+                      <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
+                        {task.prompt}
                       </p>
                     </div>
                   ))
