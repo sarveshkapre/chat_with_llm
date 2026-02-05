@@ -1,4 +1,5 @@
 export type AnswerMode = "quick" | "research" | "learn";
+export type SourceMode = "web" | "none";
 
 export type Citation = {
   title: string;
@@ -10,6 +11,7 @@ export type Answer = {
   question: string;
   answer: string;
   mode: AnswerMode;
+  sources: SourceMode;
   createdAt: string;
   citations: Citation[];
 };
@@ -17,6 +19,7 @@ export type Answer = {
 export type AnswerRequest = {
   question: string;
   mode: AnswerMode;
+  sources: SourceMode;
 };
 
 export type AnswerResponse = Answer & {

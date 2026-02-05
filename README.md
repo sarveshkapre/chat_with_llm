@@ -12,7 +12,8 @@ npm install && npm run dev
 ## Features
 - Web-grounded answers with citations
 - Quick, Research, and Learn modes
-- Thread library stored locally
+- Source toggle (web or offline)
+- Thread library with search, filters, and share links
 - Pluggable provider interface (OpenAI now, OSS models next)
 
 ## Configuration
