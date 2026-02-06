@@ -13,6 +13,7 @@ npm install && npm run dev
 - Web-grounded answers with citations
 - Quick, Research, and Learn modes with research progress states
 - Research mode key findings panel while answers are still streaming
+- Pre-research clarifying prompts for broad research queries
 - Source toggle (web or offline)
 - Streaming responses (NDJSON)
 - Thread library with search, filters, and share links

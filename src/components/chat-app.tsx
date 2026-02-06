@@ -215,6 +215,22 @@ function formatThreadExpiry(expiresAt?: string | null) {
   return new Date(expiryMs).toLocaleString();
 }
 
+function buildResearchClarifiers(prompt: string) {
+  const cleaned = prompt.trim().replace(/\s+/g, " ");
+  if (!cleaned) return [] as string[];
+  const words = cleaned.split(" ").filter(Boolean);
+  const hasScope =
+    /\b(202\d|19\d{2}|in|for|vs|versus|region|market|company|industry|country|state|city)\b/i.test(
+      cleaned
+    );
+  if (words.length >= 9 && hasScope) return [] as string[];
+  return [
+    "Focus on a specific region and timeframe (for example: US, 2024-2026).",
+    "Define the comparison set or entities to evaluate.",
+    "Specify output depth (quick brief, detailed report, or decision memo).",
+  ];
+}
+
 export default function ChatApp() {
   const [question, setQuestion] = useState("");
   const [mode, setMode] = useState<AnswerMode>("quick");
@@ -325,6 +341,10 @@ export default function ChatApp() {
   const [taskRunningId, setTaskRunningId] = useState<string | null>(null);
   const [researchStepIndex, setResearchStepIndex] = useState(0);
   const [researchFindings, setResearchFindings] = useState<string[]>([]);
+  const [researchClarifyAnchor, setResearchClarifyAnchor] = useState<string | null>(
+    null
+  );
+  const [researchClarifiers, setResearchClarifiers] = useState<string[]>([]);
   const [libraryFiles, setLibraryFiles] = useState<LibraryFile[]>([]);
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
@@ -659,6 +679,12 @@ export default function ChatApp() {
     setResearchFindings(findings);
   }, [loading, effectiveMode, liveAnswer]);
 
+  useEffect(() => {
+    if (effectiveMode === "research") return;
+    setResearchClarifiers([]);
+    setResearchClarifyAnchor(null);
+  }, [effectiveMode]);
+
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
     const filtered = threads.filter((thread) => {
@@ -888,8 +914,29 @@ export default function ChatApp() {
     return contextLines.join("\n\n");
   }
 
+  function applyResearchClarifier(clarifier: string) {
+    setQuestion((prev) => {
+      const base = prev.trim();
+      return base ? `${base}\n${clarifier}` : clarifier;
+    });
+    setResearchClarifiers([]);
+    setResearchClarifyAnchor(null);
+  }
+
   async function submitQuestion() {
     if (!question.trim() || loading) return;
+    const normalizedQuestion = question.trim().replace(/\s+/g, " ");
+    if (effectiveMode === "research" && researchClarifyAnchor !== normalizedQuestion) {
+      const suggestions = buildResearchClarifiers(normalizedQuestion);
+      if (suggestions.length) {
+        setResearchClarifiers(suggestions);
+        setResearchClarifyAnchor(normalizedQuestion);
+        setNotice(
+          "Add scope details for better research results, or send again to continue."
+        );
+        return;
+      }
+    }
     const baseThread = current;
     const context =
       useThreadContext && baseThread
@@ -899,6 +946,8 @@ export default function ChatApp() {
     setError(null);
     setLiveAnswer("");
     setCurrent(null);
+    setResearchClarifiers([]);
+    setResearchClarifyAnchor(null);
 
     const requestAttachments = buildRequestAttachments();
     const requestBody = {
@@ -2751,6 +2800,33 @@ ${answer.citations
                     placeholder="Ask anything. Add sources, upload files, or pick a mode."
                     className="h-32 w-full resize-none bg-transparent text-sm text-signal-text outline-none placeholder:text-signal-muted"
                   />
+                  {effectiveMode === "research" && researchClarifiers.length ? (
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-muted">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                        Clarify before research
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {researchClarifiers.map((clarifier) => (
+                          <button
+                            key={clarifier}
+                            onClick={() => applyResearchClarifier(clarifier)}
+                            className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                          >
+                            Add: {clarifier}
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => {
+                          setResearchClarifiers([]);
+                          setResearchClarifyAnchor(question.trim().replace(/\s+/g, " "));
+                        }}
+                        className="mt-2 rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                      >
+                        Continue without clarifying
+                      </button>
+                    </div>
+                  ) : null}
                   {current ? (
                     <div className="mt-3 flex items-center justify-between rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted">
                       <span className="truncate">
