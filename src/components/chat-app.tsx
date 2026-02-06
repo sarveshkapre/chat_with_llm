@@ -8,7 +8,7 @@ import type {
   SourceMode,
   Attachment,
 } from "@/lib/types/answer";
-import type { Space } from "@/lib/types/space";
+import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
 import type { Task, TaskCadence } from "@/lib/types/task";
 import type { LibraryFile } from "@/lib/types/file";
 import type { Collection } from "@/lib/types/collection";
@@ -76,11 +76,17 @@ const SOURCES: { id: SourceMode; label: string; blurb: string }[] = [
 
 const REWRITE_MODELS = ["gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
 const REQUEST_MODELS = ["auto", ...REWRITE_MODELS] as const;
+const SOURCE_POLICIES = [
+  { id: "flex", label: "Flexible (user choice)" },
+  { id: "web", label: "Web only" },
+  { id: "offline", label: "Offline only" },
+] as const satisfies { id: SpaceSourcePolicy; label: string }[];
 type SpaceTemplate = {
   id: string;
   name: string;
   instructions: string;
   preferredModel: (typeof REQUEST_MODELS)[number];
+  sourcePolicy: SpaceSourcePolicy;
 };
 const SPACE_TEMPLATES: SpaceTemplate[] = [
   {
@@ -89,6 +95,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Summarize sources into clear sections: key findings, evidence, risks, and next actions.",
     preferredModel: "gpt-4.1",
+    sourcePolicy: "web",
   },
   {
     id: "market-watch",
@@ -96,6 +103,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Track market, product, and competitor updates. Prioritize recent changes and cite every claim.",
     preferredModel: "gpt-4.1-mini",
+    sourcePolicy: "web",
   },
   {
     id: "study-coach",
@@ -103,6 +111,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Teach concepts step-by-step, include checks for understanding, and keep language concise.",
     preferredModel: "gpt-4o-mini",
+    sourcePolicy: "offline",
   },
 ];
 
@@ -149,6 +158,20 @@ function normalizeRequestModel(
   return REQUEST_MODELS.includes(value as (typeof REQUEST_MODELS)[number])
     ? (value as (typeof REQUEST_MODELS)[number])
     : "auto";
+}
+
+function normalizeSourcePolicy(value?: string | null): SpaceSourcePolicy {
+  if (!value) return "flex";
+  return SOURCE_POLICIES.some((option) => option.id === value)
+    ? (value as SpaceSourcePolicy)
+    : "flex";
+}
+
+function sourcePolicyLabel(policy: SpaceSourcePolicy) {
+  return (
+    SOURCE_POLICIES.find((option) => option.id === policy)?.label ??
+    "Flexible (user choice)"
+  );
 }
 
 function computeThreadExpiry(createdAt: string, retention: ThreadRetention) {
@@ -217,12 +240,17 @@ export default function ChatApp() {
   const [spacePreferredModel, setSpacePreferredModel] = useState<
     (typeof REQUEST_MODELS)[number]
   >("auto");
+  const [spaceSourcePolicy, setSpaceSourcePolicy] = useState<SpaceSourcePolicy>(
+    "flex"
+  );
   const [editingSpaceId, setEditingSpaceId] = useState<string | null>(null);
   const [editingSpaceName, setEditingSpaceName] = useState("");
   const [editingSpaceInstructions, setEditingSpaceInstructions] = useState("");
   const [editingSpacePreferredModel, setEditingSpacePreferredModel] = useState<
     (typeof REQUEST_MODELS)[number]
   >("auto");
+  const [editingSpaceSourcePolicy, setEditingSpaceSourcePolicy] =
+    useState<SpaceSourcePolicy>("flex");
   const [archivedSpaces, setArchivedSpaces] = useState<string[]>([]);
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>({});
   const [spaceTagDraft, setSpaceTagDraft] = useState("");
@@ -340,6 +368,7 @@ export default function ChatApp() {
             normalizeRequestModel(space.preferredModel) === "auto"
               ? null
               : normalizeRequestModel(space.preferredModel),
+          sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
         }));
         setSpaces(normalized);
       } catch {
@@ -581,7 +610,7 @@ export default function ChatApp() {
 
   const followUpLocked = Boolean(current && useThreadContext);
   const effectiveMode = followUpLocked ? (current?.mode ?? mode) : mode;
-  const effectiveSources = followUpLocked
+  const requestedSources = followUpLocked
     ? (current?.sources ?? sources)
     : sources;
 
@@ -601,6 +630,16 @@ export default function ChatApp() {
     }
     return activeSpace;
   }, [followUpLocked, current?.spaceId, spaces, activeSpace]);
+
+  const requestSourcePolicy = normalizeSourcePolicy(requestSpace?.sourcePolicy);
+  const policyEnforcedSources: SourceMode | null =
+    requestSourcePolicy === "web"
+      ? "web"
+      : requestSourcePolicy === "offline"
+        ? "none"
+        : null;
+  const effectiveSources = policyEnforcedSources ?? requestedSources;
+  const sourceLockedByPolicy = policyEnforcedSources !== null;
 
   const spacePreferredModelValue = requestSpace?.preferredModel?.trim() || undefined;
   const effectiveRequestModel =
@@ -1985,6 +2024,7 @@ ${answer.citations
       instructions: spaceInstructions.trim(),
       preferredModel:
         spacePreferredModel === "auto" ? null : spacePreferredModel,
+      sourcePolicy: spaceSourcePolicy,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
@@ -1992,6 +2032,7 @@ ${answer.citations
     setSpaceName("");
     setSpaceInstructions("");
     setSpacePreferredModel("auto");
+    setSpaceSourcePolicy("flex");
     setNotice("Space created.");
   }
 
@@ -2002,6 +2043,7 @@ ${answer.citations
       instructions: template.instructions,
       preferredModel:
         template.preferredModel === "auto" ? null : template.preferredModel,
+      sourcePolicy: template.sourcePolicy,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
@@ -2021,6 +2063,7 @@ ${answer.citations
       "",
       space.instructions ? `Instructions: ${space.instructions}` : "Instructions: none",
       `Preferred model: ${space.preferredModel ?? "Auto"}`,
+      `Source policy: ${sourcePolicyLabel(normalizeSourcePolicy(space.sourcePolicy))}`,
       "",
       `Total threads: ${spaceThreads.length}`,
       "",
@@ -2049,6 +2092,7 @@ ${answer.citations
     setEditingSpaceName(space.name);
     setEditingSpaceInstructions(space.instructions);
     setEditingSpacePreferredModel(normalizeRequestModel(space.preferredModel));
+    setEditingSpaceSourcePolicy(normalizeSourcePolicy(space.sourcePolicy));
   }
 
   function saveSpaceEdit(id: string) {
@@ -2067,6 +2111,7 @@ ${answer.citations
                 editingSpacePreferredModel === "auto"
                   ? null
                   : editingSpacePreferredModel,
+              sourcePolicy: editingSpaceSourcePolicy,
             }
           : space
       )
@@ -2090,6 +2135,7 @@ ${answer.citations
     setEditingSpaceName("");
     setEditingSpaceInstructions("");
     setEditingSpacePreferredModel("auto");
+    setEditingSpaceSourcePolicy("flex");
     setNotice("Space updated.");
   }
 
@@ -2098,6 +2144,7 @@ ${answer.citations
     setEditingSpaceName("");
     setEditingSpaceInstructions("");
     setEditingSpacePreferredModel("auto");
+    setEditingSpaceSourcePolicy("flex");
   }
 
   function duplicateSpace(space: Space) {
@@ -2361,13 +2408,16 @@ ${answer.citations
 
     try {
       const space = spaces.find((item) => item.id === task.spaceId) ?? null;
+      const policy = normalizeSourcePolicy(space?.sourcePolicy);
+      const taskEffectiveSources: SourceMode =
+        policy === "web" ? "web" : policy === "offline" ? "none" : task.sources;
       const response = await fetch("/api/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           question: task.prompt,
           mode: task.mode,
-          sources: task.sources,
+          sources: taskEffectiveSources,
           model: space?.preferredModel ?? undefined,
           attachments: [],
           spaceInstructions: space?.instructions ?? "",
@@ -2544,18 +2594,26 @@ ${answer.citations
                     Source focus is thread-scoped while context is on.
                   </p>
                 ) : null}
+                {sourceLockedByPolicy ? (
+                  <p className="mt-2 text-xs text-signal-muted">
+                    Sources locked by space policy:{" "}
+                    {sourcePolicyLabel(requestSourcePolicy)}.
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-3 md:grid-cols-2">
                   {SOURCES.map((item) => (
                     <button
                       key={item.id}
                       onClick={() => setSources(item.id)}
-                      disabled={followUpLocked}
+                      disabled={followUpLocked || sourceLockedByPolicy}
                       className={cn(
                         "rounded-2xl border px-4 py-3 text-left transition",
                         effectiveSources === item.id
                           ? "border-signal-accent bg-signal-accent/10 text-signal-text"
                           : "border-white/10 bg-transparent text-signal-muted hover:border-white/30",
-                        followUpLocked ? "cursor-not-allowed opacity-70" : ""
+                        followUpLocked || sourceLockedByPolicy
+                          ? "cursor-not-allowed opacity-70"
+                          : ""
                       )}
                     >
                       <p className="text-sm font-semibold text-signal-text">
@@ -2572,7 +2630,7 @@ ${answer.citations
                         Incognito
                       </p>
                       <p className="text-xs text-signal-muted">
-                        Do not save this thread to your library.
+                        Save thread with a 24-hour retention window.
                       </p>
                     </div>
                     <button
@@ -2642,6 +2700,10 @@ ${answer.citations
                   </p>
                   <p className="mt-2 text-[11px] text-signal-muted">
                     Preferred model: {activeSpace.preferredModel ?? "Auto"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-signal-muted">
+                    Source policy:{" "}
+                    {sourcePolicyLabel(normalizeSourcePolicy(activeSpace.sourcePolicy))}
                   </p>
                 </div>
               ) : null}
@@ -4134,6 +4196,21 @@ ${answer.citations
                   </option>
                 ))}
               </select>
+              <select
+                value={spaceSourcePolicy}
+                onChange={(event) =>
+                  setSpaceSourcePolicy(
+                    event.target.value as SpaceSourcePolicy
+                  )
+                }
+                className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+              >
+                {SOURCE_POLICIES.map((policy) => (
+                  <option key={policy.id} value={policy.id}>
+                    Source policy: {policy.label}
+                  </option>
+                ))}
+              </select>
               <button
                 onClick={createSpace}
                 className="w-full rounded-full border border-white/10 px-4 py-2 text-xs text-signal-muted"
@@ -4182,6 +4259,21 @@ ${answer.citations
                           {REWRITE_MODELS.map((modelOption) => (
                             <option key={modelOption} value={modelOption}>
                               Preferred model: {modelOption}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={editingSpaceSourcePolicy}
+                          onChange={(event) =>
+                            setEditingSpaceSourcePolicy(
+                              event.target.value as SpaceSourcePolicy
+                            )
+                          }
+                          className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+                        >
+                          {SOURCE_POLICIES.map((policy) => (
+                            <option key={policy.id} value={policy.id}>
+                              Source policy: {policy.label}
                             </option>
                           ))}
                         </select>
@@ -4275,6 +4367,12 @@ ${answer.citations
                         </div>
                         <p className="mt-2 text-[11px] text-signal-muted">
                           Preferred model: {space.preferredModel ?? "Auto"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          Source policy:{" "}
+                          {sourcePolicyLabel(
+                            normalizeSourcePolicy(space.sourcePolicy)
+                          )}
                         </p>
                       </>
                     )}

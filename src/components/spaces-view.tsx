@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { nanoid } from "nanoid";
-import type { Space } from "@/lib/types/space";
+import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
 import type { AnswerResponse } from "@/lib/types/answer";
 
 type Thread = AnswerResponse & {
@@ -18,11 +18,17 @@ const ACTIVE_SPACE_KEY = "signal-space-active";
 const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
 const SPACE_TAGS_KEY = "signal-space-tags-v1";
 const REQUEST_MODELS = ["auto", "gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
+const SOURCE_POLICIES = [
+  { id: "flex", label: "Flexible (user choice)" },
+  { id: "web", label: "Web only" },
+  { id: "offline", label: "Offline only" },
+] as const satisfies { id: SpaceSourcePolicy; label: string }[];
 type SpaceTemplate = {
   id: string;
   name: string;
   instructions: string;
   preferredModel: (typeof REQUEST_MODELS)[number];
+  sourcePolicy: SpaceSourcePolicy;
 };
 const SPACE_TEMPLATES: SpaceTemplate[] = [
   {
@@ -31,6 +37,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Summarize with sections for key findings, evidence, risks, and concrete next actions.",
     preferredModel: "gpt-4.1",
+    sourcePolicy: "web",
   },
   {
     id: "market-watch",
@@ -38,6 +45,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Track market, product, and competitor changes. Prioritize recent updates and cite sources.",
     preferredModel: "gpt-4.1-mini",
+    sourcePolicy: "web",
   },
   {
     id: "study-coach",
@@ -45,6 +53,7 @@ const SPACE_TEMPLATES: SpaceTemplate[] = [
     instructions:
       "Teach step-by-step with concise explanations and quick checks for understanding.",
     preferredModel: "gpt-4o-mini",
+    sourcePolicy: "offline",
   },
 ];
 
@@ -55,6 +64,20 @@ function normalizeRequestModel(
   return REQUEST_MODELS.includes(value as (typeof REQUEST_MODELS)[number])
     ? (value as (typeof REQUEST_MODELS)[number])
     : "auto";
+}
+
+function normalizeSourcePolicy(value?: string | null): SpaceSourcePolicy {
+  if (!value) return "flex";
+  return SOURCE_POLICIES.some((option) => option.id === value)
+    ? (value as SpaceSourcePolicy)
+    : "flex";
+}
+
+function sourcePolicyLabel(policy: SpaceSourcePolicy) {
+  return (
+    SOURCE_POLICIES.find((option) => option.id === policy)?.label ??
+    "Flexible (user choice)"
+  );
 }
 
 export default function SpacesView() {
@@ -70,6 +93,7 @@ export default function SpacesView() {
           normalizeRequestModel(space.preferredModel) === "auto"
             ? null
             : normalizeRequestModel(space.preferredModel),
+        sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
       }));
     } catch {
       return [];
@@ -117,6 +141,7 @@ export default function SpacesView() {
   const [preferredModel, setPreferredModel] = useState<
     (typeof REQUEST_MODELS)[number]
   >("auto");
+  const [sourcePolicy, setSourcePolicy] = useState<SpaceSourcePolicy>("flex");
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<"name" | "activity">("activity");
   const [tagFilter, setTagFilter] = useState("");
@@ -225,12 +250,14 @@ export default function SpacesView() {
       name: name.trim(),
       instructions: instructions.trim(),
       preferredModel: preferredModel === "auto" ? null : preferredModel,
+      sourcePolicy,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
     setName("");
     setInstructions("");
     setPreferredModel("auto");
+    setSourcePolicy("flex");
     setNotice("Space created.");
   }
 
@@ -241,6 +268,7 @@ export default function SpacesView() {
       instructions: template.instructions,
       preferredModel:
         template.preferredModel === "auto" ? null : template.preferredModel,
+      sourcePolicy: template.sourcePolicy,
       createdAt: new Date().toISOString(),
     };
     setSpaces((prev) => [space, ...prev]);
@@ -305,6 +333,7 @@ export default function SpacesView() {
       "",
       space.instructions ? `Instructions: ${space.instructions}` : "Instructions: none",
       `Preferred model: ${space.preferredModel ?? "Auto"}`,
+      `Source policy: ${sourcePolicyLabel(normalizeSourcePolicy(space.sourcePolicy))}`,
       "",
       `Total threads: ${spaceThreads.length}`,
       "",
@@ -342,6 +371,7 @@ export default function SpacesView() {
       name: string;
       instructions: string;
       preferredModel?: string | null;
+      sourcePolicy?: string | null;
       createdAt: string;
     }[],
     filePrefix: string
@@ -363,6 +393,9 @@ export default function SpacesView() {
           `${index + 1}. ${space.name}`,
           `   - Threads: ${spaceThreads.length}`,
           `   - Preferred model: ${space.preferredModel ?? "Auto"}`,
+          `   - Source policy: ${sourcePolicyLabel(
+            normalizeSourcePolicy(space.sourcePolicy)
+          )}`,
           `   - Tags: ${tags}`,
           `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
         ].join("\n");
@@ -456,6 +489,19 @@ export default function SpacesView() {
               {REQUEST_MODELS.filter((item) => item !== "auto").map((item) => (
                 <option key={item} value={item}>
                   Preferred model: {item}
+                </option>
+              ))}
+            </select>
+            <select
+              value={sourcePolicy}
+              onChange={(event) =>
+                setSourcePolicy(event.target.value as SpaceSourcePolicy)
+              }
+              className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text"
+            >
+              {SOURCE_POLICIES.map((policy) => (
+                <option key={policy.id} value={policy.id}>
+                  Source policy: {policy.label}
                 </option>
               ))}
             </select>
@@ -578,6 +624,10 @@ export default function SpacesView() {
                   </p>
                   <p className="mt-2 text-[11px] text-signal-muted">
                     Preferred model: {space.preferredModel ?? "Auto"}
+                  </p>
+                  <p className="mt-1 text-[11px] text-signal-muted">
+                    Source policy:{" "}
+                    {sourcePolicyLabel(normalizeSourcePolicy(space.sourcePolicy))}
                   </p>
                   {space.preview.length ? (
                     <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
