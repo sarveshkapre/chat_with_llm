@@ -8,6 +8,7 @@
 
 ## Candidate Features To Do
 - [ ] P1: Add workflow-level CI test for GitHub Actions YAML policy checks (permissions + SHA pin validation) to catch workflow drift before merge.
+- [ ] P1: Migrate `github/codeql-action/upload-sarif` to v4 before v3 deprecation (warning observed in Scorecard runs on 2026-02-08).
 - [ ] P1: Add undo affordance for Unified Search bulk thread actions to reduce accidental archive/space reassignments.
 - [ ] P2: Follow up on server-backed persistence planning for notes/threads beyond localStorage.
 
