@@ -7,14 +7,22 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- Add timeline-aware sort in Unified Search so researchers can flip between recency and relevance per entity type.
-- Support quick bulk actions directly from search results (pin, archive, assign space) to reduce library hopping.
-- Persist and sync Notes/Threads beyond localStorage (browser storage quotas already near limits for larger research sets).
+- [ ] P1: Add workflow-level CI test for GitHub Actions YAML policy checks (permissions + SHA pin validation) to catch workflow drift before merge.
+- [ ] P1: Add undo affordance for Unified Search bulk thread actions to reduce accidental archive/space reassignments.
+- [ ] P2: Follow up on server-backed persistence planning for notes/threads beyond localStorage.
 
 ## Implemented
+- 2026-02-08: Hardened Actions workflows by pinning action SHAs and tightening token permissions in CI/Scorecard (`.github/workflows/ci.yml`, `.github/workflows/scorecard.yml`).
+- 2026-02-08: Stabilized Release Please by removing invalid input and gating automation behind explicit enablement (`.github/workflows/release-please.yml`).
+- 2026-02-08: Remediated moderate dependency advisories by upgrading the `vitest` toolchain to v4 (`package.json`, `package-lock.json`, `npm audit --json` now shows 0 vulnerabilities).
+- 2026-02-08: Added Unified Search timeline filtering and in-place thread quick/bulk actions (favorite/pin/archive/space assignment) (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`).
+- 2026-02-08: Added regression tests for timeline and bulk-action helper logic (`tests/unified-search.test.ts`).
 - 2026-02-08: Expanded library + unified search relevance to include answer text, citations, and notes with contextual snippets (src/components/chat-app.tsx, src/components/unified-search.tsx).
 
 ## Insights
+- Scorecard failures were not from scan results; they were caused by workflow policy validation when `publish_results: true` was combined with write-level permissions.
+- Release automation can hard-fail in repos where GitHub Actions cannot open PRs; explicit gating keeps `main` green while preserving manual release capability.
+- Signal Search usability improves when actions happen in the search surface itself; forcing users back into Library for pin/archive/space edits adds unnecessary friction.
 - Users rely on notes and citations during follow-ups, so search must index those fields; otherwise “Signal Search” fails to find high-signal content.
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
 

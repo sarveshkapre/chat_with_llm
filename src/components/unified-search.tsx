@@ -7,12 +7,22 @@ import type { Space } from "@/lib/types/space";
 import type { Collection } from "@/lib/types/collection";
 import type { LibraryFile } from "@/lib/types/file";
 import type { Task } from "@/lib/types/task";
+import {
+  applyBulkThreadUpdate,
+  applyTimelineWindow,
+  parseStored,
+  resolveThreadSpaceMeta,
+  type TimelineWindow,
+} from "@/lib/unified-search";
 
 type Thread = AnswerResponse & {
   title?: string | null;
   tags?: string[];
   spaceId?: string | null;
   spaceName?: string | null;
+  pinned?: boolean;
+  favorite?: boolean;
+  archived?: boolean;
 };
 
 const THREADS_KEY = "signal-history-v2";
@@ -31,81 +41,32 @@ export default function UnifiedSearch() {
   const [sortBy, setSortBy] = useState<"relevance" | "newest" | "oldest">(
     "relevance"
   );
+  const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>("all");
   const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
-  const [recentQueries, setRecentQueries] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(RECENT_SEARCH_KEY);
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored) as string[];
-    } catch {
-      return [];
-    }
-  });
-  const [notes, setNotes] = useState<Record<string, string>>(() => {
-    if (typeof window === "undefined") return {};
-    const stored = localStorage.getItem(NOTES_KEY);
-    if (!stored) return {};
-    try {
-      return JSON.parse(stored) as Record<string, string>;
-    } catch {
-      return {};
-    }
-  });
-  const threads = useMemo(() => {
-    if (typeof window === "undefined") return [] as Thread[];
-    const storedThreads = localStorage.getItem(THREADS_KEY);
-    if (!storedThreads) return [] as Thread[];
-    try {
-      return JSON.parse(storedThreads) as Thread[];
-    } catch {
-      return [] as Thread[];
-    }
-  }, []);
-
-  const spaces = useMemo(() => {
-    if (typeof window === "undefined") return [] as Space[];
-    const storedSpaces = localStorage.getItem(SPACES_KEY);
-    if (!storedSpaces) return [] as Space[];
-    try {
-      return JSON.parse(storedSpaces) as Space[];
-    } catch {
-      return [] as Space[];
-    }
-  }, []);
-
-  const collections = useMemo(() => {
-    if (typeof window === "undefined") return [] as Collection[];
-    const storedCollections = localStorage.getItem(COLLECTIONS_KEY);
-    if (!storedCollections) return [] as Collection[];
-    try {
-      return JSON.parse(storedCollections) as Collection[];
-    } catch {
-      return [] as Collection[];
-    }
-  }, []);
-
-  const files = useMemo(() => {
-    if (typeof window === "undefined") return [] as LibraryFile[];
-    const storedFiles = localStorage.getItem(FILES_KEY);
-    if (!storedFiles) return [] as LibraryFile[];
-    try {
-      return JSON.parse(storedFiles) as LibraryFile[];
-    } catch {
-      return [] as LibraryFile[];
-    }
-  }, []);
-
-  const tasks = useMemo(() => {
-    if (typeof window === "undefined") return [] as Task[];
-    const storedTasks = localStorage.getItem(TASKS_KEY);
-    if (!storedTasks) return [] as Task[];
-    try {
-      return JSON.parse(storedTasks) as Task[];
-    } catch {
-      return [] as Task[];
-    }
-  }, []);
+  const [recentQueries, setRecentQueries] = useState<string[]>(() =>
+    parseStored<string[]>(RECENT_SEARCH_KEY, [])
+  );
+  const [notes, setNotes] = useState<Record<string, string>>(() =>
+    parseStored<Record<string, string>>(NOTES_KEY, {})
+  );
+  const [threads, setThreads] = useState<Thread[]>(() =>
+    parseStored<Thread[]>(THREADS_KEY, [])
+  );
+  const [spaces, setSpaces] = useState<Space[]>(() =>
+    parseStored<Space[]>(SPACES_KEY, [])
+  );
+  const [collections, setCollections] = useState<Collection[]>(() =>
+    parseStored<Collection[]>(COLLECTIONS_KEY, [])
+  );
+  const [files, setFiles] = useState<LibraryFile[]>(() =>
+    parseStored<LibraryFile[]>(FILES_KEY, [])
+  );
+  const [tasks, setTasks] = useState<Task[]>(() =>
+    parseStored<Task[]>(TASKS_KEY, [])
+  );
+  const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
+  const [bulkSpaceId, setBulkSpaceId] = useState("");
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const normalized = query.trim().toLowerCase();
   const normalizedTokens = useMemo(
@@ -116,30 +77,40 @@ export default function UnifiedSearch() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const readNotes = () => {
-      const stored = localStorage.getItem(NOTES_KEY);
-      if (!stored) {
-        setNotes({});
-        return;
-      }
-      try {
-        setNotes(JSON.parse(stored) as Record<string, string>);
-      } catch {
-        setNotes({});
-      }
+    const readAll = () => {
+      setNotes(parseStored<Record<string, string>>(NOTES_KEY, {}));
+      setThreads(parseStored<Thread[]>(THREADS_KEY, []));
+      setSpaces(parseStored<Space[]>(SPACES_KEY, []));
+      setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
+      setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
+      setTasks(parseStored<Task[]>(TASKS_KEY, []));
+      setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key && event.key !== NOTES_KEY) return;
-      readNotes();
+      if (
+        event.key &&
+        ![
+          NOTES_KEY,
+          THREADS_KEY,
+          SPACES_KEY,
+          COLLECTIONS_KEY,
+          FILES_KEY,
+          TASKS_KEY,
+          RECENT_SEARCH_KEY,
+        ].includes(event.key)
+      ) {
+        return;
+      }
+      readAll();
     };
 
-    readNotes();
+    readAll();
     window.addEventListener("storage", handleStorage);
-    window.addEventListener("focus", readNotes);
+    window.addEventListener("focus", readAll);
     return () => {
       window.removeEventListener("storage", handleStorage);
-      window.removeEventListener("focus", readNotes);
+      window.removeEventListener("focus", readAll);
     };
   }, []);
 
@@ -171,64 +142,166 @@ export default function UnifiedSearch() {
     localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recentQueries));
   }, [recentQueries]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(THREADS_KEY, JSON.stringify(threads));
+  }, [threads]);
+
+  useEffect(() => {
+    if (!actionNotice) return;
+    const timeout = window.setTimeout(() => setActionNotice(null), 2500);
+    return () => window.clearTimeout(timeout);
+  }, [actionNotice]);
+
   const filteredThreads = useMemo(() => {
-    if (!normalized) return threads;
-    return threads.filter((thread) => {
-      const citationText = thread.citations
-        .map((citation) => `${citation.title} ${citation.url}`)
-        .join(" ");
-      const fields = [
-        thread.title ?? thread.question,
-        thread.question,
-        thread.answer,
-        (thread.tags ?? []).join(" "),
-        thread.spaceName ?? "",
-        citationText,
-        notes[thread.id] ?? "",
-      ];
-      return fields.some((field) => field.toLowerCase().includes(normalized));
-    });
-  }, [threads, normalized, notes]);
+    const textFiltered = normalized
+      ? threads.filter((thread) => {
+          const citationText = thread.citations
+            .map((citation) => `${citation.title} ${citation.url}`)
+            .join(" ");
+          const fields = [
+            thread.title ?? thread.question,
+            thread.question,
+            thread.answer,
+            (thread.tags ?? []).join(" "),
+            thread.spaceName ?? "",
+            citationText,
+            notes[thread.id] ?? "",
+          ];
+          return fields.some((field) => field.toLowerCase().includes(normalized));
+        })
+      : threads;
+    return textFiltered.filter((thread) =>
+      applyTimelineWindow(thread.createdAt, timelineWindow)
+    );
+  }, [threads, normalized, notes, timelineWindow]);
 
   const filteredSpaces = useMemo(() => {
-    if (!normalized) return spaces;
-    return spaces.filter((space) => {
-      return (
-        space.name.toLowerCase().includes(normalized) ||
-        space.instructions.toLowerCase().includes(normalized)
-      );
-    });
-  }, [spaces, normalized]);
+    const textFiltered = normalized
+      ? spaces.filter((space) => {
+          return (
+            space.name.toLowerCase().includes(normalized) ||
+            (space.instructions ?? "").toLowerCase().includes(normalized)
+          );
+        })
+      : spaces;
+    return textFiltered.filter((space) =>
+      applyTimelineWindow(space.createdAt, timelineWindow)
+    );
+  }, [spaces, normalized, timelineWindow]);
 
   const filteredCollections = useMemo(() => {
-    if (!normalized) return collections;
-    return collections.filter((collection) =>
-      collection.name.toLowerCase().includes(normalized)
+    const textFiltered = normalized
+      ? collections.filter((collection) =>
+          collection.name.toLowerCase().includes(normalized)
+        )
+      : collections;
+    return textFiltered.filter((collection) =>
+      applyTimelineWindow(collection.createdAt, timelineWindow)
     );
-  }, [collections, normalized]);
+  }, [collections, normalized, timelineWindow]);
 
   const filteredFiles = useMemo(() => {
-    if (!normalized) return files;
-    return files.filter((file) => {
-      return (
-        file.name.toLowerCase().includes(normalized) ||
-        file.text.toLowerCase().includes(normalized)
-      );
-    });
-  }, [files, normalized]);
+    const textFiltered = normalized
+      ? files.filter((file) => {
+          return (
+            file.name.toLowerCase().includes(normalized) ||
+            file.text.toLowerCase().includes(normalized)
+          );
+        })
+      : files;
+    return textFiltered.filter((file) =>
+      applyTimelineWindow(file.addedAt, timelineWindow)
+    );
+  }, [files, normalized, timelineWindow]);
 
   const filteredTasks = useMemo(() => {
-    if (!normalized) return tasks;
-    return tasks.filter((task) => {
-      return (
-        task.name.toLowerCase().includes(normalized) ||
-        task.prompt.toLowerCase().includes(normalized) ||
-        (task.spaceName ?? "").toLowerCase().includes(normalized) ||
-        task.mode.toLowerCase().includes(normalized) ||
-        task.cadence.toLowerCase().includes(normalized)
+    const textFiltered = normalized
+      ? tasks.filter((task) => {
+          return (
+            task.name.toLowerCase().includes(normalized) ||
+            task.prompt.toLowerCase().includes(normalized) ||
+            (task.spaceName ?? "").toLowerCase().includes(normalized) ||
+            task.mode.toLowerCase().includes(normalized) ||
+            task.cadence.toLowerCase().includes(normalized)
+          );
+        })
+      : tasks;
+    return textFiltered.filter((task) =>
+      applyTimelineWindow(task.createdAt, timelineWindow)
+    );
+  }, [tasks, normalized, timelineWindow]);
+
+  const toggleThreadField = useCallback(
+    (threadId: string, field: "favorite" | "pinned" | "archived") => {
+      setThreads((previous) =>
+        previous.map((thread) => {
+          if (thread.id !== threadId) return thread;
+          const currentValue = Boolean(thread[field]);
+          return { ...thread, [field]: !currentValue };
+        })
       );
-    });
-  }, [tasks, normalized]);
+    },
+    []
+  );
+
+  const assignThreadSpace = useCallback(
+    (threadId: string, nextSpaceId: string) => {
+      const meta = resolveThreadSpaceMeta(nextSpaceId, spaces);
+      setThreads((previous) =>
+        previous.map((thread) =>
+          thread.id === threadId
+            ? {
+                ...thread,
+                spaceId: meta.spaceId,
+                spaceName: meta.spaceName,
+              }
+            : thread
+        )
+      );
+    },
+    [spaces]
+  );
+
+  const activeSelectedThreadIds = useMemo(
+    () => selectedThreadIds.filter((id) => threads.some((thread) => thread.id === id)),
+    [selectedThreadIds, threads]
+  );
+  const selectedCount = activeSelectedThreadIds.length;
+
+  const applyBulkAction = useCallback(
+    (
+      updater: (thread: Thread) => Thread,
+      successMessage: string,
+      clearSpaceSelection = false
+    ) => {
+      if (!activeSelectedThreadIds.length) return;
+      setThreads((previous) =>
+        applyBulkThreadUpdate(previous, activeSelectedThreadIds, updater)
+      );
+      setActionNotice(successMessage);
+      if (clearSpaceSelection) {
+        setBulkSpaceId("");
+      }
+    },
+    [activeSelectedThreadIds]
+  );
+
+  const applyBulkSpaceAssignment = useCallback(() => {
+    if (!activeSelectedThreadIds.length) return;
+    const meta = resolveThreadSpaceMeta(bulkSpaceId, spaces);
+    applyBulkAction(
+      (thread) => ({
+        ...thread,
+        spaceId: meta.spaceId,
+        spaceName: meta.spaceName,
+      }),
+      meta.spaceName
+        ? `Assigned ${activeSelectedThreadIds.length} thread(s) to ${meta.spaceName}.`
+        : `Removed space assignment from ${activeSelectedThreadIds.length} thread(s).`,
+      true
+    );
+  }, [activeSelectedThreadIds.length, applyBulkAction, bulkSpaceId, spaces]);
 
   const sortedThreads = useMemo(() => {
     const next = [...filteredThreads];
@@ -351,6 +424,20 @@ export default function UnifiedSearch() {
     () => sortedTasks.slice(0, resultLimit),
     [sortedTasks, resultLimit]
   );
+
+  const setAllShownThreadSelection = useCallback(
+    (enabled: boolean) => {
+      if (!enabled) {
+        setSelectedThreadIds([]);
+        return;
+      }
+      setSelectedThreadIds(shownThreads.map((thread) => thread.id));
+    },
+    [shownThreads]
+  );
+  const allShownSelected =
+    shownThreads.length > 0 &&
+    shownThreads.every((thread) => activeSelectedThreadIds.includes(thread.id));
 
   const topThreadResults = useMemo(() => sortedThreads.slice(0, 3), [sortedThreads]);
   const topSpaceResults = useMemo(() => sortedSpaces.slice(0, 3), [sortedSpaces]);
@@ -644,6 +731,21 @@ export default function UnifiedSearch() {
               </select>
             </label>
             <label className="flex items-center gap-2 text-signal-muted">
+              Time
+              <select
+                value={timelineWindow}
+                onChange={(event) =>
+                  setTimelineWindow(event.target.value as TimelineWindow)
+                }
+                className="rounded-full border border-white/10 bg-transparent px-3 py-1 text-xs text-signal-text"
+              >
+                <option value="all">All time</option>
+                <option value="24h">Last 24h</option>
+                <option value="7d">Last 7d</option>
+                <option value="30d">Last 30d</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-signal-muted">
               Show
               <select
                 value={resultLimit}
@@ -658,6 +760,11 @@ export default function UnifiedSearch() {
               </select>
             </label>
           </div>
+          {actionNotice ? (
+            <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
+              {actionNotice}
+            </p>
+          ) : null}
           {recentQueries.length ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-signal-muted">
@@ -816,33 +923,177 @@ export default function UnifiedSearch() {
                     No matching threads.
                   </p>
                 ) : (
-                  shownThreads.map((thread) => {
-                    const snippet = buildThreadSnippet(thread);
-                    return (
-                      <div
-                        key={thread.id}
-                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                      >
-                        <p className="text-sm text-signal-text">
-                          {thread.title ?? thread.question}
-                        </p>
-                        <p className="mt-1 text-[11px] text-signal-muted">
-                          {thread.spaceName ?? "No space"} · {thread.mode}
-                        </p>
-                        {snippet ? (
-                          <p className="mt-2 line-clamp-3 text-[11px] text-signal-muted">
-                            {snippet}
-                          </p>
-                        ) : null}
-                        <Link
-                          href={`/?thread=${thread.id}`}
-                          className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  <>
+                    <div className="rounded-2xl border border-white/10 bg-black/20 p-3 text-[11px] text-signal-muted">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={allShownSelected}
+                            onChange={(event) =>
+                              setAllShownThreadSelection(event.target.checked)
+                            }
+                          />
+                          Select visible
+                        </label>
+                        <span>{selectedCount} selected</span>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
+                              (thread) => ({ ...thread, pinned: true }),
+                              `Pinned ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
-                          Open
-                        </Link>
+                          Pin
+                        </button>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
+                              (thread) => ({ ...thread, pinned: false }),
+                              `Unpinned ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Unpin
+                        </button>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
+                              (thread) => ({ ...thread, archived: true }),
+                              `Archived ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Archive
+                        </button>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
+                              (thread) => ({ ...thread, archived: false }),
+                              `Unarchived ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Unarchive
+                        </button>
+                        <select
+                          value={bulkSpaceId}
+                          onChange={(event) => setBulkSpaceId(event.target.value)}
+                          className="rounded-full border border-white/10 bg-transparent px-2 py-1 text-[11px] text-signal-text"
+                        >
+                          <option value="">No space</option>
+                          {spaces.map((space) => (
+                            <option key={`bulk-space-${space.id}`} value={space.id}>
+                              {space.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={applyBulkSpaceAssignment}
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Apply space
+                        </button>
                       </div>
-                    );
-                  })
+                    </div>
+                    {shownThreads.map((thread) => {
+                      const snippet = buildThreadSnippet(thread);
+                      const selected = activeSelectedThreadIds.includes(thread.id);
+                      return (
+                        <div
+                          key={thread.id}
+                          className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <label className="mt-1 flex items-center gap-2 text-[11px]">
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={(event) => {
+                                  const checked = event.target.checked;
+                                  setSelectedThreadIds((previous) =>
+                                    checked
+                                      ? [...new Set([...previous, thread.id])]
+                                      : previous.filter((id) => id !== thread.id)
+                                  );
+                                }}
+                              />
+                              Select
+                            </label>
+                            <div className="flex flex-wrap gap-1">
+                              <button
+                                onClick={() => toggleThreadField(thread.id, "favorite")}
+                                className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                              >
+                                {thread.favorite ? "Unfavorite" : "Favorite"}
+                              </button>
+                              <button
+                                onClick={() => toggleThreadField(thread.id, "pinned")}
+                                className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                              >
+                                {thread.pinned ? "Unpin" : "Pin"}
+                              </button>
+                              <button
+                                onClick={() => toggleThreadField(thread.id, "archived")}
+                                className="rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                              >
+                                {thread.archived ? "Unarchive" : "Archive"}
+                              </button>
+                            </div>
+                          </div>
+                          <p className="mt-2 text-sm text-signal-text">
+                            {thread.title ?? thread.question}
+                          </p>
+                          <p className="mt-1 text-[11px] text-signal-muted">
+                            {thread.spaceName ?? "No space"} · {thread.mode}
+                            {thread.pinned ? " · pinned" : ""}
+                            {thread.favorite ? " · favorite" : ""}
+                            {thread.archived ? " · archived" : ""}
+                          </p>
+                          <div className="mt-2">
+                            <label className="text-[11px] text-signal-muted">
+                              Space
+                              <select
+                                value={thread.spaceId ?? ""}
+                                onChange={(event) =>
+                                  assignThreadSpace(thread.id, event.target.value)
+                                }
+                                className="ml-2 rounded-full border border-white/10 bg-transparent px-2 py-1 text-[11px] text-signal-text"
+                              >
+                                <option value="">No space</option>
+                                {spaces.map((space) => (
+                                  <option key={`thread-space-${thread.id}-${space.id}`} value={space.id}>
+                                    {space.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+                          {snippet ? (
+                            <p className="mt-2 line-clamp-3 text-[11px] text-signal-muted">
+                              {snippet}
+                            </p>
+                          ) : null}
+                          <Link
+                            href={`/?thread=${thread.id}`}
+                            className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                          >
+                            Open
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </>
                 )}
               </div>
             </section>
