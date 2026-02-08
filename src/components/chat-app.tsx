@@ -687,16 +687,32 @@ export default function ChatApp() {
 
   const filteredThreads = useMemo(() => {
     const normalized = search.trim().toLowerCase();
+    const normalizedTokens = normalized
+      ? normalized.split(/\s+/).filter(Boolean)
+      : [];
+
+    const matchesText = (value?: string | null) => {
+      if (!normalized) return true;
+      if (!value) return false;
+      const target = value.toLowerCase();
+      if (target.includes(normalized)) return true;
+      if (!normalizedTokens.length) return false;
+      return normalizedTokens.every((token) => target.includes(token));
+    };
     const filtered = threads.filter((thread) => {
       if (isThreadExpired(thread)) return false;
       const matchesMode = filterMode === "all" || thread.mode === filterMode;
       const matchesSearch =
         !normalized ||
-        thread.question.toLowerCase().includes(normalized) ||
-        (thread.title ?? "").toLowerCase().includes(normalized) ||
-        (thread.tags ?? []).some((tagItem) =>
-          tagItem.toLowerCase().includes(normalized)
-        );
+        matchesText(thread.question) ||
+        matchesText(thread.title ?? "") ||
+        matchesText(thread.answer) ||
+        matchesText(thread.spaceName ?? "") ||
+        (thread.tags ?? []).some((tagItem) => matchesText(tagItem)) ||
+        thread.citations.some((citation) =>
+          matchesText(`${citation.title} ${citation.url}`)
+        ) ||
+        matchesText(notes[thread.id] ?? null);
       const matchesFavorite = !favoritesOnly || thread.favorite;
       const matchesPinned = !pinnedOnly || thread.pinned;
       const matchesArchived = archivedOnly ? thread.archived : !thread.archived;
@@ -747,6 +763,7 @@ export default function ChatApp() {
     collectionFilter,
     tagFilter,
     sortByTag,
+    notes,
   ]);
 
   const filteredFiles = useMemo(() => {

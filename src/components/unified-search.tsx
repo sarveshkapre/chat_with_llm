@@ -20,6 +20,7 @@ const SPACES_KEY = "signal-spaces-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
 const FILES_KEY = "signal-files-v1";
 const TASKS_KEY = "signal-tasks-v1";
+const NOTES_KEY = "signal-notes-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 
 export default function UnifiedSearch() {
@@ -39,6 +40,16 @@ export default function UnifiedSearch() {
       return JSON.parse(stored) as string[];
     } catch {
       return [];
+    }
+  });
+  const [notes, setNotes] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    const stored = localStorage.getItem(NOTES_KEY);
+    if (!stored) return {};
+    try {
+      return JSON.parse(stored) as Record<string, string>;
+    } catch {
+      return {};
     }
   });
   const threads = useMemo(() => {
@@ -102,6 +113,36 @@ export default function UnifiedSearch() {
     [normalized]
   );
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const readNotes = () => {
+      const stored = localStorage.getItem(NOTES_KEY);
+      if (!stored) {
+        setNotes({});
+        return;
+      }
+      try {
+        setNotes(JSON.parse(stored) as Record<string, string>);
+      } catch {
+        setNotes({});
+      }
+    };
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key && event.key !== NOTES_KEY) return;
+      readNotes();
+    };
+
+    readNotes();
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", readNotes);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", readNotes);
+    };
+  }, []);
+
   function toTime(value?: string) {
     const parsed = Date.parse(value ?? "");
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -133,17 +174,21 @@ export default function UnifiedSearch() {
   const filteredThreads = useMemo(() => {
     if (!normalized) return threads;
     return threads.filter((thread) => {
-      const title = (thread.title ?? thread.question).toLowerCase();
-      const tags = (thread.tags ?? []).join(" ").toLowerCase();
-      const space = (thread.spaceName ?? "").toLowerCase();
-      return (
-        title.includes(normalized) ||
-        thread.question.toLowerCase().includes(normalized) ||
-        tags.includes(normalized) ||
-        space.includes(normalized)
-      );
+      const citationText = thread.citations
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const fields = [
+        thread.title ?? thread.question,
+        thread.question,
+        thread.answer,
+        (thread.tags ?? []).join(" "),
+        thread.spaceName ?? "",
+        citationText,
+        notes[thread.id] ?? "",
+      ];
+      return fields.some((field) => field.toLowerCase().includes(normalized));
     });
-  }, [threads, normalized]);
+  }, [threads, normalized, notes]);
 
   const filteredSpaces = useMemo(() => {
     if (!normalized) return spaces;
@@ -190,23 +235,37 @@ export default function UnifiedSearch() {
     next.sort((a, b) => {
       if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
       if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
+      const noteA = notes[a.id] ?? "";
+      const noteB = notes[b.id] ?? "";
+      const citationA = a.citations
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const citationB = b.citations
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
       const scoreA = relevanceScore([
         a.title ?? a.question,
         a.question,
+        a.answer,
         (a.tags ?? []).join(" "),
         a.spaceName ?? "",
+        citationA,
+        noteA,
       ]);
       const scoreB = relevanceScore([
         b.title ?? b.question,
         b.question,
+        b.answer,
         (b.tags ?? []).join(" "),
         b.spaceName ?? "",
+        citationB,
+        noteB,
       ]);
       if (scoreB !== scoreA) return scoreB - scoreA;
       return toTime(b.createdAt) - toTime(a.createdAt);
     });
     return next;
-  }, [filteredThreads, relevanceScore, sortBy]);
+  }, [filteredThreads, relevanceScore, sortBy, notes]);
 
   const sortedSpaces = useMemo(() => {
     const next = [...filteredSpaces];
@@ -301,6 +360,48 @@ export default function UnifiedSearch() {
   );
   const topFileResults = useMemo(() => sortedFiles.slice(0, 3), [sortedFiles]);
   const topTaskResults = useMemo(() => sortedTasks.slice(0, 3), [sortedTasks]);
+
+  const snippetFromText = useCallback(
+    (text: string) => {
+      if (!text) return "";
+      const compact = text.replace(/\s+/g, " ").trim();
+      if (!compact) return "";
+      if (!normalized) return compact.slice(0, 160);
+      const lowered = compact.toLowerCase();
+      let index = lowered.indexOf(normalized);
+      if (index === -1 && normalizedTokens.length) {
+        for (const token of normalizedTokens) {
+          index = lowered.indexOf(token);
+          if (index !== -1) break;
+        }
+      }
+      if (index === -1) return compact.slice(0, 160);
+      const start = Math.max(0, index - 60);
+      const end = Math.min(compact.length, index + normalized.length + 80);
+      return compact.slice(start, end).trim();
+    },
+    [normalized, normalizedTokens]
+  );
+
+  const buildThreadSnippet = useCallback(
+    (thread: Thread) => {
+      const citationText = thread.citations
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const candidates = [
+        thread.answer,
+        notes[thread.id] ?? "",
+        citationText,
+        thread.question,
+      ];
+      for (const candidate of candidates) {
+        const snippet = snippetFromText(candidate);
+        if (snippet) return snippet;
+      }
+      return "";
+    },
+    [notes, snippetFromText]
+  );
 
   function pushRecentQuery(value: string) {
     const trimmed = value.trim();
@@ -595,15 +696,25 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topThreadResults.length ? (
-                    topThreadResults.map((thread) => (
-                      <Link
-                        key={`top-thread-${thread.id}`}
-                        href={`/?thread=${thread.id}`}
-                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
-                      >
-                        {thread.title ?? thread.question}
-                      </Link>
-                    ))
+                    topThreadResults.map((thread) => {
+                      const snippet = buildThreadSnippet(thread);
+                      return (
+                        <Link
+                          key={`top-thread-${thread.id}`}
+                          href={`/?thread=${thread.id}`}
+                          className="block text-xs text-signal-text hover:text-signal-accent"
+                        >
+                          <p className="truncate font-medium">
+                            {thread.title ?? thread.question}
+                          </p>
+                          {snippet ? (
+                            <p className="mt-1 line-clamp-2 text-[11px] text-signal-muted">
+                              {snippet}
+                            </p>
+                          ) : null}
+                        </Link>
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-signal-muted">No thread hits.</p>
                   )}
@@ -705,25 +816,33 @@ export default function UnifiedSearch() {
                     No matching threads.
                   </p>
                 ) : (
-                  shownThreads.map((thread) => (
-                    <div
-                      key={thread.id}
-                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                    >
-                      <p className="text-sm text-signal-text">
-                        {thread.title ?? thread.question}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        {thread.spaceName ?? "No space"} · {thread.mode}
-                      </p>
-                      <Link
-                        href={`/?thread=${thread.id}`}
-                        className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  shownThreads.map((thread) => {
+                    const snippet = buildThreadSnippet(thread);
+                    return (
+                      <div
+                        key={thread.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                       >
-                        Open
-                      </Link>
-                    </div>
-                  ))
+                        <p className="text-sm text-signal-text">
+                          {thread.title ?? thread.question}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {thread.spaceName ?? "No space"} · {thread.mode}
+                        </p>
+                        {snippet ? (
+                          <p className="mt-2 line-clamp-3 text-[11px] text-signal-muted">
+                            {snippet}
+                          </p>
+                        ) : null}
+                        <Link
+                          href={`/?thread=${thread.id}`}
+                          className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Open
+                        </Link>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>
