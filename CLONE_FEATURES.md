@@ -7,10 +7,14 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P1: Add workflow-level CI test for GitHub Actions YAML policy checks (permissions + SHA pin validation) to catch workflow drift before merge.
-- [ ] P1: Migrate `github/codeql-action/upload-sarif` to v4 before v3 deprecation (warning observed in Scorecard runs on 2026-02-08).
-- [ ] P1: Add undo affordance for Unified Search bulk thread actions to reduce accidental archive/space reassignments.
+- [ ] P0 (Selected): Track maintainer contract + memory files in git (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) and keep them current each cycle.
+- [ ] P0 (Selected): CI: Migrate `github/codeql-action/upload-sarif` to v4 (pinned SHA) to avoid v3 deprecation drift.
+- [ ] P0 (Selected): CI: Add workflow policy checks (pinned `uses:` SHAs + explicit least-privilege `permissions:`) and run them in CI.
+- [ ] P1 (Selected): Unified Search: Add undo affordance for bulk thread actions to reduce accidental archive/space reassignments.
+- [ ] P2: Unified Search: Add bulk favorite/unfavorite actions to match per-thread quick actions.
+- [ ] P2: Add a documented smoke verification path (mock mode) that can be run locally and in CI on demand.
 - [ ] P2: Follow up on server-backed persistence planning for notes/threads beyond localStorage.
+- [ ] P3: Add a lightweight “data corruption backup” mechanism when localStorage JSON parsing fails (preserve a copy before overwriting).
 
 ## Implemented
 - 2026-02-08: Hardened Actions workflows by pinning action SHAs and tightening token permissions in CI/Scorecard (`.github/workflows/ci.yml`, `.github/workflows/scorecard.yml`).
@@ -46,14 +50,6 @@
 - /Users/sarvesh/code/chat_with_llm/PRODUCT_GOALS.md:- [ ] Auto-router policy (cost/latency/quality profile routing).
 - /Users/sarvesh/code/chat_with_llm/PRODUCT_GOALS.md:- [ ] Connector framework for external systems (Drive/Notion/GitHub baseline).
 - /Users/sarvesh/code/chat_with_llm/PRODUCT_GOALS.md:- [ ] Admin analytics dashboard and usage insights.
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~fd_advise~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~fd_fdstat_set_flags~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~proc_raise~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~sock_recv~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~sock_send~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/@tybys/wasm-util/README.md:- [ ] ~~sock_shutdown~~
-- /Users/sarvesh/code/chat_with_llm/node_modules/unrs-resolver/README.md:- [ ] plugins.test.js
-- /Users/sarvesh/code/chat_with_llm/node_modules/unrs-resolver/README.md:- [ ] pnp.test.js
 - /Users/sarvesh/code/chat_with_llm/.github/PULL_REQUEST_TEMPLATE.md:- [ ] `npm test`
 - /Users/sarvesh/code/chat_with_llm/.github/PULL_REQUEST_TEMPLATE.md:- [ ] `npm run lint`
 - /Users/sarvesh/code/chat_with_llm/.github/PULL_REQUEST_TEMPLATE.md:- [ ] `npm run build`
