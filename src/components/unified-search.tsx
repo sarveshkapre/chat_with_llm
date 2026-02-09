@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
@@ -66,7 +66,17 @@ export default function UnifiedSearch() {
   );
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
-  const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [toast, setToast] = useState<
+    | {
+        message: string;
+        undo?: {
+          label: string;
+          before: Record<string, Thread>;
+        };
+      }
+    | null
+  >(null);
+  const threadsRef = useRef<Thread[]>(threads);
 
   const normalized = query.trim().toLowerCase();
   const normalizedTokens = useMemo(
@@ -148,10 +158,15 @@ export default function UnifiedSearch() {
   }, [threads]);
 
   useEffect(() => {
-    if (!actionNotice) return;
-    const timeout = window.setTimeout(() => setActionNotice(null), 2500);
+    threadsRef.current = threads;
+  }, [threads]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeoutMs = toast.undo ? 8000 : 2500;
+    const timeout = window.setTimeout(() => setToast(null), timeoutMs);
     return () => window.clearTimeout(timeout);
-  }, [actionNotice]);
+  }, [toast]);
 
   const filteredThreads = useMemo(() => {
     const textFiltered = normalized
@@ -276,10 +291,23 @@ export default function UnifiedSearch() {
       clearSpaceSelection = false
     ) => {
       if (!activeSelectedThreadIds.length) return;
+      const before: Record<string, Thread> = {};
+      const selectedSet = new Set(activeSelectedThreadIds);
+      threadsRef.current.forEach((thread) => {
+        if (selectedSet.has(thread.id)) before[thread.id] = thread;
+      });
       setThreads((previous) =>
         applyBulkThreadUpdate(previous, activeSelectedThreadIds, updater)
       );
-      setActionNotice(successMessage);
+      setToast({
+        message: successMessage,
+        undo: Object.keys(before).length
+          ? {
+              label: "Undo",
+              before,
+            }
+          : undefined,
+      });
       if (clearSpaceSelection) {
         setBulkSpaceId("");
       }
@@ -760,10 +788,25 @@ export default function UnifiedSearch() {
               </select>
             </label>
           </div>
-          {actionNotice ? (
-            <p className="rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300">
-              {actionNotice}
-            </p>
+          {toast ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+              <p>{toast.message}</p>
+              {toast.undo ? (
+                <button
+                  onClick={() => {
+                    const before = toast.undo?.before;
+                    if (!before) return;
+                    setThreads((previous) =>
+                      previous.map((thread) => before[thread.id] ?? thread)
+                    );
+                    setToast({ message: "Undid last bulk action." });
+                  }}
+                  className="rounded-full border border-emerald-500/40 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/10"
+                >
+                  {toast.undo.label}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           {recentQueries.length ? (
             <div className="space-y-2">
