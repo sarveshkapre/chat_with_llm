@@ -29,6 +29,8 @@
 - 2026-02-10 | Add `/` focus + `Esc` clear shortcuts for search inputs across Library/Spaces/Collections | Improve UX parity and speed for keyboard-first navigation | `npm test` + `npm run lint` | a9ed305 | high | trusted
 - 2026-02-10 | Add “why this matched” micro-badges in Unified Search thread results | Improve trust/scanability by making match surfaces explicit without changing ranking | `npm test` (`tests/unified-search.test.ts`) + `npm run build` | e64f5ae | high | trusted
 - 2026-02-10 | Unified Search indexes Space tags + supports `tag:` operator filtering for Spaces | Make Space discovery consistent with Spaces dashboard and reduce “why can’t I find this space” friction | `npm test` + `npm run lint` + `npm run build` + `npm run smoke:mock` | 285d9c8 | high | trusted
+- 2026-02-10 | Add Unified Search saved searches (presets) | Make power-user search workflows sticky by enabling “save/pin/run” without retyping operators and filters | `npm test` (`tests/saved-searches.test.ts`) + `npm run lint` + `npm run build` | 9bcfc13 | high | trusted
+- 2026-02-10 | Add Unified Search negative operators and harden query parsing | Improve search expressiveness (`-tag:`, `-has:`) while avoiding brittle operator parsing from unbalanced quotes | `npm test` (`tests/unified-search.test.ts`) + `npm run lint` + `npm run build` | 1d2a19a | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -39,10 +41,10 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window.
-- P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify `space:` semantics.
-- P3: Unified Search: performance pass for large libraries (cache normalized fields, avoid recomputing scores/snippets).
-- P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()`.
+- P3: Unified Search “verbatim” toggle/operator: allow exact/phrase-only matching (no token fallback).
+- P3: Unified Search performance pass for large libraries (cache normalized fields, avoid recomputing snippets/citation joins).
+- P4: Unified Search saved searches export to Markdown.
+- P4: Clarify operator semantics in inline help (`space:` vs `spaceId:`, negative operators) and add a couple of copy-ready examples.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
@@ -55,6 +57,11 @@
 - 2026-02-10 | `npm test` | `Test Files 5 passed` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock ...` | pass
+- 2026-02-10 | `npm test` | `Test Files 10 passed (10)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=63391 deltaEvents=15` | pass
+- 2026-02-10 | `gh run watch 21873582273 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
 - 2026-02-10 | `npm test` | `Test Files 7 passed (7)` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` (warning observed: `--localstorage-file` path invalid) | pass
