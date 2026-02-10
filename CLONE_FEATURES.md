@@ -7,11 +7,13 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P3: Improve unified search relevance scoring (better weighting for title/question exact matches + citations/notes tie-breakers) and add regression tests. (Score: impact=med effort=med risk=low confidence=med)
-- [ ] P3: Add keyboard shortcuts for search surfaces (e.g., `/` focus search, `Esc` clear, `j/k` navigate). (Score: impact=med effort=med risk=low confidence=med)
-- [ ] P3: Add a debounced query input option for unified search to reduce re-render cost on large libraries. (Score: impact=low effort=low risk=low confidence=med)
+- [ ] P3: Add “why this matched” micro-badges (title/tag/note/citation) for top results to improve trust and scanability. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add query operators to Unified Search (`type:thread`, `space:Name`, `tag:foo`, `has:note`, `has:citation`) with clear inline help. (Score: impact=med effort=high risk=med confidence=low)
+- [ ] P3: Add cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) for UX parity. (Score: impact=low effort=med risk=low confidence=med)
+- [ ] P3: Add “Saved search” UX for Unified Search (pin + rename + quick run), reusing existing saved search preset storage where possible. (Score: impact=med effort=med risk=low confidence=med)
 
 ## Implemented
+- 2026-02-10: Unified Search now supports multi-word matching (phrase OR all-tokens across fields), field-weighted relevance scoring (title/question > tags/space > notes/citations > body) with precomputed scores, plus `/` focus + `Esc` clear + `Enter` commit recent query and deferred query evaluation (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `590f05c`).
 - 2026-02-10: Added unified search match highlighting for query/tokens across titles + snippets (`src/components/unified-search.tsx`, `src/lib/highlight.ts`) (commit `ce3429c`).
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
 - 2026-02-09: Enforced workflow policy checks (pinned action SHAs + explicit `permissions:`) via `npm run check:workflows` and CI step, with regression tests (`scripts/check-workflows.mjs`, `scripts/workflow-policy.mjs`, `tests/workflow-policy.test.ts`, `.github/workflows/ci.yml`) (commit `0a9bbdf`).
