@@ -7,9 +7,15 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows. (Score: impact=low effort=med risk=low confidence=med)
-- [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset). (Score: impact=med effort=med risk=low confidence=med)
-- [ ] P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo. (Score: impact=low effort=med risk=med confidence=med)
+- [ ] P2 (Selected): Add local-only "undo" for destructive Library bulk actions (delete/archive) with a short-lived toast, without losing newly created threads. Add unit tests for the undo merge logic. (Score: impact=high effort=med risk=med confidence=high)
+- [ ] P2 (Selected): Add a "Data health" self-check that detects corrupt JSON backups (`signal-corrupt-*`) and prompts users to export diagnostics/data before reset. (Score: impact=high effort=med risk=low confidence=high)
+- [ ] P2 (Selected): Add a "Download diagnostics bundle" export (app/version + storage usage + anonymized counts + optional raw `signal-*` snapshot) for support workflows. (Score: impact=med effort=med risk=low confidence=high)
+- [ ] P3: Investigate and remove the `npm run build` warning about `--localstorage-file` (keep build logs clean). (Score: impact=low effort=low risk=low confidence=med)
+- [ ] P3: Add unified search snippet match highlighting (query/token emphasis) to improve scanability. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Improve unified search relevance scoring (better weighting for title/question exact matches + citations/notes tie-breakers) and add regression tests. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add keyboard shortcuts for search surfaces (e.g., `/` focus search, `Esc` clear, `j/k` navigate). (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add a "redacted diagnostics" mode (omit answers/prompts, keep counts + key metadata) to share safely. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add a debounced query input option for unified search to reduce re-render cost on large libraries. (Score: impact=low effort=low risk=low confidence=med)
 
 ## Implemented
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
@@ -36,8 +42,8 @@
 - Signal Search usability improves when actions happen in the search surface itself; forcing users back into Library for pin/archive/space edits adds unnecessary friction.
 - Users rely on notes and citations during follow-ups, so search must index those fields; otherwise “Signal Search” fails to find high-signal content.
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
-- Market scan (untrusted, links only): comparable products emphasize citations + “save to collections/spaces” workflows and quick iteration loops.
-- Sources: Perplexity (https://www.perplexity.ai) docs: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces source selection (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search).
+- Market scan (untrusted, links only): comparable products emphasize citations + “save/organize” workflows plus explicit data controls (export/clear) when retention is local-only or account-scoped.
+- Sources: Perplexity (https://www.perplexity.ai) help: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces overview (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search); OpenAI Help Center: ChatGPT data export flow (https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 - Gap map (untrusted, synthesized):
 - Missing: accounts/auth + database-backed storage + secure sharing model; robust file ingestion (PDF/DOCX/etc) + retrieval.
 - Weak: durable background jobs (research/tasks) + notifications/timezones; user-facing recovery flows for local-only data.
