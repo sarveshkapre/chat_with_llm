@@ -7,10 +7,6 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P1: Unified Search: Add bulk favorite/unfavorite actions to match per-thread quick actions.
-- [ ] P1: Local storage resiliency: back up corrupt JSON blobs on parse failure before any code overwrites them.
-- [ ] P2: Add a documented smoke verification path (mock mode) runnable locally and via `workflow_dispatch` in CI.
-- [ ] P2: Add unit coverage for localStorage parsing/backup helpers (regression coverage for corruption handling).
 - [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection.
 - [ ] P3: Follow up on server-backed persistence planning for notes/threads beyond localStorage (ADR + migration sketch).
 - [ ] P3: Add lightweight localStorage “export raw data” debug action (threads/spaces/collections/files/tasks) to help users recover from corruption.
@@ -29,6 +25,9 @@
 - 2026-02-08: Added Unified Search timeline filtering and in-place thread quick/bulk actions (favorite/pin/archive/space assignment) (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`).
 - 2026-02-08: Added regression tests for timeline and bulk-action helper logic (`tests/unified-search.test.ts`).
 - 2026-02-08: Expanded library + unified search relevance to include answer text, citations, and notes with contextual snippets (src/components/chat-app.tsx, src/components/unified-search.tsx).
+- 2026-02-10: Unified Search bulk favorite/unfavorite actions (`src/components/unified-search.tsx`) (commit `2c94219`).
+- 2026-02-10: Local storage corruption backups on JSON parse failures + regression tests (`src/lib/storage.ts`, `src/lib/unified-search.ts`, `src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`, `src/components/report-view.tsx`, `tests/storage.test.ts`) (commit `716763b`).
+- 2026-02-10: Mock smoke verification path + on-demand CI workflow (`scripts/smoke.mjs`, `.github/workflows/smoke.yml`, `package.json`, `PROJECT.md`) (commit `fe19614`).
 
 ## Insights
 - Scorecard failures were not from scan results; they were caused by workflow policy validation when `publish_results: true` was combined with write-level permissions.
@@ -37,7 +36,7 @@
 - Users rely on notes and citations during follow-ups, so search must index those fields; otherwise “Signal Search” fails to find high-signal content.
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
 - Market scan (untrusted, links only): comparable products emphasize citations + “save to collections/spaces” workflows and quick iteration loops.
-- Sources: Perplexity (https://www.perplexity.ai), Kagi Assistant (https://kagi.com/assistant), Elicit (https://elicit.com), Arc Search (https://arc.net/search).
+- Sources: Perplexity (https://www.perplexity.ai) docs: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces source selection (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search).
 
 ## Notes
 - This file is maintained by the autonomous clone loop.
