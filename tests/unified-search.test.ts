@@ -5,6 +5,7 @@ import {
   computeRelevanceScore,
   matchesQuery,
   normalizeQuery,
+  parseUnifiedSearchQuery,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
@@ -165,5 +166,32 @@ describe("computeRelevanceScore", () => {
     const includes = computeRelevanceScore([{ text: "beta alpha gamma", weight: 1 }], query);
     expect(exact).toBeGreaterThan(prefix);
     expect(prefix).toBeGreaterThan(includes);
+  });
+});
+
+describe("parseUnifiedSearchQuery", () => {
+  it("strips known operators and normalizes the remaining text query", () => {
+    const parsed = parseUnifiedSearchQuery(
+      'type:threads space:"Deep Work" tag:alpha has:note foo bar'
+    );
+    expect(parsed.text).toBe("foo bar");
+    expect(parsed.query).toEqual(normalizeQuery("foo bar"));
+    expect(parsed.operators.type).toBe("threads");
+    expect(parsed.operators.space).toBe("Deep Work");
+    expect(parsed.operators.tags).toEqual(["alpha"]);
+    expect(parsed.operators.hasNote).toBe(true);
+  });
+
+  it("keeps unknown operators as part of the free-text query", () => {
+    const parsed = parseUnifiedSearchQuery("unknown:thing hello");
+    expect(parsed.text).toBe("unknown:thing hello");
+    expect(parsed.operators).toEqual({});
+  });
+
+  it("supports type and has aliases", () => {
+    const parsed = parseUnifiedSearchQuery("in:space has:sources roadmap");
+    expect(parsed.operators.type).toBe("spaces");
+    expect(parsed.operators.hasCitation).toBe(true);
+    expect(parsed.text).toBe("roadmap");
   });
 });

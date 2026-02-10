@@ -20,13 +20,14 @@ import {
   applyTimelineWindow,
   computeRelevanceScore,
   matchesQuery,
-  normalizeQuery,
+  parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   toggleVisibleSelection,
   type TimelineWindow,
+  type UnifiedSearchType,
 } from "@/lib/unified-search";
 
 type Thread = AnswerResponse & {
@@ -95,9 +96,16 @@ export default function UnifiedSearch() {
   const selectedThreadIdsRef = useRef<string[]>(selectedThreadIds);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const queryInfo = useMemo(() => normalizeQuery(deferredQuery), [deferredQuery]);
+  const parsedQuery = useMemo(
+    () => parseUnifiedSearchQuery(deferredQuery),
+    [deferredQuery]
+  );
+  const queryInfo = parsedQuery.query;
   const normalized = queryInfo.normalized;
   const normalizedTokens = queryInfo.tokens;
+  const operators = parsedQuery.operators;
+  const effectiveFilter: UnifiedSearchType =
+    operators.type ?? (filter as UnifiedSearchType);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -163,6 +171,18 @@ export default function UnifiedSearch() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const operatorSummary = useMemo(() => {
+    const parts: string[] = [];
+    if (operators.type) parts.push(`type:${operators.type}`);
+    if (operators.space) parts.push(`space:"${operators.space}"`);
+    if (operators.tags?.length) {
+      parts.push(...operators.tags.map((tag) => `tag:${tag}`));
+    }
+    if (operators.hasNote) parts.push("has:note");
+    if (operators.hasCitation) parts.push("has:citation");
+    return parts;
+  }, [operators]);
+
   function toTime(value?: string) {
     const parsed = Date.parse(value ?? "");
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -216,10 +236,32 @@ export default function UnifiedSearch() {
           return matchesQuery(fields, queryInfo);
         })
       : threads;
-    return textFiltered.filter((thread) =>
+    const operatorFiltered = textFiltered.filter((thread) => {
+      if (operators.space) {
+        const needle = operators.space.toLowerCase();
+        const spaceName = (thread.spaceName ?? "").toLowerCase();
+        const spaceId = (thread.spaceId ?? "").toLowerCase();
+        if (!spaceName.includes(needle) && spaceId !== needle) return false;
+      }
+      if (operators.tags?.length) {
+        const tagSet = new Set((thread.tags ?? []).map((tag) => tag.toLowerCase()));
+        for (const tag of operators.tags) {
+          if (!tagSet.has(tag.toLowerCase())) return false;
+        }
+      }
+      if (operators.hasNote) {
+        const note = notes[thread.id] ?? "";
+        if (!note.trim()) return false;
+      }
+      if (operators.hasCitation) {
+        if (!thread.citations || thread.citations.length === 0) return false;
+      }
+      return true;
+    });
+    return operatorFiltered.filter((thread) =>
       applyTimelineWindow(thread.createdAt, timelineWindow)
     );
-  }, [threads, normalized, notes, timelineWindow, queryInfo]);
+  }, [threads, normalized, notes, timelineWindow, queryInfo, operators]);
 
   const filteredSpaces = useMemo(() => {
     const textFiltered = normalized
@@ -269,10 +311,19 @@ export default function UnifiedSearch() {
           );
         })
       : tasks;
-    return textFiltered.filter((task) =>
+    const operatorFiltered = textFiltered.filter((task) => {
+      if (operators.space) {
+        const needle = operators.space.toLowerCase();
+        const spaceName = (task.spaceName ?? "").toLowerCase();
+        const spaceId = (task.spaceId ?? "").toLowerCase();
+        if (!spaceName.includes(needle) && spaceId !== needle) return false;
+      }
+      return true;
+    });
+    return operatorFiltered.filter((task) =>
       applyTimelineWindow(task.createdAt, timelineWindow)
     );
-  }, [tasks, normalized, timelineWindow, queryInfo]);
+  }, [tasks, normalized, timelineWindow, queryInfo, operators]);
 
   const toggleThreadField = useCallback(
     (threadId: string, field: "favorite" | "pinned" | "archived") => {
@@ -614,7 +665,7 @@ export default function UnifiedSearch() {
       "# Signal Search Unified Export",
       "",
       `Query: ${query || "None"}`,
-      `Filter: ${filter}`,
+      `Filter: ${effectiveFilter}`,
       `Sort: ${sortBy}`,
       `Result limit (UI): ${resultLimit}`,
       "",
@@ -797,9 +848,44 @@ export default function UnifiedSearch() {
                 setQuery("");
               }
             }}
-            placeholder="Search threads, spaces, collections, files, and tasks"
+            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads has:note tag:foo space:"Research")'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
+            <span>
+              Operators:{" "}
+              <span className="text-signal-text">
+                type:threads|spaces|collections|files|tasks
+              </span>
+              , <span className="text-signal-text">space:&quot;Name&quot;</span>,{" "}
+              <span className="text-signal-text">tag:foo</span>,{" "}
+              <span className="text-signal-text">has:note</span>,{" "}
+              <span className="text-signal-text">has:citation</span>
+            </span>
+            {operatorSummary.length ? (
+              <button
+                onClick={() => {
+                  const parsed = parseUnifiedSearchQuery(query);
+                  setQuery(parsed.text);
+                }}
+                className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+              >
+                Clear operators
+              </button>
+            ) : null}
+          </div>
+          {operatorSummary.length ? (
+            <div className="flex flex-wrap gap-2 text-xs">
+              {operatorSummary.map((item) => (
+                <span
+                  key={`op-${item}`}
+                  className="rounded-full border border-white/10 bg-black/20 px-3 py-1 text-[11px] text-signal-text"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <div className="flex flex-wrap gap-2 text-xs">
             {(
               [
@@ -815,7 +901,7 @@ export default function UnifiedSearch() {
                 key={option}
                 onClick={() => setFilter(option)}
                 className={`rounded-full border px-3 py-1 ${
-                  filter === option
+                  effectiveFilter === option
                     ? "border-signal-accent text-signal-text"
                     : "border-white/10 text-signal-muted"
                 }`}
@@ -1048,7 +1134,7 @@ export default function UnifiedSearch() {
         </div>
 
         <div className="mt-8 grid gap-6 md:grid-cols-2">
-          {filter === "all" || filter === "threads" ? (
+          {effectiveFilter === "all" || effectiveFilter === "threads" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Threads
@@ -1282,7 +1368,7 @@ export default function UnifiedSearch() {
             </section>
           ) : null}
 
-          {filter === "all" || filter === "spaces" ? (
+          {effectiveFilter === "all" || effectiveFilter === "spaces" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Spaces
@@ -1319,7 +1405,7 @@ export default function UnifiedSearch() {
             </section>
           ) : null}
 
-          {filter === "all" || filter === "collections" ? (
+          {effectiveFilter === "all" || effectiveFilter === "collections" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Collections
@@ -1354,7 +1440,7 @@ export default function UnifiedSearch() {
             </section>
           ) : null}
 
-          {filter === "all" || filter === "files" ? (
+          {effectiveFilter === "all" || effectiveFilter === "files" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Files
@@ -1386,7 +1472,7 @@ export default function UnifiedSearch() {
             </section>
           ) : null}
 
-          {filter === "all" || filter === "tasks" ? (
+          {effectiveFilter === "all" || effectiveFilter === "tasks" ? (
             <section className="rounded-3xl border border-white/10 bg-signal-surface/70 p-5 shadow-xl">
               <p className="text-sm uppercase tracking-[0.2em] text-signal-muted">
                 Tasks

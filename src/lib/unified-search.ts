@@ -8,6 +8,28 @@ export type NormalizedQuery = {
   tokens: string[];
 };
 
+export type UnifiedSearchType =
+  | "all"
+  | "threads"
+  | "spaces"
+  | "collections"
+  | "files"
+  | "tasks";
+
+export type UnifiedSearchOperators = {
+  type?: Exclude<UnifiedSearchType, "all">;
+  space?: string;
+  tags?: string[];
+  hasNote?: boolean;
+  hasCitation?: boolean;
+};
+
+export type ParsedUnifiedSearchQuery = {
+  text: string;
+  query: NormalizedQuery;
+  operators: UnifiedSearchOperators;
+};
+
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -31,6 +53,120 @@ export function normalizeQuery(raw: string): NormalizedQuery {
     tokens.push(trimmed);
   }
   return { normalized, tokens };
+}
+
+function tokenizeOperatorQuery(raw: string): string[] {
+  const tokens: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < raw.length; i += 1) {
+    const ch = raw[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+    if (!inQuotes && /\s/.test(ch)) {
+      const trimmed = current.trim();
+      if (trimmed) tokens.push(trimmed);
+      current = "";
+      continue;
+    }
+    current += ch;
+  }
+
+  const trimmed = current.trim();
+  if (trimmed) tokens.push(trimmed);
+  return tokens;
+}
+
+function normalizeTypeToken(raw: string): Exclude<UnifiedSearchType, "all"> | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "thread" || value === "threads") return "threads";
+  if (value === "space" || value === "spaces") return "spaces";
+  if (value === "collection" || value === "collections") return "collections";
+  if (value === "file" || value === "files") return "files";
+  if (value === "task" || value === "tasks") return "tasks";
+  return null;
+}
+
+function normalizeHasToken(raw: string): "note" | "citation" | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "note" || value === "notes") return "note";
+  if (
+    value === "citation" ||
+    value === "citations" ||
+    value === "cite" ||
+    value === "source" ||
+    value === "sources"
+  ) {
+    return "citation";
+  }
+  return null;
+}
+
+export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
+  const tokens = tokenizeOperatorQuery(raw.trim());
+  const textTokens: string[] = [];
+  const operators: UnifiedSearchOperators = {};
+  const tags: string[] = [];
+
+  for (const token of tokens) {
+    const sep = token.indexOf(":");
+    if (sep <= 0) {
+      textTokens.push(token);
+      continue;
+    }
+
+    const key = token.slice(0, sep).trim().toLowerCase();
+    const value = token.slice(sep + 1).trim();
+
+    if (!key || !value) {
+      textTokens.push(token);
+      continue;
+    }
+
+    if (key === "type" || key === "in") {
+      const normalizedType = normalizeTypeToken(value);
+      if (normalizedType) {
+        operators.type = normalizedType;
+        continue;
+      }
+    }
+
+    if (key === "space") {
+      operators.space = value;
+      continue;
+    }
+
+    if (key === "tag") {
+      tags.push(value);
+      continue;
+    }
+
+    if (key === "has") {
+      const normalizedHas = normalizeHasToken(value);
+      if (normalizedHas === "note") {
+        operators.hasNote = true;
+        continue;
+      }
+      if (normalizedHas === "citation") {
+        operators.hasCitation = true;
+        continue;
+      }
+    }
+
+    textTokens.push(token);
+  }
+
+  const text = textTokens.join(" ").trim();
+  if (tags.length) {
+    operators.tags = tags;
+  }
+
+  return { text, query: normalizeQuery(text), operators };
 }
 
 export function matchesQuery(parts: string[], query: NormalizedQuery): boolean {
