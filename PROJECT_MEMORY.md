@@ -19,6 +19,7 @@
 - 2026-02-10 | Add Library data tools (export raw `signal-*` localStorage + export-gated reset) + storage usage indicator | Make local-first recovery practical and reduce “my data is stuck” failure modes | `npm run build` + `node scripts/smoke.mjs --provider mock --skip-build` | e42bb68 | high | trusted
 - 2026-02-10 | Document local data export/reset + corruption recovery | Give users a clear recovery path for local-only storage | `docs/data-recovery.md` + README link | 3fac87f | high | trusted
 - 2026-02-10 | Harden Unified Search bulk selection against stale/missing thread ids; make bulk counts/toasts reflect active selection | Prevent bulk actions from misreporting counts or acting on stale selection when threads are removed in another tab | `npm test` + `npm run lint` | 3a7dff9 | high | trusted
+- 2026-02-10 | Sync Unified Search thread ref in `readAll()` | Ensure bulk actions compute against freshly loaded thread state during focus/storage reload cycles | `npm test` + `npm run lint` | 5ff22d3 | medium | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -51,6 +52,8 @@
 - 2026-02-10 | `npm test` | `Test Files 7 passed (7)` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` (warning observed: `--localstorage-file` path invalid) | pass
+- 2026-02-10 | `npm test` | `Test Files 7 passed (7)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
