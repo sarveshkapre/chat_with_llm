@@ -7,7 +7,6 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows. (Score: impact=low effort=med risk=low confidence=med)
 - [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset). (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo. (Score: impact=low effort=med risk=med confidence=med)
@@ -24,6 +23,7 @@
 - 2026-02-08: Added regression tests for timeline and bulk-action helper logic (`tests/unified-search.test.ts`).
 - 2026-02-08: Expanded library + unified search relevance to include answer text, citations, and notes with contextual snippets (src/components/chat-app.tsx, src/components/unified-search.tsx).
 - 2026-02-10: Unified Search bulk favorite/unfavorite actions (`src/components/unified-search.tsx`) (commit `2c94219`).
+- 2026-02-10: Hardened Unified Search bulk selection against stale/missing thread ids and made bulk toolbar counts/toasts reflect active selection (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `3a7dff9`).
 - 2026-02-10: Local storage corruption backups on JSON parse failures + regression tests (`src/lib/storage.ts`, `src/lib/unified-search.ts`, `src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`, `src/components/report-view.tsx`, `tests/storage.test.ts`) (commit `716763b`).
 - 2026-02-10: Mock smoke verification path + on-demand CI workflow (`scripts/smoke.mjs`, `.github/workflows/smoke.yml`, `package.json`, `PROJECT.md`) (commit `fe19614`).
 - 2026-02-10: Added integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider), configurable mock stream delay, and stricter NDJSON smoke framing checks (`tests/api-answer.test.ts`, `tests/api-answer-stream.test.ts`, `src/app/api/answer/stream/route.ts`, `scripts/smoke.mjs`) (commit `f278cd6`).
