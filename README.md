@@ -72,6 +72,7 @@ Copy `.env.example` to `.env` and set `OPENAI_API_KEY` to enable live search.
 ## Notes
 - Vibe coding + LLM workflow notes live in `docs/vibe-coding.md`.
 - Product direction and prioritized feature plan live in `PRODUCT_GOALS.md`.
+- Local-first data export/reset and corruption recovery steps live in `docs/data-recovery.md`.
 
 ## Deploy
 This is a standard Next.js app. Deploy on your platform of choice and supply the same env vars.
