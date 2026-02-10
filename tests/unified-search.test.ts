@@ -3,6 +3,7 @@ import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
   pruneSelectedIds,
+  resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   toggleVisibleSelection,
 } from "@/lib/unified-search";
@@ -98,5 +99,15 @@ describe("toggleVisibleSelection", () => {
   it("keeps selection intact when no visible ids exist", () => {
     const input = ["t1"];
     expect(toggleVisibleSelection(input, [], true)).toBe(input);
+  });
+});
+
+describe("resolveActiveSelectedIds", () => {
+  it("returns active ids in the original order and counts missing selections", () => {
+    const items = [{ id: "t1" }, { id: "t3" }];
+    expect(resolveActiveSelectedIds(["t3", "t2", "t1"], items)).toEqual({
+      activeIds: ["t3", "t1"],
+      missingCount: 1,
+    });
   });
 });

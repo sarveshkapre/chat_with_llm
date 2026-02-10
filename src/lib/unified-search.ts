@@ -82,3 +82,13 @@ export function toggleVisibleSelection(
   }
   return next;
 }
+
+export function resolveActiveSelectedIds<T extends { id: string }>(
+  selectedIds: string[],
+  items: T[]
+): { activeIds: string[]; missingCount: number } {
+  if (!selectedIds.length) return { activeIds: selectedIds, missingCount: 0 };
+  const validIds = new Set(items.map((item) => item.id));
+  const activeIds = pruneSelectedIds(selectedIds, validIds);
+  return { activeIds, missingCount: selectedIds.length - activeIds.length };
+}

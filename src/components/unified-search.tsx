@@ -12,6 +12,7 @@ import {
   applyTimelineWindow,
   parseStored,
   pruneSelectedIds,
+  resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   toggleVisibleSelection,
   type TimelineWindow,
@@ -79,6 +80,7 @@ export default function UnifiedSearch() {
     | null
   >(null);
   const threadsRef = useRef<Thread[]>(threads);
+  const selectedThreadIdsRef = useRef<string[]>(selectedThreadIds);
 
   const normalized = query.trim().toLowerCase();
   const normalizedTokens = useMemo(
@@ -101,7 +103,9 @@ export default function UnifiedSearch() {
 
       // Cross-tab or focus reloads can remove threads; keep selection consistent with reality.
       const validThreadIds = new Set(nextThreads.map((thread) => thread.id));
-      setSelectedThreadIds((previous) => pruneSelectedIds(previous, validThreadIds));
+      setSelectedThreadIds((previous) =>
+        pruneSelectedIds(previous, validThreadIds)
+      );
     };
 
     const handleStorage = (event: StorageEvent) => {
@@ -167,6 +171,15 @@ export default function UnifiedSearch() {
   useEffect(() => {
     threadsRef.current = threads;
   }, [threads]);
+
+  useEffect(() => {
+    selectedThreadIdsRef.current = selectedThreadIds;
+  }, [selectedThreadIds]);
+
+  const threadIdSet = useMemo(
+    () => new Set(threads.map((thread) => thread.id)),
+    [threads]
+  );
 
   useEffect(() => {
     if (!toast) return;
@@ -286,28 +299,39 @@ export default function UnifiedSearch() {
   );
 
   const activeSelectedThreadIds = useMemo(
-    () => selectedThreadIds.filter((id) => threads.some((thread) => thread.id === id)),
-    [selectedThreadIds, threads]
+    () => selectedThreadIds.filter((id) => threadIdSet.has(id)),
+    [selectedThreadIds, threadIdSet]
   );
   const selectedCount = activeSelectedThreadIds.length;
 
   const applyBulkAction = useCallback(
     (
       updater: (thread: Thread) => Thread,
-      successMessage: string,
+      successMessage: (appliedCount: number, missingCount: number) => string,
       clearSpaceSelection = false
     ) => {
-      if (!activeSelectedThreadIds.length) return;
+      const { activeIds, missingCount } = resolveActiveSelectedIds(
+        selectedThreadIdsRef.current,
+        threadsRef.current
+      );
+      if (!activeIds.length) return;
+
+      if (missingCount) {
+        const validThreadIds = new Set(threadsRef.current.map((thread) => thread.id));
+        setSelectedThreadIds((previous) =>
+          pruneSelectedIds(previous, validThreadIds)
+        );
+      }
       const before: Record<string, Thread> = {};
-      const selectedSet = new Set(activeSelectedThreadIds);
+      const selectedSet = new Set(activeIds);
       threadsRef.current.forEach((thread) => {
         if (selectedSet.has(thread.id)) before[thread.id] = thread;
       });
       setThreads((previous) =>
-        applyBulkThreadUpdate(previous, activeSelectedThreadIds, updater)
+        applyBulkThreadUpdate(previous, activeIds, updater)
       );
       setToast({
-        message: successMessage,
+        message: successMessage(Object.keys(before).length, missingCount),
         undo: Object.keys(before).length
           ? {
               label: "Undo",
@@ -319,11 +343,10 @@ export default function UnifiedSearch() {
         setBulkSpaceId("");
       }
     },
-    [activeSelectedThreadIds]
+    []
   );
 
   const applyBulkSpaceAssignment = useCallback(() => {
-    if (!activeSelectedThreadIds.length) return;
     const meta = resolveThreadSpaceMeta(bulkSpaceId, spaces);
     applyBulkAction(
       (thread) => ({
@@ -331,12 +354,13 @@ export default function UnifiedSearch() {
         spaceId: meta.spaceId,
         spaceName: meta.spaceName,
       }),
-      meta.spaceName
-        ? `Assigned ${activeSelectedThreadIds.length} thread(s) to ${meta.spaceName}.`
-        : `Removed space assignment from ${activeSelectedThreadIds.length} thread(s).`,
+      (count) =>
+        meta.spaceName
+          ? `Assigned ${count} thread(s) to ${meta.spaceName}.`
+          : `Removed space assignment from ${count} thread(s).`,
       true
     );
-  }, [activeSelectedThreadIds.length, applyBulkAction, bulkSpaceId, spaces]);
+  }, [applyBulkAction, bulkSpaceId, spaces]);
 
   const sortedThreads = useMemo(() => {
     const next = [...filteredThreads];
@@ -443,6 +467,15 @@ export default function UnifiedSearch() {
     () => sortedThreads.slice(0, resultLimit),
     [sortedThreads, resultLimit]
   );
+  const shownThreadIdSet = useMemo(
+    () => new Set(shownThreads.map((thread) => thread.id)),
+    [shownThreads]
+  );
+  const hiddenSelectedCount = useMemo(() => {
+    if (!activeSelectedThreadIds.length) return 0;
+    return activeSelectedThreadIds.filter((id) => !shownThreadIdSet.has(id))
+      .length;
+  }, [activeSelectedThreadIds, shownThreadIdSet]);
   const shownSpaces = useMemo(
     () => sortedSpaces.slice(0, resultLimit),
     [sortedSpaces, resultLimit]
@@ -985,12 +1018,20 @@ export default function UnifiedSearch() {
                           />
                           Select visible
                         </label>
-                        <span>{selectedCount} selected</span>
+                        <span>
+                          {selectedCount} selected
+                          {hiddenSelectedCount
+                            ? ` (${hiddenSelectedCount} hidden)`
+                            : ""}
+                        </span>
                         <button
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, pinned: true }),
-                              `Pinned ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Pinned ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
@@ -1002,7 +1043,10 @@ export default function UnifiedSearch() {
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, favorite: true }),
-                              `Favorited ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Favorited ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
@@ -1014,7 +1058,10 @@ export default function UnifiedSearch() {
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, pinned: false }),
-                              `Unpinned ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Unpinned ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
@@ -1026,7 +1073,10 @@ export default function UnifiedSearch() {
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, favorite: false }),
-                              `Unfavorited ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Unfavorited ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
@@ -1038,7 +1088,10 @@ export default function UnifiedSearch() {
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, archived: true }),
-                              `Archived ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Archived ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
@@ -1050,7 +1103,10 @@ export default function UnifiedSearch() {
                           onClick={() =>
                             applyBulkAction(
                               (thread) => ({ ...thread, archived: false }),
-                              `Unarchived ${selectedCount} thread(s).`
+                              (count, missingCount) =>
+                                `Unarchived ${count} thread(s).${
+                                  missingCount ? ` (${missingCount} no longer available)` : ""
+                                }`
                             )
                           }
                           disabled={!selectedCount}
