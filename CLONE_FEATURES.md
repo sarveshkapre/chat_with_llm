@@ -8,11 +8,12 @@
 
 ## Candidate Features To Do
 ### Cycle 9 (2026-02-10) Plan
-- [ ] P3: Unified Search operators help: add one or two copy-ready examples (threads/spaces/files) and clarify that `space:` matches name-contains OR exact space id. (Score: impact=low-med effort=low risk=low confidence=high)
-- [ ] P3: Tests: add more coverage for cross-type operators and timeline+sort interactions (threads/spaces/files/tasks). (Score: impact=low effort=low risk=low confidence=high)
+- [x] P3: Unified Search operators help: add one or two copy-ready examples (threads/spaces/files) and clarify that `space:` matches name-contains OR exact space id. (Score: impact=low-med effort=low risk=low confidence=high)
+- [x] P3: Tests: add more coverage for cross-type operators and timeline+sort interactions (threads/spaces/files/tasks). (Score: impact=low effort=low risk=low confidence=high)
 - [ ] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Score: impact=med effort=med risk=med confidence=med)
 
 ## Implemented
+- 2026-02-10: Unified Search cleanup: extracted pure filtering/sorting helpers into `src/lib/unified-search.ts`, used them in the UI, and added unit tests for cross-type operator behavior plus relevance/newest sort fallback semantics (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `793f3e5`)
 - 2026-02-10: Unified Search cross-tab consistency: reload saved searches on focus/storage refresh and include `signal-unified-saved-v1` in the storage-event key allowlist; updated inline operator help to document `space:` and `verbatim:false` (`src/components/unified-search.tsx`). (commit `5f82826`)
 - 2026-02-10: Unified Search performance pass: precompute per-item lowercased combined search text + tag sets and reuse them for filtering; skip relevance scoring work when query is empty or sort is by time; added `matchesLoweredText()` helper + regression tests (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`). (commit `8627eef`)
 - 2026-02-10: Unified Search export: include saved searches in Markdown export and add a dedicated "Export" button for saved searches (`src/components/unified-search.tsx`). (commit `828639e`)
