@@ -25,6 +25,9 @@
 - 2026-02-10 | Remove Next build warning from Node WebStorage by lazy-loading `docx` | Keep production builds clean and reduce baseline bundle weight; avoid SSR-side access to Node WebStorage globals | `npm run build` (no `--localstorage-file` warning) | 30a28ca | high | trusted
 - 2026-02-10 | Add unified search match highlighting (query/token emphasis) | Improve scanability of search results without changing ranking logic | `npm test` + `npm run lint` + `npm run build` | ce3429c | high | trusted
 - 2026-02-10 | Improve Unified Search matching + ranking (multi-word token matching across fields, field-weighted relevance scoring with precomputed scores, and `/` focus + `Esc` clear + `Enter` commit recent query; defer query evaluation) | Fix missing results for multi-word queries and make relevance behavior predictable/testable while reducing sort overhead for large libraries | `npm test` (`tests/unified-search.test.ts`) + `npm run lint` + `npm run build` + `npm run smoke:mock` | 590f05c | high | trusted
+- 2026-02-10 | Add Unified Search query operators (`type:`, `space:`, `tag:`, `has:`) | Reduce friction for narrowing Unified Search results without adding new UI controls | `npm test` (`tests/unified-search.test.ts`) | d1c8aab | high | trusted
+- 2026-02-10 | Add `/` focus + `Esc` clear shortcuts for search inputs across Library/Spaces/Collections | Improve UX parity and speed for keyboard-first navigation | `npm test` + `npm run lint` | a9ed305 | high | trusted
+- 2026-02-10 | Add “why this matched” micro-badges in Unified Search thread results | Improve trust/scanability by making match surfaces explicit without changing ranking | `npm test` (`tests/unified-search.test.ts`) + `npm run build` | e64f5ae | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -35,10 +38,11 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P3: Add “why this matched” micro-badges (title/tag/note/citation) for top results.
-- P3: Add query operators to Unified Search (`type:thread`, `space:Name`, `tag:foo`, `has:note`, `has:citation`) with clear inline help.
-- P3: Add cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) for UX parity.
-- P3: Add “Saved search” UX for Unified Search (pin + rename + quick run).
+- P3: Unified Search: index Space tags (`signal-space-tags-v1`) and support `tag:` operator for Spaces.
+- P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window.
+- P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify `space:` semantics.
+- P3: Unified Search: performance pass for large libraries (cache normalized fields, avoid recomputing scores/snippets).
+- P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()`.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
@@ -76,6 +80,11 @@
 - 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock ...` | pass
 - 2026-02-10 | `gh run list --limit 5 --branch main` | `CI/Scorecard in_progress for commit 590f05c` | pass (untrusted)
+- 2026-02-10 | `npm test` | `Test Files 9 passed (9)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=...` | pass
+- 2026-02-10 | `gh run list --limit 8 --branch main` | `CI/Scorecard in_progress for commit e64f5ae` | pass (untrusted)
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.

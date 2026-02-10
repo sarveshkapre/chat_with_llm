@@ -7,11 +7,7 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-### Cycle 7 (2026-02-10) Selected
-- [ ] P2: Unified Search “why this matched” micro-badges on result cards (Title/Tags/Space/Note/Citations/Answer) to improve trust + scanability without changing ranking. (Score: impact=high effort=med risk=low confidence=high)
-- [ ] P2: Cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) for UX parity. (Score: impact=med effort=low risk=low confidence=high)
-
-### Cycle 7 (2026-02-10) Other Candidates
+### Cycle 7 (2026-02-10) Backlog
 - [ ] P3: Unified Search: index Space tags (`signal-space-tags-v1`) and support `tag:` operator for Spaces plus relevance boosts for tag hits. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window, persisted in localStorage. (Score: impact=med effort=med-high risk=low confidence=med)
 - [ ] P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify matching semantics (`space:` contains vs `spaceId:` exact). (Score: impact=med effort=med risk=low confidence=med)
@@ -19,6 +15,8 @@
 - [ ] P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()` (unbalanced quotes, `tag:\"a b\"`, mixed operators). (Score: impact=low effort=low risk=low confidence=high)
 
 ## Implemented
+- 2026-02-10: Unified Search “why this matched” micro-badges on result cards (Title/Tags/Space/Note/Citations/Answer) to improve trust + scanability without changing ranking (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `e64f5ae`).
+- 2026-02-10: Cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) (`src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`) (commit `a9ed305`).
 - 2026-02-10: Unified Search query operators (`type:`, `space:`, `tag:`, `has:`) with inline help, operator chips, and a "clear operators" affordance (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`) (commit `d1c8aab`).
 - 2026-02-10: Unified Search now supports multi-word matching (phrase OR all-tokens across fields), field-weighted relevance scoring (title/question > tags/space > notes/citations > body) with precomputed scores, plus `/` focus + `Esc` clear + `Enter` commit recent query and deferred query evaluation (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `590f05c`).
 - 2026-02-10: Added unified search match highlighting for query/tokens across titles + snippets (`src/components/unified-search.tsx`, `src/lib/highlight.ts`) (commit `ce3429c`).
