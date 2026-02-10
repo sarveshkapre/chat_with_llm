@@ -41,7 +41,9 @@ export function computeSignalStorageUsage(): {
   totalBytes: number;
   entries: Array<{ key: string; bytes: number }>;
 } | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return null;
+  }
   let storage: Storage;
   try {
     storage = window.localStorage;
@@ -68,7 +70,9 @@ export function computeSignalStorageUsage(): {
 }
 
 export function snapshotSignalStorage(): SignalStorageSnapshotV1 | null {
-  if (typeof window === "undefined") return null;
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return null;
+  }
   let storage: Storage;
   try {
     storage = window.localStorage;
@@ -100,7 +104,9 @@ export function snapshotSignalStorage(): SignalStorageSnapshotV1 | null {
 }
 
 export function clearSignalStorage(): boolean {
-  if (typeof window === "undefined") return false;
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return false;
+  }
   let storage: Storage;
   try {
     storage = window.localStorage;
@@ -117,4 +123,3 @@ export function clearSignalStorage(): boolean {
   }
   return true;
 }
-

@@ -44,9 +44,11 @@ describe("readStoredJson", () => {
   it("returns parsed JSON when valid", async () => {
     const g = globalThis as unknown as {
       window?: unknown;
+      document?: unknown;
       localStorage?: ReturnType<typeof makeLocalStorage>;
     };
     g.window = {};
+    g.document = {};
     const localStorage = makeLocalStorage();
     g.localStorage = localStorage;
     localStorage.setItem("k", JSON.stringify({ value: 123 }));
@@ -63,9 +65,11 @@ describe("readStoredJson", () => {
   it("backs up corrupt JSON blobs before falling back", async () => {
     const g = globalThis as unknown as {
       window?: unknown;
+      document?: unknown;
       localStorage?: ReturnType<typeof makeLocalStorage>;
     };
     g.window = {};
+    g.document = {};
     const localStorage = makeLocalStorage();
     g.localStorage = localStorage;
     localStorage.setItem("k", "{not-json");
@@ -84,9 +88,11 @@ describe("readStoredJson", () => {
   it("backs up at most once per key per page session", async () => {
     const g = globalThis as unknown as {
       window?: unknown;
+      document?: unknown;
       localStorage?: ReturnType<typeof makeLocalStorage>;
     };
     g.window = {};
+    g.document = {};
     const localStorage = makeLocalStorage();
     g.localStorage = localStorage;
     localStorage.setItem("k", "{not-json");

@@ -32,7 +32,6 @@ import {
   restoreDeletedAnchors,
   type DeletedAnchor,
 } from "@/lib/library-undo";
-import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import { nanoid } from "nanoid";
 
 type Feedback = "up" | "down" | null;
@@ -1172,6 +1171,7 @@ ${answer.citations
 
   async function exportDocx() {
     if (!current) return;
+    const { Document, HeadingLevel, Packer, Paragraph } = await import("docx");
     const paragraphs = current.answer
       .split("\n\n")
       .map((paragraph) => new Paragraph(paragraph));

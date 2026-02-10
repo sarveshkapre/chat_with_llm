@@ -4,6 +4,7 @@ const CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
 const backedUpKeys = new Set<string>();
 
 function tryBackupCorruptBlob(key: string, raw: string) {
+  if (typeof document === "undefined") return;
   if (backedUpKeys.has(key)) return;
   backedUpKeys.add(key);
 
@@ -19,7 +20,9 @@ function tryBackupCorruptBlob(key: string, raw: string) {
 }
 
 export function readStoredJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return fallback;
+  }
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(key);

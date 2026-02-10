@@ -9,7 +9,9 @@ export type StorageUsage = {
 export const TYPICAL_LOCALSTORAGE_QUOTA_BYTES = 5 * 1024 * 1024;
 
 function canUseLocalStorage(): boolean {
-  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+  // Avoid touching the `localStorage` global in Node/SSR builds where Node's
+  // internal WebStorage implementation can emit warnings when accessed.
+  return typeof window !== "undefined" && typeof document !== "undefined";
 }
 
 export function getStorageEntriesByPrefix(prefix: string): StorageEntry[] {
@@ -85,4 +87,3 @@ export function formatBytes(bytes: number): string {
   const fixed = unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
   return `${value.toFixed(fixed)} ${units[unitIndex]}`;
 }
-
