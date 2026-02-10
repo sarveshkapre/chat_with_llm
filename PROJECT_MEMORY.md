@@ -15,6 +15,7 @@
 - 2026-02-10 | Add Unified Search bulk favorite/unfavorite actions | Parity with per-thread quick actions; reduces friction for organizing many results | `npm test` + `npm run lint` | 2c94219 | high | trusted
 - 2026-02-10 | Back up corrupt localStorage JSON blobs on parse failures | Prevent silent data loss when fallback state overwrites corrupted JSON | `npm test` (`tests/storage.test.ts`) + `npm run lint` | 716763b | high | trusted
 - 2026-02-10 | Add mock smoke verification path + on-demand CI workflow | Make a reproducible end-to-end check for routes + provider plumbing without API keys | `npm run smoke:mock` + `npm run check:workflows` | fe19614 | high | trusted
+- 2026-02-10 | Unified Search: prune stale bulk selection on cross-tab updates + "Select visible" toggles only visible rows | Prevent confusing bulk toolbar state when selected threads disappear, and avoid wiping selection outside current page | `npm test` + `npm run lint` + `npm run build` | (pending) | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -38,6 +39,9 @@
 - 2026-02-10 | `npm test` | `Test Files 5 passed` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock ...` | pass
+- 2026-02-10 | `npm test` | `Tests 22 passed` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `gh run list --limit 3 --branch main` | `CI ... completed success` | pass (untrusted)
 
 ## Historical Summary

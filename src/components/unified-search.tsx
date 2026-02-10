@@ -11,7 +11,9 @@ import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
   parseStored,
+  pruneSelectedIds,
   resolveThreadSpaceMeta,
+  toggleVisibleSelection,
   type TimelineWindow,
 } from "@/lib/unified-search";
 
@@ -89,12 +91,17 @@ export default function UnifiedSearch() {
 
     const readAll = () => {
       setNotes(parseStored<Record<string, string>>(NOTES_KEY, {}));
-      setThreads(parseStored<Thread[]>(THREADS_KEY, []));
+      const nextThreads = parseStored<Thread[]>(THREADS_KEY, []);
+      setThreads(nextThreads);
       setSpaces(parseStored<Space[]>(SPACES_KEY, []));
       setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
       setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
       setTasks(parseStored<Task[]>(TASKS_KEY, []));
       setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
+
+      // Cross-tab or focus reloads can remove threads; keep selection consistent with reality.
+      const validThreadIds = new Set(nextThreads.map((thread) => thread.id));
+      setSelectedThreadIds((previous) => pruneSelectedIds(previous, validThreadIds));
     };
 
     const handleStorage = (event: StorageEvent) => {
@@ -455,11 +462,10 @@ export default function UnifiedSearch() {
 
   const setAllShownThreadSelection = useCallback(
     (enabled: boolean) => {
-      if (!enabled) {
-        setSelectedThreadIds([]);
-        return;
-      }
-      setSelectedThreadIds(shownThreads.map((thread) => thread.id));
+      const visibleIds = shownThreads.map((thread) => thread.id);
+      setSelectedThreadIds((previous) =>
+        toggleVisibleSelection(previous, visibleIds, enabled)
+      );
     },
     [shownThreads]
   );

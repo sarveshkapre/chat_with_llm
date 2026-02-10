@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  pruneSelectedIds,
   resolveThreadSpaceMeta,
+  toggleVisibleSelection,
 } from "@/lib/unified-search";
 
 describe("applyTimelineWindow", () => {
@@ -61,5 +63,40 @@ describe("resolveThreadSpaceMeta", () => {
       spaceId: null,
       spaceName: null,
     });
+  });
+});
+
+describe("pruneSelectedIds", () => {
+  it("drops ids that are no longer present", () => {
+    const valid = new Set(["t1", "t3"]);
+    expect(pruneSelectedIds(["t1", "t2", "t3"], valid)).toEqual(["t1", "t3"]);
+  });
+
+  it("returns the same array reference when no changes are needed", () => {
+    const input = ["t1"];
+    const valid = new Set(["t1", "t2"]);
+    expect(pruneSelectedIds(input, valid)).toBe(input);
+  });
+});
+
+describe("toggleVisibleSelection", () => {
+  it("adds visible ids when enabling, preserving existing order", () => {
+    expect(toggleVisibleSelection(["t1"], ["t2", "t3"], true)).toEqual([
+      "t1",
+      "t2",
+      "t3",
+    ]);
+  });
+
+  it("removes only visible ids when disabling", () => {
+    expect(toggleVisibleSelection(["t1", "t2", "t3"], ["t2"], false)).toEqual([
+      "t1",
+      "t3",
+    ]);
+  });
+
+  it("keeps selection intact when no visible ids exist", () => {
+    const input = ["t1"];
+    expect(toggleVisibleSelection(input, [], true)).toBe(input);
   });
 });

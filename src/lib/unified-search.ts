@@ -50,3 +50,35 @@ export function resolveThreadSpaceMeta(
     spaceName: match?.name ?? null,
   };
 }
+
+export function pruneSelectedIds(
+  selectedIds: string[],
+  validIds: ReadonlySet<string>
+): string[] {
+  if (!selectedIds.length) return selectedIds;
+  const next = selectedIds.filter((id) => validIds.has(id));
+  return next.length === selectedIds.length ? selectedIds : next;
+}
+
+export function toggleVisibleSelection(
+  selectedIds: string[],
+  visibleIds: string[],
+  enabled: boolean
+): string[] {
+  if (!visibleIds.length) return selectedIds;
+  const visibleSet = new Set(visibleIds);
+
+  if (!enabled) {
+    const next = selectedIds.filter((id) => !visibleSet.has(id));
+    return next.length === selectedIds.length ? selectedIds : next;
+  }
+
+  const selectedSet = new Set(selectedIds);
+  const next = [...selectedIds];
+  for (const id of visibleIds) {
+    if (selectedSet.has(id)) continue;
+    next.push(id);
+    selectedSet.add(id);
+  }
+  return next;
+}
