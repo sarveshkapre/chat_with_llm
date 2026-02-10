@@ -30,6 +30,15 @@ import {
   type TimelineWindow,
   type UnifiedSearchType,
 } from "@/lib/unified-search";
+import {
+  defaultSavedSearchName,
+  deleteSavedSearch,
+  findDuplicateSavedSearch,
+  renameSavedSearch,
+  sortSavedSearches,
+  togglePinSavedSearch,
+  type UnifiedSavedSearch,
+} from "@/lib/saved-searches";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -49,6 +58,7 @@ const FILES_KEY = "signal-files-v1";
 const TASKS_KEY = "signal-tasks-v1";
 const NOTES_KEY = "signal-notes-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
+const SAVED_SEARCH_KEY = "signal-unified-saved-v1";
 
 const THREAD_BADGE_LABELS: Record<string, string> = {
   title: "Title",
@@ -74,6 +84,11 @@ export default function UnifiedSearch() {
   const [recentQueries, setRecentQueries] = useState<string[]>(() =>
     parseStored<string[]>(RECENT_SEARCH_KEY, [])
   );
+  const [savedSearches, setSavedSearches] = useState<UnifiedSavedSearch[]>(() =>
+    parseStored<UnifiedSavedSearch[]>(SAVED_SEARCH_KEY, [])
+  );
+  const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
+  const [editingSavedName, setEditingSavedName] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>(() =>
     parseStored<Record<string, string>>(NOTES_KEY, {})
   );
@@ -209,6 +224,11 @@ export default function UnifiedSearch() {
     if (typeof window === "undefined") return;
     localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recentQueries));
   }, [recentQueries]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(SAVED_SEARCH_KEY, JSON.stringify(savedSearches));
+  }, [savedSearches]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -832,6 +852,76 @@ export default function UnifiedSearch() {
     setRecentQueries([]);
   }
 
+  const sortedSavedSearches = useMemo(
+    () => sortSavedSearches(savedSearches),
+    [savedSearches]
+  );
+
+  function createSavedSearchId(): string {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+      return crypto.randomUUID();
+    return `saved-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  function saveCurrentSearch() {
+    const spec = {
+      query,
+      filter: effectiveFilter,
+      sortBy,
+      timelineWindow,
+      resultLimit,
+    } as const;
+    const meaningful =
+      spec.query.trim() ||
+      spec.filter !== "all" ||
+      spec.sortBy !== "relevance" ||
+      spec.timelineWindow !== "all" ||
+      spec.resultLimit !== 20;
+    if (!meaningful) {
+      setToast({ message: "Nothing to save yet." });
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const duplicate = findDuplicateSavedSearch(savedSearches, spec);
+    if (duplicate) {
+      setSavedSearches((prev) =>
+        prev.map((item) =>
+          item.id === duplicate.id ? { ...item, updatedAt: now } : item
+        )
+      );
+      setToast({ message: `Updated saved search: ${duplicate.name}` });
+      return;
+    }
+
+    const saved: UnifiedSavedSearch = {
+      id: createSavedSearchId(),
+      name: defaultSavedSearchName(spec),
+      query: query.trim(),
+      filter: effectiveFilter,
+      sortBy,
+      timelineWindow,
+      resultLimit,
+      pinned: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    setSavedSearches((prev) => [saved, ...prev]);
+    setToast({ message: `Saved search: ${saved.name}` });
+    setEditingSavedId(saved.id);
+    setEditingSavedName(saved.name);
+  }
+
+  function runSavedSearch(saved: UnifiedSavedSearch) {
+    setQuery(saved.query);
+    setFilter(saved.filter as typeof filter);
+    setSortBy(saved.sortBy);
+    setTimelineWindow(saved.timelineWindow);
+    setResultLimit(saved.resultLimit);
+    pushRecentQuery(saved.query);
+    inputRef.current?.focus();
+  }
+
   return (
     <div className="min-h-screen bg-signal-bg text-signal-text">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-6 py-6">
@@ -899,17 +989,25 @@ export default function UnifiedSearch() {
               <span className="text-signal-text">has:note</span>,{" "}
               <span className="text-signal-text">has:citation</span>
             </span>
-            {operatorSummary.length ? (
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  const parsed = parseUnifiedSearchQuery(query);
-                  setQuery(parsed.text);
-                }}
+                onClick={saveCurrentSearch}
                 className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
               >
-                Clear operators
+                Save search
               </button>
-            ) : null}
+              {operatorSummary.length ? (
+                <button
+                  onClick={() => {
+                    const parsed = parseUnifiedSearchQuery(query);
+                    setQuery(parsed.text);
+                  }}
+                  className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                >
+                  Clear operators
+                </button>
+              ) : null}
+            </div>
           </div>
           {operatorSummary.length ? (
             <div className="flex flex-wrap gap-2 text-xs">
@@ -1048,6 +1146,112 @@ export default function UnifiedSearch() {
                     {item}
                   </button>
                 ))}
+              </div>
+            </div>
+          ) : null}
+          {sortedSavedSearches.length ? (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-signal-muted">
+                <span>Saved searches</span>
+              </div>
+              <div className="space-y-2">
+                {sortedSavedSearches.map((saved) => {
+                  const isEditing = editingSavedId === saved.id;
+                  return (
+                    <div
+                      key={saved.id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs"
+                    >
+                      <div className="min-w-[220px] flex-1">
+                        {isEditing ? (
+                          <input
+                            value={editingSavedName}
+                            onChange={(event) =>
+                              setEditingSavedName(event.target.value)
+                            }
+                            onKeyDown={(event) => {
+                              if (event.key === "Escape") {
+                                setEditingSavedId(null);
+                                setEditingSavedName("");
+                              }
+                              if (event.key === "Enter") {
+                                const now = new Date().toISOString();
+                                setSavedSearches((prev) =>
+                                  renameSavedSearch(
+                                    prev,
+                                    saved.id,
+                                    editingSavedName,
+                                    now
+                                  )
+                                );
+                                setEditingSavedId(null);
+                                setEditingSavedName("");
+                                setToast({ message: "Renamed saved search." });
+                              }
+                            }}
+                            className="w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
+                            autoFocus
+                          />
+                        ) : (
+                          <>
+                            <p className="truncate font-medium text-signal-text">
+                              {saved.pinned ? "Pinned: " : ""}
+                              {saved.name}
+                            </p>
+                            <p className="mt-1 truncate text-[11px] text-signal-muted">
+                              {saved.query || "No query"} · {saved.filter} ·{" "}
+                              {saved.sortBy} · {saved.timelineWindow} ·{" "}
+                              {saved.resultLimit}
+                            </p>
+                          </>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => runSavedSearch(saved)}
+                          className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
+                        >
+                          Run
+                        </button>
+                        <button
+                          onClick={() => {
+                            const now = new Date().toISOString();
+                            setSavedSearches((prev) =>
+                              togglePinSavedSearch(prev, saved.id, now)
+                            );
+                          }}
+                          className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                        >
+                          {saved.pinned ? "Unpin" : "Pin"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditingSavedId(saved.id);
+                            setEditingSavedName(saved.name);
+                          }}
+                          className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSavedSearches((prev) =>
+                              deleteSavedSearch(prev, saved.id)
+                            );
+                            if (editingSavedId === saved.id) {
+                              setEditingSavedId(null);
+                              setEditingSavedName("");
+                            }
+                            setToast({ message: "Deleted saved search." });
+                          }}
+                          className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-rose-200 hover:bg-rose-500/10"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}

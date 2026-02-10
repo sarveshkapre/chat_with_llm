@@ -7,6 +7,16 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Cycle 8 (2026-02-10) Plan
+- [x] P2: Unified Search saved searches (presets): save current query + filters (type/sort/time/limit), pin, rename, run, delete; persist in localStorage and show in UI. (Score: impact=high effort=med risk=low confidence=high)
+- [x] P3: Unified Search negative operators: support `-tag:foo` and `-has:note` / `-has:citation`; add `spaceId:` exact match (keep `space:` as name-contains or id-exact for backwards compatibility). (Score: impact=med-high effort=med risk=low-med confidence=med-high)
+- [x] P3: Unified Search query parsing hardening: handle unbalanced quotes safely (fallback tokenization) + basic escaped quotes; add regression tests for edge cases. (Score: impact=med effort=low-med risk=low confidence=high)
+- [ ] P3: Unified Search “verbatim” toggle/operator: allow exact/phrase-only matching (no token fallback) to mirror baseline expectations in chat-history search. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Unified Search performance pass for large libraries: cache normalized fields per item (threads/spaces/collections/files/tasks) and avoid recomputing snippets/citation joins when query changes. (Score: impact=med effort=med-high risk=med confidence=med)
+- [ ] P4: Unified Search saved searches export to Markdown (and include in existing export surfaces). (Score: impact=low-med effort=low risk=low confidence=high)
+- [ ] P4: Unified Search operators: clarify semantics in inline help (`space:` contains vs `spaceId:` exact; negative operators) and add copy-to-clipboard examples. (Score: impact=low-med effort=low risk=low confidence=high)
+- [ ] P4: Tests: add more coverage for cross-type operators (`space:` on tasks, `tag:` on spaces) and timeline+sort interactions. (Score: impact=low effort=low risk=low confidence=high)
+
 ### Cycle 7 (2026-02-10) Backlog
 - [ ] P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window, persisted in localStorage. (Score: impact=med effort=med-high risk=low confidence=med)
 - [ ] P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify matching semantics (`space:` contains vs `spaceId:` exact). (Score: impact=med effort=med risk=low confidence=med)
@@ -49,7 +59,7 @@
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
 - Next.js static generation can execute transitive deps in SSR bundles; importing `docx` at module scope pulled in browserified Node stream polyfills that touch `localStorage` and emitted warnings. Lazy-loading large export deps keeps builds clean and reduces baseline bundle weight.
 - Market scan (untrusted, links only): comparable products emphasize citations + “save/organize” workflows; keyboard shortcuts (search focus/clear) and structured filters/operators show up as baseline UX expectations.
-- Sources: Perplexity (https://www.perplexity.ai) help: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces overview (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search); OpenAI Help Center: ChatGPT data export flow (https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
+- Sources: Perplexity (https://www.perplexity.ai) help: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces overview (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Kagi filtering docs (verbatim + time windows) (https://help.kagi.com/kagi/features/filtering-results.html); Obsidian Tasks Presets (saved query presets pattern) (https://publish.obsidian.md/tasks/Queries/Presets); OpenAI Help Center: ChatGPT history search (exact match + Cmd/Ctrl+K) (https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt%3F.midi); OpenAI Help Center: ChatGPT data export flow (https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 - Gap map (untrusted, synthesized):
 - Missing: accounts/auth + database-backed storage + secure sharing model; robust file ingestion (PDF/DOCX/etc) + retrieval.
 - Weak: durable background jobs (research/tasks) + notifications/timezones; user-facing recovery flows for local-only data.
