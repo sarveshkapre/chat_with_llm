@@ -7,6 +7,7 @@ import type { Space } from "@/lib/types/space";
 import type { Collection } from "@/lib/types/collection";
 import type { LibraryFile } from "@/lib/types/file";
 import type { Task } from "@/lib/types/task";
+import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
@@ -558,6 +559,31 @@ export default function UnifiedSearch() {
     [notes, snippetFromText]
   );
 
+  const renderHighlighted = useCallback(
+    (text: string, className?: string) => {
+      const parts = buildHighlightParts(text, normalized, normalizedTokens);
+      if (parts.length === 0) return null;
+      if (parts.length === 1 && !parts[0].highlighted) return text;
+      return (
+        <span className={className}>
+          {parts.map((part, index) => (
+            <span
+              key={`${index}-${part.highlighted ? "h" : "n"}`}
+              className={
+                part.highlighted
+                  ? "rounded bg-signal-accent/20 px-1 text-signal-text"
+                  : undefined
+              }
+            >
+              {part.text}
+            </span>
+          ))}
+        </span>
+      );
+    },
+    [normalized, normalizedTokens]
+  );
+
   function pushRecentQuery(value: string) {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -895,11 +921,11 @@ export default function UnifiedSearch() {
                           className="block text-xs text-signal-text hover:text-signal-accent"
                         >
                           <p className="truncate font-medium">
-                            {thread.title ?? thread.question}
+                            {renderHighlighted(thread.title ?? thread.question)}
                           </p>
                           {snippet ? (
                             <p className="mt-1 line-clamp-2 text-[11px] text-signal-muted">
-                              {snippet}
+                              {renderHighlighted(snippet)}
                             </p>
                           ) : null}
                         </Link>
@@ -922,7 +948,7 @@ export default function UnifiedSearch() {
                         href={`/?space=${space.id}`}
                         className="block truncate text-xs text-signal-text hover:text-signal-accent"
                       >
-                        {space.name}
+                        {renderHighlighted(space.name)}
                       </Link>
                     ))
                   ) : (
@@ -942,7 +968,7 @@ export default function UnifiedSearch() {
                         href={`/?collection=${collection.id}`}
                         className="block truncate text-xs text-signal-text hover:text-signal-accent"
                       >
-                        {collection.name}
+                        {renderHighlighted(collection.name)}
                       </Link>
                     ))
                   ) : (
@@ -963,7 +989,7 @@ export default function UnifiedSearch() {
                         key={`top-file-${file.id}`}
                         className="truncate text-xs text-signal-text"
                       >
-                        {file.name}
+                        {renderHighlighted(file.name)}
                       </p>
                     ))
                   ) : (
@@ -982,7 +1008,7 @@ export default function UnifiedSearch() {
                         key={`top-task-${task.id}`}
                         className="truncate text-xs text-signal-text"
                       >
-                        {task.name}
+                        {renderHighlighted(task.name)}
                       </p>
                     ))
                   ) : (
@@ -1182,7 +1208,7 @@ export default function UnifiedSearch() {
                             </div>
                           </div>
                           <p className="mt-2 text-sm text-signal-text">
-                            {thread.title ?? thread.question}
+                            {renderHighlighted(thread.title ?? thread.question)}
                           </p>
                           <p className="mt-1 text-[11px] text-signal-muted">
                             {thread.spaceName ?? "No space"} · {thread.mode}
@@ -1211,7 +1237,7 @@ export default function UnifiedSearch() {
                           </div>
                           {snippet ? (
                             <p className="mt-2 line-clamp-3 text-[11px] text-signal-muted">
-                              {snippet}
+                              {renderHighlighted(snippet)}
                             </p>
                           ) : null}
                           <Link
@@ -1245,9 +1271,13 @@ export default function UnifiedSearch() {
                       key={space.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                     >
-                      <p className="text-sm text-signal-text">{space.name}</p>
+                      <p className="text-sm text-signal-text">
+                        {renderHighlighted(space.name)}
+                      </p>
                       <p className="mt-1 text-[11px] text-signal-muted">
-                        {space.instructions || "No instructions"}
+                        {space.instructions
+                          ? renderHighlighted(space.instructions)
+                          : "No instructions"}
                       </p>
                       <Link
                         href={`/?space=${space.id}`}
@@ -1279,7 +1309,7 @@ export default function UnifiedSearch() {
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                     >
                       <p className="text-sm text-signal-text">
-                        {collection.name}
+                        {renderHighlighted(collection.name)}
                       </p>
                       <p className="mt-1 text-[11px] text-signal-muted">
                         {new Date(collection.createdAt).toLocaleString()}
@@ -1311,12 +1341,16 @@ export default function UnifiedSearch() {
                       key={file.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                     >
-                      <p className="text-sm text-signal-text">{file.name}</p>
+                      <p className="text-sm text-signal-text">
+                        {renderHighlighted(file.name)}
+                      </p>
                       <p className="mt-1 text-[11px] text-signal-muted">
                         {Math.round(file.size / 1024)} KB
                       </p>
                       <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
-                        {file.text.slice(0, 180).replace(/\s+/g, " ").trim()}
+                        {renderHighlighted(
+                          file.text.slice(0, 180).replace(/\s+/g, " ").trim()
+                        )}
                       </p>
                     </div>
                   ))
@@ -1339,7 +1373,9 @@ export default function UnifiedSearch() {
                       key={task.id}
                       className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                     >
-                      <p className="text-sm text-signal-text">{task.name}</p>
+                      <p className="text-sm text-signal-text">
+                        {renderHighlighted(task.name)}
+                      </p>
                       <p className="mt-1 text-[11px] text-signal-muted">
                         {task.cadence} at {task.time} · {task.mode}
                       </p>
@@ -1347,7 +1383,7 @@ export default function UnifiedSearch() {
                         Next run: {new Date(task.nextRun).toLocaleString()}
                       </p>
                       <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
-                        {task.prompt}
+                        {renderHighlighted(task.prompt)}
                       </p>
                     </div>
                   ))
