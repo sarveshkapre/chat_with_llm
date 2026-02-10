@@ -20,18 +20,23 @@
 - 2026-02-10 | Document local data export/reset + corruption recovery | Give users a clear recovery path for local-only storage | `docs/data-recovery.md` + README link | 3fac87f | high | trusted
 - 2026-02-10 | Harden Unified Search bulk selection against stale/missing thread ids; make bulk counts/toasts reflect active selection | Prevent bulk actions from misreporting counts or acting on stale selection when threads are removed in another tab | `npm test` + `npm run lint` | 3a7dff9 | high | trusted
 - 2026-02-10 | Sync Unified Search thread ref in `readAll()` | Ensure bulk actions compute against freshly loaded thread state during focus/storage reload cycles | `npm test` + `npm run lint` | 5ff22d3 | medium | trusted
+- 2026-02-10 | Add Library bulk undo for archive/delete | Reduce fear of bulk actions and make local-first workflows safer | `npm test` (`tests/library-undo.test.ts`) + `npm run lint` | 661ff10 | high | trusted
+- 2026-02-10 | Add Data health warning + diagnostics bundle (full + redacted) | Make corruption/quota issues diagnosable without developer tools; improve support workflows | `npm run build` + `npm run smoke:mock` | 50055b4 | high | trusted
+- 2026-02-10 | Remove Next build warning from Node WebStorage by lazy-loading `docx` | Keep production builds clean and reduce baseline bundle weight; avoid SSR-side access to Node WebStorage globals | `npm run build` (no `--localstorage-file` warning) | 30a28ca | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
 - 2026-02-09 | Workflow policy check initially missed `- uses:` YAML step form | Regex only matched `uses:` when it started the line (ignoring list item form) | Updated matcher to accept `- uses:` and added a unit test | Add regression tests for policy rules so guardrails don't become false-negative | 0a9bbdf | high
+- 2026-02-10 | `readStoredJson()` SSR guard update broke storage unit tests | Tests mocked `window` + `localStorage` but not `document` | Updated tests to define `document` for browser-mode cases | When hardening browser/SSR guards, update unit test environment shims in the same commit | 30a28ca | high
 
 ## Known Risks
-- `npm run build` emits a warning about `--localstorage-file` being provided without a valid path; investigate to keep build output clean and avoid hiding real warnings.
+- LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows.
-- P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset).
-- P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo.
+- P3: Add unified search snippet match highlighting.
+- P3: Improve unified search relevance scoring and add regression tests.
+- P3: Add keyboard shortcuts for search surfaces.
+- P3: Add a debounced query input option for unified search.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
@@ -54,6 +59,11 @@
 - 2026-02-10 | `npm run build` | `Compiled successfully` (warning observed: `--localstorage-file` path invalid) | pass
 - 2026-02-10 | `npm test` | `Test Files 7 passed (7)` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm test` | `Test Files 8 passed (8)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` (no `--localstorage-file` warning) | pass
+- 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock ...` | pass
+- 2026-02-10 | `gh run list --limit 5 --branch main` | `CI/Scorecard in_progress for commit 30a28ca` | pass (untrusted)
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.

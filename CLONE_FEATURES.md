@@ -7,14 +7,9 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P2 (Selected): Add local-only "undo" for destructive Library bulk actions (delete/archive) with a short-lived toast, without losing newly created threads. Add unit tests for the undo merge logic. (Score: impact=high effort=med risk=med confidence=high)
-- [ ] P2 (Selected): Add a "Data health" self-check that detects corrupt JSON backups (`signal-corrupt-*`) and prompts users to export diagnostics/data before reset. (Score: impact=high effort=med risk=low confidence=high)
-- [ ] P2 (Selected): Add a "Download diagnostics bundle" export (app/version + storage usage + anonymized counts + optional raw `signal-*` snapshot) for support workflows. (Score: impact=med effort=med risk=low confidence=high)
-- [ ] P3: Investigate and remove the `npm run build` warning about `--localstorage-file` (keep build logs clean). (Score: impact=low effort=low risk=low confidence=med)
 - [ ] P3: Add unified search snippet match highlighting (query/token emphasis) to improve scanability. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Improve unified search relevance scoring (better weighting for title/question exact matches + citations/notes tie-breakers) and add regression tests. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add keyboard shortcuts for search surfaces (e.g., `/` focus search, `Esc` clear, `j/k` navigate). (Score: impact=med effort=med risk=low confidence=med)
-- [ ] P3: Add a "redacted diagnostics" mode (omit answers/prompts, keep counts + key metadata) to share safely. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add a debounced query input option for unified search to reduce re-render cost on large libraries. (Score: impact=low effort=low risk=low confidence=med)
 
 ## Implemented
@@ -35,6 +30,9 @@
 - 2026-02-10: Added integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider), configurable mock stream delay, and stricter NDJSON smoke framing checks (`tests/api-answer.test.ts`, `tests/api-answer-stream.test.ts`, `src/app/api/answer/stream/route.ts`, `scripts/smoke.mjs`) (commit `f278cd6`).
 - 2026-02-10: Added Library "Data tools" panel (export raw `signal-*` localStorage + export-gated reset) and a `signal-*` localStorage usage indicator (`src/components/chat-app.tsx`, `src/lib/signal-storage.ts`) (commit `e42bb68`).
 - 2026-02-10: Documented local-first data export/reset and corruption recovery steps (`docs/data-recovery.md`, `README.md`) (commit `3fac87f`).
+- 2026-02-10: Library bulk undo toast for archive/delete actions, with unit-tested restore logic that doesn't drop newly created threads (`src/components/chat-app.tsx`, `src/lib/library-undo.ts`, `tests/library-undo.test.ts`) (commit `661ff10`).
+- 2026-02-10: Library data health warning (corrupt localStorage backups) + diagnostics bundle downloads (full + redacted) + docs updates (`src/components/chat-app.tsx`, `next.config.ts`, `docs/data-recovery.md`) (commit `50055b4`).
+- 2026-02-10: Removed Next build warning from Node WebStorage by lazy-loading `docx` and tightening browser guards in localStorage helpers (`src/components/chat-app.tsx`, `src/lib/storage.ts`, `src/lib/signal-storage.ts`, `src/lib/local-data.ts`, `tests/storage.test.ts`) (commit `30a28ca`).
 
 ## Insights
 - Scorecard failures were not from scan results; they were caused by workflow policy validation when `publish_results: true` was combined with write-level permissions.
@@ -42,6 +40,7 @@
 - Signal Search usability improves when actions happen in the search surface itself; forcing users back into Library for pin/archive/space edits adds unnecessary friction.
 - Users rely on notes and citations during follow-ups, so search must index those fields; otherwise “Signal Search” fails to find high-signal content.
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
+- Next.js static generation can execute transitive deps in SSR bundles; importing `docx` at module scope pulled in browserified Node stream polyfills that touch `localStorage` and emitted warnings. Lazy-loading large export deps keeps builds clean and reduces baseline bundle weight.
 - Market scan (untrusted, links only): comparable products emphasize citations + “save/organize” workflows plus explicit data controls (export/clear) when retention is local-only or account-scoped.
 - Sources: Perplexity (https://www.perplexity.ai) help: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces overview (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search); OpenAI Help Center: ChatGPT data export flow (https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 - Gap map (untrusted, synthesized):
