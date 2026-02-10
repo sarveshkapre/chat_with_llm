@@ -94,6 +94,7 @@ export default function UnifiedSearch() {
     const readAll = () => {
       setNotes(parseStored<Record<string, string>>(NOTES_KEY, {}));
       const nextThreads = parseStored<Thread[]>(THREADS_KEY, []);
+      threadsRef.current = nextThreads;
       setThreads(nextThreads);
       setSpaces(parseStored<Space[]>(SPACES_KEY, []));
       setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
