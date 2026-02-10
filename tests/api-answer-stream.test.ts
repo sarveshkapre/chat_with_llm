@@ -22,7 +22,7 @@ async function readNdjsonUntilDone(response: Response) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  const events: any[] = [];
+  const events: Array<{ type?: string; [key: string]: unknown }> = [];
 
   while (true) {
     const { done, value } = await reader.read();
@@ -34,11 +34,12 @@ async function readNdjsonUntilDone(response: Response) {
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      events.push(JSON.parse(trimmed));
-      if (events.at(-1)?.type === "done") return { events, trailing: buffer };
-      if (events.at(-1)?.type === "error") {
+      const parsed = JSON.parse(trimmed) as { type?: string; [key: string]: unknown };
+      events.push(parsed);
+      if (parsed.type === "done") return { events, trailing: buffer };
+      if (parsed.type === "error") {
         throw new Error(
-          `Stream returned error: ${events.at(-1)?.message ?? "unknown"}`
+          `Stream returned error: ${(parsed as { message?: unknown }).message ?? "unknown"}`
         );
       }
     }
@@ -103,11 +104,17 @@ describe("/api/answer/stream (route handler)", () => {
     expect(deltaCount).toBeGreaterThan(0);
 
     const done = events.find((event) => event.type === "done");
-    expect(done?.payload?.answer).toBeTruthy();
-    expect(done?.payload?.provider).toBe("mock");
+    expect(done).toBeTruthy();
+    const payload = (done as { payload?: unknown }).payload;
+    expect(payload && typeof payload === "object").toBe(true);
+    const payloadObj = payload as Record<string, unknown>;
+    expect(typeof payloadObj.answer).toBe("string");
+    expect(payloadObj.provider).toBe("mock");
 
     // Attachments are returned with text stripped for UI safety.
-    expect(done?.payload?.attachments?.[0]?.text).toBeNull();
+    expect(Array.isArray(payloadObj.attachments)).toBe(true);
+    const attachments = payloadObj.attachments as unknown[];
+    const first = attachments[0] as Record<string, unknown> | undefined;
+    expect(first?.text).toBeNull();
   });
 });
-

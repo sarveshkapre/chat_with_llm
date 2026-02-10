@@ -15,6 +15,13 @@ import type { Collection } from "@/lib/types/collection";
 import { cn } from "@/lib/utils";
 import { readStoredJson } from "@/lib/storage";
 import {
+  clearStorageByPrefix,
+  formatBytes,
+  getStorageEntriesByPrefix,
+  getStorageUsageByPrefix,
+  TYPICAL_LOCALSTORAGE_QUOTA_BYTES,
+} from "@/lib/signal-storage";
+import {
   canReadAsText,
   readFileAsText,
   stripAttachmentText,
@@ -350,6 +357,13 @@ export default function ChatApp() {
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>([]);
   const [fileSearchEnabled, setFileSearchEnabled] = useState(true);
   const [fileSearchQuery, setFileSearchQuery] = useState("");
+  const [signalStorageUsage, setSignalStorageUsage] = useState<{
+    keys: number;
+    bytes: number;
+  } | null>(null);
+  const [dataToolsExportedAt, setDataToolsExportedAt] = useState<string | null>(
+    null
+  );
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
   const [rewriteModel, setRewriteModel] = useState<(typeof REWRITE_MODELS)[number]>(
@@ -496,6 +510,23 @@ export default function ChatApp() {
       localStorage.removeItem(ACTIVE_SPACE_KEY);
     }
   }, [activeSpaceId]);
+
+  useEffect(() => {
+    setSignalStorageUsage(getStorageUsageByPrefix("signal-"));
+  }, [
+    threads,
+    spaces,
+    tasks,
+    libraryFiles,
+    collections,
+    notes,
+    savedSearches,
+    pinnedSearchIds,
+    recentFilters,
+    archivedSpaces,
+    spaceTags,
+    activeSpaceId,
+  ]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1681,6 +1712,45 @@ ${answer.citations
     anchor.download = `signal-library-export-${Date.now()}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function exportRawLocalData() {
+    const entries = getStorageEntriesByPrefix("signal-");
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      keys: entries.length,
+      entries,
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-local-data-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    const now = new Date().toISOString();
+    setDataToolsExportedAt(now);
+    setNotice("Exported raw local data. Reset is now enabled for this session.");
+  }
+
+  function resetLocalData() {
+    if (!dataToolsExportedAt) {
+      setNotice("Export raw local data first to enable reset.");
+      return;
+    }
+
+    const ok = window.confirm(
+      "Reset Signal Search local data in this browser?\n\nThis will delete all keys starting with “signal-” (threads, spaces, collections, files, tasks, and backups)."
+    );
+    if (!ok) return;
+
+    const cleared = clearStorageByPrefix("signal-");
+    setNotice(`Reset complete. Cleared ${cleared} keys. Reloading...`);
+    window.location.reload();
   }
 
   function clearFilters() {
@@ -3357,6 +3427,65 @@ ${answer.citations
               >
                 {archivedOnly ? "Unarchive filtered" : "Archive filtered"}
               </button>
+            </div>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-signal-muted">
+                  Data tools
+                </p>
+                {signalStorageUsage ? (
+                  <span
+                    className={cn(
+                      "text-[11px] uppercase tracking-[0.2em]",
+                      signalStorageUsage.bytes >
+                        TYPICAL_LOCALSTORAGE_QUOTA_BYTES * 0.85
+                        ? "text-signal-accent"
+                        : "text-signal-muted"
+                    )}
+                  >
+                    {formatBytes(signalStorageUsage.bytes)}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-2 text-[11px] text-signal-muted">
+                Local storage usage for keys starting with <span className="font-mono">signal-</span>
+                {signalStorageUsage
+                  ? `: ${signalStorageUsage.keys} keys · ${formatBytes(signalStorageUsage.bytes)}`
+                  : "."}{" "}
+                (Typical browser quota is around {formatBytes(TYPICAL_LOCALSTORAGE_QUOTA_BYTES)}.)
+              </p>
+              {signalStorageUsage &&
+              signalStorageUsage.bytes >
+                TYPICAL_LOCALSTORAGE_QUOTA_BYTES * 0.85 ? (
+                <p className="mt-2 text-[11px] text-signal-accent">
+                  You are close to the browser quota. Export and reset if things
+                  start failing to save.
+                </p>
+              ) : null}
+              {dataToolsExportedAt ? (
+                <p className="mt-2 text-[11px] text-signal-muted">
+                  Exported: {new Date(dataToolsExportedAt).toLocaleString()}
+                </p>
+              ) : (
+                <p className="mt-2 text-[11px] text-signal-muted">
+                  Reset is disabled until you export.
+                </p>
+              )}
+              <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={exportRawLocalData}
+                  className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
+                >
+                  Export raw local data
+                </button>
+                <button
+                  onClick={resetLocalData}
+                  disabled={!dataToolsExportedAt}
+                  className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] text-signal-muted disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Reset this browser
+                </button>
+              </div>
             </div>
             {selectedThreadIds.length ? (
               <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-black/20 p-3 text-xs text-signal-muted">
