@@ -7,12 +7,19 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P3: Add “why this matched” micro-badges (title/tag/note/citation) for top results to improve trust and scanability. (Score: impact=med effort=med risk=low confidence=med)
-- [ ] P3: Add query operators to Unified Search (`type:thread`, `space:Name`, `tag:foo`, `has:note`, `has:citation`) with clear inline help. (Score: impact=med effort=high risk=med confidence=low)
-- [ ] P3: Add cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) for UX parity. (Score: impact=low effort=med risk=low confidence=med)
-- [ ] P3: Add “Saved search” UX for Unified Search (pin + rename + quick run), reusing existing saved search preset storage where possible. (Score: impact=med effort=med risk=low confidence=med)
+### Cycle 7 (2026-02-10) Selected
+- [ ] P2: Unified Search “why this matched” micro-badges on result cards (Title/Tags/Space/Note/Citations/Answer) to improve trust + scanability without changing ranking. (Score: impact=high effort=med risk=low confidence=high)
+- [ ] P2: Cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) for UX parity. (Score: impact=med effort=low risk=low confidence=high)
+
+### Cycle 7 (2026-02-10) Other Candidates
+- [ ] P3: Unified Search: index Space tags (`signal-space-tags-v1`) and support `tag:` operator for Spaces plus relevance boosts for tag hits. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window, persisted in localStorage. (Score: impact=med effort=med-high risk=low confidence=med)
+- [ ] P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify matching semantics (`space:` contains vs `spaceId:` exact). (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Unified Search: performance pass for large libraries (cache normalized fields + precompute scores per query + avoid recomputing snippets). (Score: impact=med effort=med-high risk=med confidence=med)
+- [ ] P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()` (unbalanced quotes, `tag:\"a b\"`, mixed operators). (Score: impact=low effort=low risk=low confidence=high)
 
 ## Implemented
+- 2026-02-10: Unified Search query operators (`type:`, `space:`, `tag:`, `has:`) with inline help, operator chips, and a "clear operators" affordance (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`) (commit `d1c8aab`).
 - 2026-02-10: Unified Search now supports multi-word matching (phrase OR all-tokens across fields), field-weighted relevance scoring (title/question > tags/space > notes/citations > body) with precomputed scores, plus `/` focus + `Esc` clear + `Enter` commit recent query and deferred query evaluation (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `590f05c`).
 - 2026-02-10: Added unified search match highlighting for query/tokens across titles + snippets (`src/components/unified-search.tsx`, `src/lib/highlight.ts`) (commit `ce3429c`).
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
@@ -43,7 +50,7 @@
 - Users rely on notes and citations during follow-ups, so search must index those fields; otherwise “Signal Search” fails to find high-signal content.
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
 - Next.js static generation can execute transitive deps in SSR bundles; importing `docx` at module scope pulled in browserified Node stream polyfills that touch `localStorage` and emitted warnings. Lazy-loading large export deps keeps builds clean and reduces baseline bundle weight.
-- Market scan (untrusted, links only): comparable products emphasize citations + “save/organize” workflows plus explicit data controls (export/clear) when retention is local-only or account-scoped.
+- Market scan (untrusted, links only): comparable products emphasize citations + “save/organize” workflows; keyboard shortcuts (search focus/clear) and structured filters/operators show up as baseline UX expectations.
 - Sources: Perplexity (https://www.perplexity.ai) help: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces overview (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search); OpenAI Help Center: ChatGPT data export flow (https://help.openai.com/en/articles/7260999-how-do-i-export-my-chatgpt-history-and-data).
 - Gap map (untrusted, synthesized):
 - Missing: accounts/auth + database-backed storage + secure sharing model; robust file ingestion (PDF/DOCX/etc) + retrieval.
