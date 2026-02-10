@@ -20,6 +20,7 @@ function makeSaved(overrides: Partial<UnifiedSavedSearch>): UnifiedSavedSearch {
     sortBy: overrides.sortBy ?? "relevance",
     timelineWindow: overrides.timelineWindow ?? "all",
     resultLimit: overrides.resultLimit ?? 20,
+    verbatim: overrides.verbatim ?? false,
     pinned: overrides.pinned ?? false,
     createdAt: overrides.createdAt ?? "2026-02-10T00:00:00.000Z",
     updatedAt: overrides.updatedAt ?? "2026-02-10T00:00:00.000Z",
@@ -35,6 +36,7 @@ describe("fingerprintSavedSearch", () => {
         sortBy: "newest",
         timelineWindow: "7d",
         resultLimit: 50,
+        verbatim: false,
       })
     ).toBe(
       fingerprintSavedSearch({
@@ -43,6 +45,7 @@ describe("fingerprintSavedSearch", () => {
         sortBy: "newest",
         timelineWindow: "7d",
         resultLimit: 50,
+        verbatim: false,
       })
     );
   });
@@ -61,6 +64,7 @@ describe("findDuplicateSavedSearch", () => {
         sortBy: "relevance",
         timelineWindow: "all",
         resultLimit: 20,
+        verbatim: false,
       })?.id
     ).toBe("b");
   });
@@ -122,6 +126,7 @@ describe("defaultSavedSearchName", () => {
         sortBy: "relevance",
         timelineWindow: "all",
         resultLimit: 20,
+        verbatim: false,
       })
     ).toBe("hello world");
     expect(
@@ -131,8 +136,8 @@ describe("defaultSavedSearchName", () => {
         sortBy: "newest",
         timelineWindow: "7d",
         resultLimit: 20,
+        verbatim: true,
       })
-    ).toBe("threads · 7d · newest");
+    ).toBe("threads · 7d · newest · verbatim");
   });
 });
-

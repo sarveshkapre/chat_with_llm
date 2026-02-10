@@ -150,6 +150,13 @@ describe("matchesQuery", () => {
     const query = normalizeQuery("needle");
     expect(matchesQuery(["haystack needle haystack"], query)).toBe(true);
   });
+
+  it("treats token-less queries as phrase-only matches", () => {
+    const verbatimQuery = { normalized: "foo bar", tokens: [] };
+    expect(matchesQuery(["foo bar"], verbatimQuery)).toBe(true);
+    expect(matchesQuery(["foo", "bar"], verbatimQuery)).toBe(false);
+    expect(matchesQuery(["something else"], verbatimQuery)).toBe(false);
+  });
 });
 
 describe("computeRelevanceScore", () => {
@@ -266,5 +273,15 @@ describe("parseUnifiedSearchQuery", () => {
   it("supports escaped quotes inside quoted values", () => {
     const parsed = parseUnifiedSearchQuery("tag:\"deep \\\"work\\\"\"");
     expect(parsed.operators.tags).toEqual(['deep "work"']);
+  });
+
+  it("supports verbatim/exact operators for phrase-only matching", () => {
+    const parsed = parseUnifiedSearchQuery("verbatim:true roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.verbatim).toBe(true);
+
+    const negated = parseUnifiedSearchQuery("-exact:on roadmap");
+    expect(negated.text).toBe("roadmap");
+    expect(negated.operators.verbatim).toBe(false);
   });
 });

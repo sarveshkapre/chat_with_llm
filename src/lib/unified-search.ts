@@ -26,6 +26,7 @@ export type UnifiedSearchOperators = {
   notHasNote?: boolean;
   hasCitation?: boolean;
   notHasCitation?: boolean;
+  verbatim?: boolean;
 };
 
 export type ParsedUnifiedSearchQuery = {
@@ -152,6 +153,16 @@ function normalizeHasToken(raw: string): "note" | "citation" | null {
   return null;
 }
 
+function normalizeBooleanToken(raw: string): boolean | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "1" || value === "true" || value === "yes" || value === "on")
+    return true;
+  if (value === "0" || value === "false" || value === "no" || value === "off")
+    return false;
+  return null;
+}
+
 export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   const tokens = tokenizeOperatorQuery(raw.trim());
   const textTokens: string[] = [];
@@ -223,6 +234,14 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       }
     }
 
+    if (key === "verbatim" || key === "exact") {
+      const normalized = normalizeBooleanToken(value);
+      if (normalized !== null) {
+        operators.verbatim = negated ? !normalized : normalized;
+        continue;
+      }
+    }
+
     textTokens.push(token);
   }
 
@@ -245,9 +264,8 @@ export function matchesQuery(parts: string[], query: NormalizedQuery): boolean {
     .toLowerCase();
   if (!combined) return false;
   if (combined.includes(query.normalized)) return true;
-  if (query.tokens.length <= 1) {
-    return query.tokens.length === 1 ? combined.includes(query.tokens[0]) : true;
-  }
+  if (query.tokens.length === 0) return false;
+  if (query.tokens.length === 1) return combined.includes(query.tokens[0]);
   // Multi-word query: treat as phrase OR all-tokens (across all fields).
   return query.tokens.every((token) => combined.includes(token));
 }

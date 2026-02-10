@@ -59,6 +59,7 @@ const TASKS_KEY = "signal-tasks-v1";
 const NOTES_KEY = "signal-notes-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 const SAVED_SEARCH_KEY = "signal-unified-saved-v1";
+const VERBATIM_KEY = "signal-unified-verbatim-v1";
 
 const THREAD_BADGE_LABELS: Record<string, string> = {
   title: "Title",
@@ -81,6 +82,9 @@ export default function UnifiedSearch() {
   );
   const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>("all");
   const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
+  const [verbatim, setVerbatim] = useState<boolean>(() =>
+    parseStored<boolean>(VERBATIM_KEY, false)
+  );
   const [recentQueries, setRecentQueries] = useState<string[]>(() =>
     parseStored<string[]>(RECENT_SEARCH_KEY, [])
   );
@@ -132,10 +136,17 @@ export default function UnifiedSearch() {
   );
   const queryInfo = parsedQuery.query;
   const normalized = queryInfo.normalized;
-  const normalizedTokens = queryInfo.tokens;
   const operators = parsedQuery.operators;
   const effectiveFilter: UnifiedSearchType =
     operators.type ?? (filter as UnifiedSearchType);
+  const effectiveVerbatim = operators.verbatim ?? verbatim;
+  const matchQueryInfo = useMemo(
+    () =>
+      effectiveVerbatim
+        ? { normalized: queryInfo.normalized, tokens: [] }
+        : queryInfo,
+    [effectiveVerbatim, queryInfo]
+  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -151,6 +162,7 @@ export default function UnifiedSearch() {
       setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
       setTasks(parseStored<Task[]>(TASKS_KEY, []));
       setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
+      setVerbatim(parseStored<boolean>(VERBATIM_KEY, false));
 
       // Cross-tab or focus reloads can remove threads; keep selection consistent with reality.
       const validThreadIds = new Set(nextThreads.map((thread) => thread.id));
@@ -171,6 +183,7 @@ export default function UnifiedSearch() {
           FILES_KEY,
           TASKS_KEY,
           RECENT_SEARCH_KEY,
+          VERBATIM_KEY,
         ].includes(event.key)
       ) {
         return;
@@ -218,6 +231,8 @@ export default function UnifiedSearch() {
     if (operators.notHasNote) parts.push("-has:note");
     if (operators.hasCitation) parts.push("has:citation");
     if (operators.notHasCitation) parts.push("-has:citation");
+    if (operators.verbatim === true) parts.push("verbatim:true");
+    if (operators.verbatim === false) parts.push("verbatim:false");
     return parts;
   }, [operators]);
 
@@ -235,6 +250,11 @@ export default function UnifiedSearch() {
     if (typeof window === "undefined") return;
     localStorage.setItem(SAVED_SEARCH_KEY, JSON.stringify(savedSearches));
   }, [savedSearches]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(VERBATIM_KEY, JSON.stringify(verbatim));
+  }, [verbatim]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -276,7 +296,7 @@ export default function UnifiedSearch() {
             citationText,
             notes[thread.id] ?? "",
           ];
-          return matchesQuery(fields, queryInfo);
+          return matchesQuery(fields, matchQueryInfo);
         })
       : threads;
     const operatorFiltered = textFiltered.filter((thread) => {
@@ -322,7 +342,7 @@ export default function UnifiedSearch() {
     return operatorFiltered.filter((thread) =>
       applyTimelineWindow(thread.createdAt, timelineWindow)
     );
-  }, [threads, normalized, notes, timelineWindow, queryInfo, operators]);
+  }, [threads, normalized, notes, timelineWindow, matchQueryInfo, operators]);
 
   const filteredSpaces = useMemo(() => {
     const textFiltered = normalized
@@ -330,7 +350,7 @@ export default function UnifiedSearch() {
           const tagsText = (spaceTags[space.id] ?? []).join(" ");
           return matchesQuery(
             [space.name, space.instructions ?? "", tagsText],
-            queryInfo
+            matchQueryInfo
           );
         })
       : spaces;
@@ -357,29 +377,29 @@ export default function UnifiedSearch() {
     return operatorFiltered.filter((space) =>
       applyTimelineWindow(space.createdAt, timelineWindow)
     );
-  }, [spaces, normalized, timelineWindow, queryInfo, operators, spaceTags]);
+  }, [spaces, normalized, timelineWindow, matchQueryInfo, operators, spaceTags]);
 
   const filteredCollections = useMemo(() => {
     const textFiltered = normalized
       ? collections.filter((collection) =>
-          matchesQuery([collection.name], queryInfo)
+          matchesQuery([collection.name], matchQueryInfo)
         )
       : collections;
     return textFiltered.filter((collection) =>
       applyTimelineWindow(collection.createdAt, timelineWindow)
     );
-  }, [collections, normalized, timelineWindow, queryInfo]);
+  }, [collections, normalized, timelineWindow, matchQueryInfo]);
 
   const filteredFiles = useMemo(() => {
     const textFiltered = normalized
       ? files.filter((file) => {
-          return matchesQuery([file.name, file.text], queryInfo);
+          return matchesQuery([file.name, file.text], matchQueryInfo);
         })
       : files;
     return textFiltered.filter((file) =>
       applyTimelineWindow(file.addedAt, timelineWindow)
     );
-  }, [files, normalized, timelineWindow, queryInfo]);
+  }, [files, normalized, timelineWindow, matchQueryInfo]);
 
   const filteredTasks = useMemo(() => {
     const textFiltered = normalized
@@ -392,7 +412,7 @@ export default function UnifiedSearch() {
               task.mode,
               task.cadence,
             ],
-            queryInfo
+            matchQueryInfo
           );
         })
       : tasks;
@@ -415,7 +435,7 @@ export default function UnifiedSearch() {
     return operatorFiltered.filter((task) =>
       applyTimelineWindow(task.createdAt, timelineWindow)
     );
-  }, [tasks, normalized, timelineWindow, queryInfo, operators]);
+  }, [tasks, normalized, timelineWindow, matchQueryInfo, operators]);
 
   const toggleThreadField = useCallback(
     (threadId: string, field: "favorite" | "pinned" | "archived") => {
@@ -528,7 +548,7 @@ export default function UnifiedSearch() {
           { text: citationText, weight: 2 },
           { text: thread.answer, weight: 1 },
         ],
-        queryInfo
+        matchQueryInfo
       );
       return { thread, score };
     });
@@ -541,7 +561,7 @@ export default function UnifiedSearch() {
       return toTime(b.thread.createdAt) - toTime(a.thread.createdAt);
     });
     return scored.map((entry) => entry.thread);
-  }, [filteredThreads, sortBy, notes, queryInfo]);
+  }, [filteredThreads, sortBy, notes, matchQueryInfo]);
 
   const sortedSpaces = useMemo(() => {
     const scored = filteredSpaces.map((space) => ({
@@ -552,7 +572,7 @@ export default function UnifiedSearch() {
           { text: (spaceTags[space.id] ?? []).join(" "), weight: 4 },
           { text: space.instructions ?? "", weight: 2 },
         ],
-        queryInfo
+        matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
@@ -564,12 +584,15 @@ export default function UnifiedSearch() {
       return toTime(b.space.createdAt) - toTime(a.space.createdAt);
     });
     return scored.map((entry) => entry.space);
-  }, [filteredSpaces, sortBy, queryInfo, spaceTags]);
+  }, [filteredSpaces, sortBy, matchQueryInfo, spaceTags]);
 
   const sortedCollections = useMemo(() => {
     const scored = filteredCollections.map((collection) => ({
       collection,
-      score: computeRelevanceScore([{ text: collection.name, weight: 8 }], queryInfo),
+      score: computeRelevanceScore(
+        [{ text: collection.name, weight: 8 }],
+        matchQueryInfo
+      ),
     }));
     scored.sort((a, b) => {
       if (sortBy === "newest")
@@ -580,7 +603,7 @@ export default function UnifiedSearch() {
       return toTime(b.collection.createdAt) - toTime(a.collection.createdAt);
     });
     return scored.map((entry) => entry.collection);
-  }, [filteredCollections, sortBy, queryInfo]);
+  }, [filteredCollections, sortBy, matchQueryInfo]);
 
   const sortedFiles = useMemo(() => {
     const scored = filteredFiles.map((file) => ({
@@ -590,7 +613,7 @@ export default function UnifiedSearch() {
           { text: file.name, weight: 8 },
           { text: file.text, weight: 1 },
         ],
-        queryInfo
+        matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
@@ -602,7 +625,7 @@ export default function UnifiedSearch() {
       return toTime(b.file.addedAt) - toTime(a.file.addedAt);
     });
     return scored.map((entry) => entry.file);
-  }, [filteredFiles, sortBy, queryInfo]);
+  }, [filteredFiles, sortBy, matchQueryInfo]);
 
   const sortedTasks = useMemo(() => {
     const scored = filteredTasks.map((task) => ({
@@ -615,7 +638,7 @@ export default function UnifiedSearch() {
           { text: task.mode, weight: 1 },
           { text: task.cadence, weight: 1 },
         ],
-        queryInfo
+        matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
@@ -627,7 +650,7 @@ export default function UnifiedSearch() {
       return toTime(b.task.createdAt) - toTime(a.task.createdAt);
     });
     return scored.map((entry) => entry.task);
-  }, [filteredTasks, sortBy, queryInfo]);
+  }, [filteredTasks, sortBy, matchQueryInfo]);
 
   const shownThreads = useMemo(
     () => sortedThreads.slice(0, resultLimit),
@@ -686,21 +709,24 @@ export default function UnifiedSearch() {
       if (!text) return "";
       const compact = text.replace(/\s+/g, " ").trim();
       if (!compact) return "";
-      if (!normalized) return compact.slice(0, 160);
+      if (!matchQueryInfo.normalized) return compact.slice(0, 160);
       const lowered = compact.toLowerCase();
-      let index = lowered.indexOf(normalized);
-      if (index === -1 && normalizedTokens.length) {
-        for (const token of normalizedTokens) {
+      let index = lowered.indexOf(matchQueryInfo.normalized);
+      if (index === -1 && matchQueryInfo.tokens.length) {
+        for (const token of matchQueryInfo.tokens) {
           index = lowered.indexOf(token);
           if (index !== -1) break;
         }
       }
       if (index === -1) return compact.slice(0, 160);
       const start = Math.max(0, index - 60);
-      const end = Math.min(compact.length, index + normalized.length + 80);
+      const end = Math.min(
+        compact.length,
+        index + matchQueryInfo.normalized.length + 80
+      );
       return compact.slice(start, end).trim();
     },
-    [normalized, normalizedTokens]
+    [matchQueryInfo]
   );
 
   const buildThreadSnippet = useCallback(
@@ -725,7 +751,11 @@ export default function UnifiedSearch() {
 
   const renderHighlighted = useCallback(
     (text: string) => {
-      const parts = buildHighlightParts(text, normalized, normalizedTokens);
+      const parts = buildHighlightParts(
+        text,
+        matchQueryInfo.normalized,
+        matchQueryInfo.tokens
+      );
       if (parts.length === 0) return null;
       if (parts.length === 1 && !parts[0].highlighted) return text;
       return parts.map((part, index) => (
@@ -741,7 +771,7 @@ export default function UnifiedSearch() {
         </span>
       ));
     },
-    [normalized, normalizedTokens]
+    [matchQueryInfo]
   );
 
   function pushRecentQuery(value: string) {
@@ -910,13 +940,15 @@ export default function UnifiedSearch() {
       sortBy,
       timelineWindow,
       resultLimit,
+      verbatim: effectiveVerbatim,
     } as const;
     const meaningful =
       spec.query.trim() ||
       spec.filter !== "all" ||
       spec.sortBy !== "relevance" ||
       spec.timelineWindow !== "all" ||
-      spec.resultLimit !== 20;
+      spec.resultLimit !== 20 ||
+      spec.verbatim;
     if (!meaningful) {
       setToast({ message: "Nothing to save yet." });
       return;
@@ -942,6 +974,7 @@ export default function UnifiedSearch() {
       sortBy,
       timelineWindow,
       resultLimit,
+      verbatim: effectiveVerbatim,
       pinned: false,
       createdAt: now,
       updatedAt: now,
@@ -958,6 +991,7 @@ export default function UnifiedSearch() {
     setSortBy(saved.sortBy);
     setTimelineWindow(saved.timelineWindow);
     setResultLimit(saved.resultLimit);
+    setVerbatim(Boolean(saved.verbatim));
     pushRecentQuery(saved.query);
     inputRef.current?.focus();
   }
@@ -1015,7 +1049,7 @@ export default function UnifiedSearch() {
                 setQuery("");
               }
             }}
-            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads has:note tag:foo space:"Research")'
+            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
@@ -1029,7 +1063,10 @@ export default function UnifiedSearch() {
               <span className="text-signal-text">tag:foo</span>,{" "}
               <span className="text-signal-text">-tag:foo</span>,{" "}
               <span className="text-signal-text">has:note</span>,{" "}
-              <span className="text-signal-text">-has:note</span>
+              <span className="text-signal-text">-has:note</span>,{" "}
+              <span className="text-signal-text">has:citation</span>,{" "}
+              <span className="text-signal-text">-has:citation</span>,{" "}
+              <span className="text-signal-text">verbatim:true</span>
             </span>
             <div className="flex items-center gap-2">
               <button
@@ -1128,6 +1165,21 @@ export default function UnifiedSearch() {
                 <option value="7d">Last 7d</option>
                 <option value="30d">Last 30d</option>
               </select>
+            </label>
+            <label className="flex items-center gap-2 text-signal-muted">
+              Verbatim
+              <input
+                type="checkbox"
+                checked={effectiveVerbatim}
+                disabled={operators.verbatim !== undefined}
+                title={
+                  operators.verbatim !== undefined
+                    ? "Remove verbatim: operator to control this toggle."
+                    : undefined
+                }
+                onChange={(event) => setVerbatim(event.target.checked)}
+                className="h-4 w-4 accent-signal-accent disabled:opacity-60"
+              />
             </label>
             <label className="flex items-center gap-2 text-signal-muted">
               Show
@@ -1323,7 +1375,7 @@ export default function UnifiedSearch() {
                           note: notes[thread.id] ?? "",
                           citationsText: citationText,
                         },
-                        queryInfo
+                        matchQueryInfo
                       );
                       return (
                         <Link
@@ -1606,7 +1658,7 @@ export default function UnifiedSearch() {
                           note: notes[thread.id] ?? "",
                           citationsText: citationText,
                         },
-                        queryInfo
+                        matchQueryInfo
                       );
                       return (
                         <div

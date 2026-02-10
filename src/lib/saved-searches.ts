@@ -11,6 +11,7 @@ export type UnifiedSavedSearch = {
   sortBy: UnifiedSearchSortBy;
   timelineWindow: TimelineWindow;
   resultLimit: UnifiedSearchResultLimit;
+  verbatim: boolean;
   pinned: boolean;
   createdAt: string;
   updatedAt: string;
@@ -18,7 +19,7 @@ export type UnifiedSavedSearch = {
 
 export type SavedSearchSpec = Pick<
   UnifiedSavedSearch,
-  "query" | "filter" | "sortBy" | "timelineWindow" | "resultLimit"
+  "query" | "filter" | "sortBy" | "timelineWindow" | "resultLimit" | "verbatim"
 >;
 
 export function normalizeSavedSearchName(raw: string): string {
@@ -33,16 +34,19 @@ export function defaultSavedSearchName(spec: SavedSearchSpec): string {
   if (spec.filter !== "all") parts.push(spec.filter);
   if (spec.timelineWindow !== "all") parts.push(spec.timelineWindow);
   if (spec.sortBy !== "relevance") parts.push(spec.sortBy);
+  if (spec.verbatim) parts.push("verbatim");
   return parts.length ? parts.join(" · ") : "Saved search";
 }
 
 export function fingerprintSavedSearch(spec: SavedSearchSpec): string {
+  const verbatim = Boolean((spec as SavedSearchSpec & { verbatim?: boolean }).verbatim);
   return JSON.stringify({
     query: spec.query.trim(),
     filter: spec.filter,
     sortBy: spec.sortBy,
     timelineWindow: spec.timelineWindow,
     resultLimit: spec.resultLimit,
+    verbatim,
   });
 }
 
@@ -121,4 +125,3 @@ export function deleteSavedSearch(
   const next = searches.filter((item) => item.id !== id);
   return next.length === searches.length ? searches : next;
 }
-
