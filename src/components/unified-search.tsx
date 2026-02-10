@@ -43,6 +43,7 @@ type Thread = AnswerResponse & {
 
 const THREADS_KEY = "signal-history-v2";
 const SPACES_KEY = "signal-spaces-v1";
+const SPACE_TAGS_KEY = "signal-space-tags-v1";
 const COLLECTIONS_KEY = "signal-collections-v1";
 const FILES_KEY = "signal-files-v1";
 const TASKS_KEY = "signal-tasks-v1";
@@ -81,6 +82,9 @@ export default function UnifiedSearch() {
   );
   const [spaces, setSpaces] = useState<Space[]>(() =>
     parseStored<Space[]>(SPACES_KEY, [])
+  );
+  const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() =>
+    parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {})
   );
   const [collections, setCollections] = useState<Collection[]>(() =>
     parseStored<Collection[]>(COLLECTIONS_KEY, [])
@@ -127,6 +131,7 @@ export default function UnifiedSearch() {
       threadsRef.current = nextThreads;
       setThreads(nextThreads);
       setSpaces(parseStored<Space[]>(SPACES_KEY, []));
+      setSpaceTags(parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
       setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
       setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
       setTasks(parseStored<Task[]>(TASKS_KEY, []));
@@ -146,6 +151,7 @@ export default function UnifiedSearch() {
           NOTES_KEY,
           THREADS_KEY,
           SPACES_KEY,
+          SPACE_TAGS_KEY,
           COLLECTIONS_KEY,
           FILES_KEY,
           TASKS_KEY,
@@ -277,13 +283,28 @@ export default function UnifiedSearch() {
   const filteredSpaces = useMemo(() => {
     const textFiltered = normalized
       ? spaces.filter((space) => {
-          return matchesQuery([space.name, space.instructions ?? ""], queryInfo);
+          const tagsText = (spaceTags[space.id] ?? []).join(" ");
+          return matchesQuery(
+            [space.name, space.instructions ?? "", tagsText],
+            queryInfo
+          );
         })
       : spaces;
-    return textFiltered.filter((space) =>
+    const operatorFiltered = textFiltered.filter((space) => {
+      if (operators.tags?.length) {
+        const tagSet = new Set(
+          (spaceTags[space.id] ?? []).map((tag) => tag.toLowerCase())
+        );
+        for (const tag of operators.tags) {
+          if (!tagSet.has(tag.toLowerCase())) return false;
+        }
+      }
+      return true;
+    });
+    return operatorFiltered.filter((space) =>
       applyTimelineWindow(space.createdAt, timelineWindow)
     );
-  }, [spaces, normalized, timelineWindow, queryInfo]);
+  }, [spaces, normalized, timelineWindow, queryInfo, operators, spaceTags]);
 
   const filteredCollections = useMemo(() => {
     const textFiltered = normalized
@@ -468,6 +489,7 @@ export default function UnifiedSearch() {
       score: computeRelevanceScore(
         [
           { text: space.name, weight: 8 },
+          { text: (spaceTags[space.id] ?? []).join(" "), weight: 4 },
           { text: space.instructions ?? "", weight: 2 },
         ],
         queryInfo
@@ -482,7 +504,7 @@ export default function UnifiedSearch() {
       return toTime(b.space.createdAt) - toTime(a.space.createdAt);
     });
     return scored.map((entry) => entry.space);
-  }, [filteredSpaces, sortBy, queryInfo]);
+  }, [filteredSpaces, sortBy, queryInfo, spaceTags]);
 
   const sortedCollections = useMemo(() => {
     const scored = filteredCollections.map((collection) => ({
@@ -698,9 +720,13 @@ export default function UnifiedSearch() {
       "",
       "## Spaces",
       ...sortedSpaces.map((space, index) => {
+        const tags = (spaceTags[space.id] ?? []).length
+          ? (spaceTags[space.id] ?? []).join(", ")
+          : "None";
         return [
           `${index + 1}. ${space.name}`,
           `   - Instructions: ${space.instructions || "None"}`,
+          `   - Tags: ${tags}`,
           `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
         ].join("\n");
       }),
@@ -1454,27 +1480,47 @@ export default function UnifiedSearch() {
                     No matching spaces.
                   </p>
                 ) : (
-                  shownSpaces.map((space) => (
-                    <div
-                      key={space.id}
-                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                    >
-                      <p className="text-sm text-signal-text">
-                        {renderHighlighted(space.name)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        {space.instructions
-                          ? renderHighlighted(space.instructions)
-                          : "No instructions"}
-                      </p>
-                      <Link
-                        href={`/?space=${space.id}`}
-                        className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  shownSpaces.map((space) => {
+                    const tags = spaceTags[space.id] ?? [];
+                    return (
+                      <div
+                        key={space.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                       >
-                        Open
-                      </Link>
-                    </div>
-                  ))
+                        <p className="text-sm text-signal-text">
+                          {renderHighlighted(space.name)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {space.instructions
+                            ? renderHighlighted(space.instructions)
+                            : "No instructions"}
+                        </p>
+                        {tags.length ? (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {tags.slice(0, 6).map((tag) => (
+                              <span
+                                key={`space-${space.id}-tag-${tag}`}
+                                className="rounded-full border border-white/10 bg-black/20 px-2 py-[2px] text-[10px] text-signal-muted"
+                              >
+                                {renderHighlighted(tag)}
+                              </span>
+                            ))}
+                            {tags.length > 6 ? (
+                              <span className="text-[10px] text-signal-muted">
+                                +{tags.length - 6}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                        <Link
+                          href={`/?space=${space.id}`}
+                          className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Open
+                        </Link>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>

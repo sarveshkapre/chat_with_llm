@@ -224,6 +224,12 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.hasNote).toBe(true);
   });
 
+  it("supports quoted tag values containing whitespace", () => {
+    const parsed = parseUnifiedSearchQuery('tag:"deep work" tag:alpha');
+    expect(parsed.text).toBe("");
+    expect(parsed.operators.tags).toEqual(["deep work", "alpha"]);
+  });
+
   it("keeps unknown operators as part of the free-text query", () => {
     const parsed = parseUnifiedSearchQuery("unknown:thing hello");
     expect(parsed.text).toBe("unknown:thing hello");
