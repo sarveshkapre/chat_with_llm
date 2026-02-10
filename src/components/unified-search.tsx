@@ -20,14 +20,19 @@ import {
   applyTimelineWindow,
   computeRelevanceScore,
   computeThreadMatchBadges,
+  filterSpaceEntries,
+  filterTaskEntries,
+  filterThreadEntries,
   matchesLoweredText,
   parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
+  sortSearchResults,
   toggleVisibleSelection,
   type TimelineWindow,
+  type SortBy,
   type UnifiedSearchType,
 } from "@/lib/unified-search";
 import {
@@ -120,9 +125,7 @@ export default function UnifiedSearch() {
   const [filter, setFilter] = useState<
     "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
   >("all");
-  const [sortBy, setSortBy] = useState<"relevance" | "newest" | "oldest">(
-    "relevance"
-  );
+  const [sortBy, setSortBy] = useState<SortBy>("relevance");
   const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>("all");
   const [timelineNowMs, setTimelineNowMs] = useState(0);
   const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
@@ -429,52 +432,14 @@ export default function UnifiedSearch() {
   }, [tasks]);
 
   const filteredThreads = useMemo<PreparedThread[]>(() => {
-    const textFiltered = normalized
-      ? preparedThreads.filter((entry) =>
-          matchesLoweredText(entry.combinedLower, matchQueryInfo)
-        )
-      : preparedThreads;
-
-    return textFiltered.filter((entry) => {
-      if (!applyTimelineWindow(entry.thread.createdAt, timelineWindow, timelineNowMs))
-        return false;
-
-      if (operators.space) {
-        const needle = operators.space.toLowerCase();
-        if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
-          return false;
-      }
-      if (operators.spaceId) {
-        const needle = operators.spaceId.toLowerCase();
-        if (entry.spaceIdLower !== needle) return false;
-      }
-      if (operators.tags?.length) {
-        for (const tag of operators.tags) {
-          if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
-        }
-      }
-      if (operators.notTags?.length) {
-        for (const tag of operators.notTags) {
-          if (entry.tagSetLower.has(tag.toLowerCase())) return false;
-        }
-      }
-      if (operators.hasNote) {
-        if (!entry.noteTrimmed) return false;
-      }
-      if (operators.notHasNote) {
-        if (entry.noteTrimmed) return false;
-      }
-      if (operators.hasCitation) {
-        if (!entry.hasCitation) return false;
-      }
-      if (operators.notHasCitation) {
-        if (entry.hasCitation) return false;
-      }
-      return true;
+    return filterThreadEntries(preparedThreads, {
+      query: matchQueryInfo,
+      operators,
+      timelineWindow,
+      nowMs: timelineNowMs,
     });
   }, [
     preparedThreads,
-    normalized,
     timelineWindow,
     timelineNowMs,
     matchQueryInfo,
@@ -482,31 +447,14 @@ export default function UnifiedSearch() {
   ]);
 
   const filteredSpaces = useMemo(() => {
-    const textFiltered = normalized
-      ? preparedSpaces.filter((entry) =>
-          matchesLoweredText(entry.combinedLower, matchQueryInfo)
-        )
-      : preparedSpaces;
-    const operatorFiltered = textFiltered.filter((entry) => {
-      if (!applyTimelineWindow(entry.space.createdAt, timelineWindow, timelineNowMs))
-        return false;
-      if (operators.hasNote || operators.hasCitation) return false;
-      if (operators.tags?.length) {
-        for (const tag of operators.tags) {
-          if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
-        }
-      }
-      if (operators.notTags?.length) {
-        for (const tag of operators.notTags) {
-          if (entry.tagSetLower.has(tag.toLowerCase())) return false;
-        }
-      }
-      return true;
+    return filterSpaceEntries(preparedSpaces, {
+      query: matchQueryInfo,
+      operators,
+      timelineWindow,
+      nowMs: timelineNowMs,
     });
-    return operatorFiltered;
   }, [
     preparedSpaces,
-    normalized,
     timelineWindow,
     timelineNowMs,
     matchQueryInfo,
@@ -536,31 +484,14 @@ export default function UnifiedSearch() {
   }, [preparedFiles, normalized, timelineWindow, timelineNowMs, matchQueryInfo]);
 
   const filteredTasks = useMemo(() => {
-    const textFiltered = normalized
-      ? preparedTasks.filter((entry) =>
-          matchesLoweredText(entry.combinedLower, matchQueryInfo)
-        )
-      : preparedTasks;
-    const operatorFiltered = textFiltered.filter((entry) => {
-      if (!applyTimelineWindow(entry.task.createdAt, timelineWindow, timelineNowMs))
-        return false;
-      if (operators.hasNote || operators.hasCitation) return false;
-      if (operators.tags?.length) return false;
-      if (operators.space) {
-        const needle = operators.space.toLowerCase();
-        if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
-          return false;
-      }
-      if (operators.spaceId) {
-        const needle = operators.spaceId.toLowerCase();
-        if (entry.spaceIdLower !== needle) return false;
-      }
-      return true;
+    return filterTaskEntries(preparedTasks, {
+      query: matchQueryInfo,
+      operators,
+      timelineWindow,
+      nowMs: timelineNowMs,
     });
-    return operatorFiltered;
   }, [
     preparedTasks,
-    normalized,
     timelineWindow,
     timelineNowMs,
     matchQueryInfo,
@@ -663,25 +594,9 @@ export default function UnifiedSearch() {
   }, [applyBulkAction, bulkSpaceId, spaces]);
 
   const sortedThreads = useMemo<PreparedThread[]>(() => {
-    const next = [...filteredThreads];
-
-    if (sortBy === "newest") {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-    if (sortBy === "oldest") {
-      next.sort((a, b) => a.createdMs - b.createdMs);
-      return next;
-    }
-
-    if (!matchQueryInfo.normalized) {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-
-    const scored = next.map((entry) => {
+    return sortSearchResults(filteredThreads, sortBy, matchQueryInfo, (entry) => {
       const thread = entry.thread;
-      const score = computeRelevanceScore(
+      return computeRelevanceScore(
         [
           { text: thread.title ?? thread.question, weight: 8 },
           { text: thread.question, weight: 6 },
@@ -693,127 +608,47 @@ export default function UnifiedSearch() {
         ],
         matchQueryInfo
       );
-      return { entry, score };
     });
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.entry.createdMs - a.entry.createdMs;
-    });
-    return scored.map((item) => item.entry);
   }, [filteredThreads, sortBy, matchQueryInfo]);
 
   const sortedSpaces = useMemo<PreparedSpace[]>(() => {
-    const next = [...filteredSpaces];
-    if (sortBy === "newest") {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-    if (sortBy === "oldest") {
-      next.sort((a, b) => a.createdMs - b.createdMs);
-      return next;
-    }
-    if (!matchQueryInfo.normalized) {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-
-    const scored = next.map((entry) => ({
-      entry,
-      score: computeRelevanceScore(
+    return sortSearchResults(filteredSpaces, sortBy, matchQueryInfo, (entry) =>
+      computeRelevanceScore(
         [
           { text: entry.space.name, weight: 8 },
           { text: entry.tagsText, weight: 4 },
           { text: entry.space.instructions ?? "", weight: 2 },
         ],
         matchQueryInfo
-      ),
-    }));
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.entry.createdMs - a.entry.createdMs;
-    });
-    return scored.map((item) => item.entry);
+      )
+    );
   }, [filteredSpaces, sortBy, matchQueryInfo]);
 
   const sortedCollections = useMemo<PreparedCollection[]>(() => {
-    const next = [...filteredCollections];
-    if (sortBy === "newest") {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-    if (sortBy === "oldest") {
-      next.sort((a, b) => a.createdMs - b.createdMs);
-      return next;
-    }
-    if (!matchQueryInfo.normalized) {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-
-    const scored = next.map((entry) => ({
-      entry,
-      score: computeRelevanceScore(
-        [{ text: entry.collection.name, weight: 8 }],
-        matchQueryInfo
-      ),
-    }));
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.entry.createdMs - a.entry.createdMs;
-    });
-    return scored.map((item) => item.entry);
+    return sortSearchResults(
+      filteredCollections,
+      sortBy,
+      matchQueryInfo,
+      (entry) =>
+        computeRelevanceScore([{ text: entry.collection.name, weight: 8 }], matchQueryInfo)
+    );
   }, [filteredCollections, sortBy, matchQueryInfo]);
 
   const sortedFiles = useMemo<PreparedFile[]>(() => {
-    const next = [...filteredFiles];
-    if (sortBy === "newest") {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-    if (sortBy === "oldest") {
-      next.sort((a, b) => a.createdMs - b.createdMs);
-      return next;
-    }
-    if (!matchQueryInfo.normalized) {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-
-    const scored = next.map((entry) => ({
-      entry,
-      score: computeRelevanceScore(
+    return sortSearchResults(filteredFiles, sortBy, matchQueryInfo, (entry) =>
+      computeRelevanceScore(
         [
           { text: entry.file.name, weight: 8 },
           { text: entry.file.text, weight: 1 },
         ],
         matchQueryInfo
-      ),
-    }));
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.entry.createdMs - a.entry.createdMs;
-    });
-    return scored.map((item) => item.entry);
+      )
+    );
   }, [filteredFiles, sortBy, matchQueryInfo]);
 
   const sortedTasks = useMemo<PreparedTask[]>(() => {
-    const next = [...filteredTasks];
-    if (sortBy === "newest") {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-    if (sortBy === "oldest") {
-      next.sort((a, b) => a.createdMs - b.createdMs);
-      return next;
-    }
-    if (!matchQueryInfo.normalized) {
-      next.sort((a, b) => b.createdMs - a.createdMs);
-      return next;
-    }
-
-    const scored = next.map((entry) => ({
-      entry,
-      score: computeRelevanceScore(
+    return sortSearchResults(filteredTasks, sortBy, matchQueryInfo, (entry) =>
+      computeRelevanceScore(
         [
           { text: entry.task.name, weight: 8 },
           { text: entry.task.prompt, weight: 2 },
@@ -822,13 +657,8 @@ export default function UnifiedSearch() {
           { text: entry.task.cadence, weight: 1 },
         ],
         matchQueryInfo
-      ),
-    }));
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return b.entry.createdMs - a.entry.createdMs;
-    });
-    return scored.map((item) => item.entry);
+      )
+    );
   }, [filteredTasks, sortBy, matchQueryInfo]);
 
   const shownThreads = useMemo(
@@ -1280,25 +1110,41 @@ export default function UnifiedSearch() {
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
-            <span>
-              Operators:{" "}
-              <span className="text-signal-text">
-                type:threads|spaces|collections|files|tasks
-              </span>
-              ,{" "}
-              <span className="text-signal-text">
-                space:&quot;Name contains&quot;
-              </span>
-              ,{" "}
-              <span className="text-signal-text">spaceId:abc</span>,{" "}
-              <span className="text-signal-text">tag:foo</span>,{" "}
-              <span className="text-signal-text">-tag:foo</span>,{" "}
-              <span className="text-signal-text">has:note</span>,{" "}
-              <span className="text-signal-text">-has:note</span>,{" "}
-              <span className="text-signal-text">has:citation</span>,{" "}
-              <span className="text-signal-text">-has:citation</span>,{" "}
-              <span className="text-signal-text">verbatim:true|false</span>
-            </span>
+            <div className="space-y-1">
+              <div>
+                Operators:{" "}
+                <span className="text-signal-text">
+                  type:threads|spaces|collections|files|tasks
+                </span>
+                ,{" "}
+                <span className="text-signal-text">
+                  space:&quot;Name contains&quot;
+                </span>{" "}
+                <span>(or exact space id)</span>,{" "}
+                <span className="text-signal-text">spaceId:abc</span>,{" "}
+                <span className="text-signal-text">tag:foo</span>,{" "}
+                <span className="text-signal-text">-tag:foo</span>,{" "}
+                <span className="text-signal-text">has:note</span>,{" "}
+                <span className="text-signal-text">-has:note</span>,{" "}
+                <span className="text-signal-text">has:citation</span>,{" "}
+                <span className="text-signal-text">-has:citation</span>,{" "}
+                <span className="text-signal-text">verbatim:true|false</span>
+              </div>
+              <div>
+                Examples:{" "}
+                <span className="text-signal-text">
+                  type:threads has:citation incident postmortem
+                </span>
+                ,{" "}
+                <span className="text-signal-text">
+                  type:spaces tag:customer -tag:archive roadmap
+                </span>
+                ,{" "}
+                <span className="text-signal-text">
+                  type:threads space:&quot;Research&quot; tag:alpha -has:note
+                </span>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={saveCurrentSearch}

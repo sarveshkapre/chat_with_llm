@@ -4,6 +4,9 @@ import {
   applyTimelineWindow,
   computeRelevanceScore,
   computeThreadMatchBadges,
+  filterSpaceEntries,
+  filterTaskEntries,
+  filterThreadEntries,
   matchesLoweredText,
   matchesQuery,
   normalizeQuery,
@@ -11,6 +14,7 @@ import {
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
+  sortSearchResults,
   toggleVisibleSelection,
 } from "@/lib/unified-search";
 
@@ -309,5 +313,207 @@ describe("parseUnifiedSearchQuery", () => {
     const negated = parseUnifiedSearchQuery("-exact:on roadmap");
     expect(negated.text).toBe("roadmap");
     expect(negated.operators.verbatim).toBe(false);
+  });
+});
+
+describe("filterThreadEntries", () => {
+  const now = Date.parse("2026-02-08T12:00:00.000Z");
+
+  function makeEntry(overrides?: Partial<Parameters<typeof filterThreadEntries>[0][number]>) {
+    return {
+      thread: { createdAt: "2026-02-08T01:00:00.000Z" },
+      combinedLower: "hello world",
+      spaceNameLower: "research",
+      spaceIdLower: "space-1",
+      tagSetLower: new Set(["alpha", "beta"]),
+      noteTrimmed: "",
+      hasCitation: false,
+      ...overrides,
+    };
+  }
+
+  it("filters by timeline window", () => {
+    const entries = [
+      makeEntry({ thread: { createdAt: "2026-02-01T00:00:00.000Z" } }),
+      makeEntry({ thread: { createdAt: "2026-02-08T10:00:00.000Z" } }),
+    ];
+    const filtered = filterThreadEntries(entries, {
+      query: normalizeQuery(""),
+      operators: {},
+      timelineWindow: "24h",
+      nowMs: now,
+    });
+    expect(filtered).toHaveLength(1);
+  });
+
+  it("treats space: as name-contains OR exact space id match", () => {
+    const entries = [
+      makeEntry({ spaceNameLower: "deep research", spaceIdLower: "space-1" }),
+      makeEntry({ spaceNameLower: "planning", spaceIdLower: "deep-research" }),
+    ];
+
+    const byName = filterThreadEntries(entries, {
+      query: normalizeQuery(""),
+      operators: { space: "research" },
+      timelineWindow: "all",
+      nowMs: now,
+    });
+    expect(byName).toHaveLength(1);
+
+    const byId = filterThreadEntries(entries, {
+      query: normalizeQuery(""),
+      operators: { space: "deep-research" },
+      timelineWindow: "all",
+      nowMs: now,
+    });
+    expect(byId).toHaveLength(1);
+  });
+
+  it("supports tag and -tag operators", () => {
+    const entries = [makeEntry({ tagSetLower: new Set(["alpha"]) })];
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { tags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notTags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+  });
+
+  it("supports has:note / -has:note and has:citation / -has:citation", () => {
+    const entries = [
+      makeEntry({ noteTrimmed: "", hasCitation: false }),
+      makeEntry({ noteTrimmed: "note", hasCitation: true }),
+    ];
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { hasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notHasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { hasCitation: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notHasCitation: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+});
+
+describe("filterSpaceEntries", () => {
+  const now = Date.parse("2026-02-08T12:00:00.000Z");
+
+  it("supports tag operators but rejects has:note/has:citation filters", () => {
+    const entries = [
+      {
+        space: { createdAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "deep work\nalpha",
+        tagSetLower: new Set(["alpha"]),
+      },
+    ];
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery("deep"),
+        operators: { tags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery("deep"),
+        operators: { hasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+  });
+});
+
+describe("filterTaskEntries", () => {
+  const now = Date.parse("2026-02-08T12:00:00.000Z");
+
+  it("rejects tag operators and supports space filters", () => {
+    const entries = [
+      {
+        task: { createdAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "weekly review",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+    ];
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { tags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { space: "research" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+});
+
+describe("sortSearchResults", () => {
+  it("falls back to newest when sorting by relevance with an empty query", () => {
+    const items = [
+      { id: "a", createdMs: 1 },
+      { id: "b", createdMs: 10 },
+    ];
+    const sorted = sortSearchResults(items, "relevance", normalizeQuery(""), () => 0);
+    expect(sorted.map((item) => item.id)).toEqual(["b", "a"]);
+  });
+
+  it("sorts by score then by newest when sorting by relevance with a query", () => {
+    const items = [
+      { id: "a", createdMs: 5 },
+      { id: "b", createdMs: 10 },
+      { id: "c", createdMs: 7 },
+    ];
+    const query = normalizeQuery("needle");
+    const scoreOf = (item: { id: string }) => (item.id === "a" ? 2 : item.id === "b" ? 2 : 1);
+    const sorted = sortSearchResults(items, "relevance", query, scoreOf);
+    expect(sorted.map((item) => item.id)).toEqual(["b", "a", "c"]);
   });
 });

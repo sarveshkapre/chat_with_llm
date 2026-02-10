@@ -2,6 +2,7 @@ import type { Space } from "@/lib/types/space";
 import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
+export type SortBy = "relevance" | "newest" | "oldest";
 
 export type NormalizedQuery = {
   normalized: string;
@@ -418,4 +419,175 @@ export function resolveActiveSelectedIds<T extends { id: string }>(
   const validIds = new Set(items.map((item) => item.id));
   const activeIds = pruneSelectedIds(selectedIds, validIds);
   return { activeIds, missingCount: selectedIds.length - activeIds.length };
+}
+
+export function sortSearchResults<T extends { createdMs: number }>(
+  items: T[],
+  sortBy: SortBy,
+  query: NormalizedQuery,
+  scoreOf: (item: T) => number
+): T[] {
+  const next = [...items];
+
+  if (sortBy === "newest") {
+    next.sort((a, b) => b.createdMs - a.createdMs);
+    return next;
+  }
+  if (sortBy === "oldest") {
+    next.sort((a, b) => a.createdMs - b.createdMs);
+    return next;
+  }
+
+  // "Relevance" behaves like newest when there is no query.
+  if (!query.normalized) {
+    next.sort((a, b) => b.createdMs - a.createdMs);
+    return next;
+  }
+
+  const scored = next.map((item) => ({ item, score: scoreOf(item) }));
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.item.createdMs - a.item.createdMs;
+  });
+  return scored.map((entry) => entry.item);
+}
+
+export function filterThreadEntries<
+  T extends {
+    thread: { createdAt?: string | null | undefined };
+    combinedLower: string;
+    spaceNameLower: string;
+    spaceIdLower: string;
+    tagSetLower: ReadonlySet<string>;
+    noteTrimmed: string;
+    hasCitation: boolean;
+  },
+>(
+  entries: T[],
+  options: {
+    query: NormalizedQuery;
+    operators: UnifiedSearchOperators;
+    timelineWindow: TimelineWindow;
+    nowMs: number;
+  }
+): T[] {
+  const { query, operators, timelineWindow, nowMs } = options;
+  const textFiltered = query.normalized
+    ? entries.filter((entry) => matchesLoweredText(entry.combinedLower, query))
+    : entries;
+
+  return textFiltered.filter((entry) => {
+    if (!applyTimelineWindow(entry.thread.createdAt, timelineWindow, nowMs))
+      return false;
+
+    if (operators.space) {
+      const needle = operators.space.toLowerCase();
+      if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
+        return false;
+    }
+    if (operators.spaceId) {
+      const needle = operators.spaceId.toLowerCase();
+      if (entry.spaceIdLower !== needle) return false;
+    }
+    if (operators.tags?.length) {
+      for (const tag of operators.tags) {
+        if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
+      }
+    }
+    if (operators.notTags?.length) {
+      for (const tag of operators.notTags) {
+        if (entry.tagSetLower.has(tag.toLowerCase())) return false;
+      }
+    }
+    if (operators.hasNote) {
+      if (!entry.noteTrimmed) return false;
+    }
+    if (operators.notHasNote) {
+      if (entry.noteTrimmed) return false;
+    }
+    if (operators.hasCitation) {
+      if (!entry.hasCitation) return false;
+    }
+    if (operators.notHasCitation) {
+      if (entry.hasCitation) return false;
+    }
+    return true;
+  });
+}
+
+export function filterSpaceEntries<
+  T extends {
+    space: { createdAt?: string | null | undefined };
+    combinedLower: string;
+    tagSetLower: ReadonlySet<string>;
+  },
+>(
+  entries: T[],
+  options: {
+    query: NormalizedQuery;
+    operators: UnifiedSearchOperators;
+    timelineWindow: TimelineWindow;
+    nowMs: number;
+  }
+): T[] {
+  const { query, operators, timelineWindow, nowMs } = options;
+  const textFiltered = query.normalized
+    ? entries.filter((entry) => matchesLoweredText(entry.combinedLower, query))
+    : entries;
+
+  return textFiltered.filter((entry) => {
+    if (!applyTimelineWindow(entry.space.createdAt, timelineWindow, nowMs))
+      return false;
+    if (operators.hasNote || operators.hasCitation) return false;
+    if (operators.tags?.length) {
+      for (const tag of operators.tags) {
+        if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
+      }
+    }
+    if (operators.notTags?.length) {
+      for (const tag of operators.notTags) {
+        if (entry.tagSetLower.has(tag.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
+}
+
+export function filterTaskEntries<
+  T extends {
+    task: { createdAt?: string | null | undefined };
+    combinedLower: string;
+    spaceNameLower: string;
+    spaceIdLower: string;
+  },
+>(
+  entries: T[],
+  options: {
+    query: NormalizedQuery;
+    operators: UnifiedSearchOperators;
+    timelineWindow: TimelineWindow;
+    nowMs: number;
+  }
+): T[] {
+  const { query, operators, timelineWindow, nowMs } = options;
+  const textFiltered = query.normalized
+    ? entries.filter((entry) => matchesLoweredText(entry.combinedLower, query))
+    : entries;
+
+  return textFiltered.filter((entry) => {
+    if (!applyTimelineWindow(entry.task.createdAt, timelineWindow, nowMs))
+      return false;
+    if (operators.hasNote || operators.hasCitation) return false;
+    if (operators.tags?.length) return false;
+    if (operators.space) {
+      const needle = operators.space.toLowerCase();
+      if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
+        return false;
+    }
+    if (operators.spaceId) {
+      const needle = operators.spaceId.toLowerCase();
+      if (entry.spaceIdLower !== needle) return false;
+    }
+    return true;
+  });
 }
