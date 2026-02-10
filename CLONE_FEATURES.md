@@ -8,7 +8,6 @@
 
 ## Candidate Features To Do
 ### Cycle 8 (2026-02-10) Plan
-- [ ] P3: Unified Search “verbatim” toggle/operator: allow exact/phrase-only matching (no token fallback) to mirror baseline expectations in chat-history search. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Unified Search performance pass for large libraries: cache normalized fields per item (threads/spaces/collections/files/tasks) and avoid recomputing snippets/citation joins when query changes. (Score: impact=med effort=med-high risk=med confidence=med)
 - [ ] P4: Unified Search saved searches export to Markdown (and include in existing export surfaces). (Score: impact=low-med effort=low risk=low confidence=high)
 - [ ] P4: Unified Search operators: clarify semantics in inline help (`space:` contains vs `spaceId:` exact; negative operators) and add copy-to-clipboard examples. (Score: impact=low-med effort=low risk=low confidence=high)
@@ -18,6 +17,7 @@
 - 2026-02-10: Unified Search saved searches (presets): save current query + filters (type/sort/time/limit) into `signal-unified-saved-v1`, with pin/rename/run/delete UI (`src/components/unified-search.tsx`, `src/lib/saved-searches.ts`, `tests/saved-searches.test.ts`). (commit `9bcfc13`)
 - 2026-02-10: Unified Search negative operators + parsing hardening: `-tag:` and `-has:` support, new `spaceId:` exact operator, safer tokenization for unbalanced quotes + escaped quotes, and regression tests (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `1d2a19a`)
 - 2026-02-10: Unified Search now indexes Space tags (`signal-space-tags-v1`), supports `tag:` operator filtering for Spaces, and boosts relevance when the free-text query matches tags (`src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `285d9c8`)
+- 2026-02-10: Unified Search verbatim toggle + `verbatim:true|false` operator for phrase-only matching (no token fallback), persisted via `signal-unified-verbatim-v1`, and included in saved-search presets (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `src/lib/saved-searches.ts`, `tests/unified-search.test.ts`, `tests/saved-searches.test.ts`). (commit `dbe007a`)
 - 2026-02-10: Unified Search “why this matched” micro-badges on result cards (Title/Tags/Space/Note/Citations/Answer) to improve trust + scanability without changing ranking (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `e64f5ae`).
 - 2026-02-10: Cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) (`src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`) (commit `a9ed305`).
 - 2026-02-10: Unified Search query operators (`type:`, `space:`, `tag:`, `has:`) with inline help, operator chips, and a "clear operators" affordance (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`) (commit `d1c8aab`).
