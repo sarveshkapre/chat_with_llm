@@ -8,13 +8,13 @@
 
 ## Candidate Features To Do
 ### Cycle 7 (2026-02-10) Backlog
-- [ ] P3: Unified Search: index Space tags (`signal-space-tags-v1`) and support `tag:` operator for Spaces plus relevance boosts for tag hits. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Unified Search: “Saved searches” (pin + rename + quick run) for queries/operators/sort/time window, persisted in localStorage. (Score: impact=med effort=med-high risk=low confidence=med)
 - [ ] P3: Unified Search operators: add negative operators (`-tag:foo`, `-has:note`) and clarify matching semantics (`space:` contains vs `spaceId:` exact). (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Unified Search: performance pass for large libraries (cache normalized fields + precompute scores per query + avoid recomputing snippets). (Score: impact=med effort=med-high risk=med confidence=med)
-- [ ] P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()` (unbalanced quotes, `tag:\"a b\"`, mixed operators). (Score: impact=low effort=low risk=low confidence=high)
+- [ ] P3: Tests: add quote/edge-case coverage for `parseUnifiedSearchQuery()` (unbalanced quotes, mixed operators). (Score: impact=low effort=low risk=low confidence=high)
 
 ## Implemented
+- 2026-02-10: Unified Search now indexes Space tags (`signal-space-tags-v1`), supports `tag:` operator filtering for Spaces, and boosts relevance when the free-text query matches tags (`src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `285d9c8`)
 - 2026-02-10: Unified Search “why this matched” micro-badges on result cards (Title/Tags/Space/Note/Citations/Answer) to improve trust + scanability without changing ranking (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `e64f5ae`).
 - 2026-02-10: Cross-surface search shortcuts in Library/Spaces/Collections (consistent `/` focus + `Esc` clear) (`src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`) (commit `a9ed305`).
 - 2026-02-10: Unified Search query operators (`type:`, `space:`, `tag:`, `has:`) with inline help, operator chips, and a "clear operators" affordance (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`) (commit `d1c8aab`).

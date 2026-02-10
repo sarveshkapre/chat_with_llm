@@ -50,6 +50,7 @@ npm install && npm run dev
 - Space dashboard thread preview
 - Space dashboard sorting (name/activity)
 - Unified search (threads + spaces)
+- Unified search indexes Space tags (`tag:` works for Spaces)
 - Unified search filters + export results
 - Unified search recent queries + CSV export
 - Unified search top results summary + clear recent
