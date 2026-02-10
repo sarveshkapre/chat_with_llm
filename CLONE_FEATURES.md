@@ -7,10 +7,16 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P2: Unified Search: Add bulk favorite/unfavorite actions to match per-thread quick actions.
-- [ ] P2: Add a documented smoke verification path (mock mode) that can be run locally and in CI on demand.
-- [ ] P2: Follow up on server-backed persistence planning for notes/threads beyond localStorage.
-- [ ] P3: Add a lightweight “data corruption backup” mechanism when localStorage JSON parsing fails (preserve a copy before overwriting).
+- [ ] P1: Unified Search: Add bulk favorite/unfavorite actions to match per-thread quick actions.
+- [ ] P1: Local storage resiliency: back up corrupt JSON blobs on parse failure before any code overwrites them.
+- [ ] P2: Add a documented smoke verification path (mock mode) runnable locally and via `workflow_dispatch` in CI.
+- [ ] P2: Add unit coverage for localStorage parsing/backup helpers (regression coverage for corruption handling).
+- [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection.
+- [ ] P3: Follow up on server-backed persistence planning for notes/threads beyond localStorage (ADR + migration sketch).
+- [ ] P3: Add lightweight localStorage “export raw data” debug action (threads/spaces/collections/files/tasks) to help users recover from corruption.
+- [ ] P3: Add a “safe reset” flow that clears local-only state but first forces a backup export (guardrail for support/debug).
+- [ ] P3: Add optional “storage usage” indicator to warn before localStorage quota issues (approximate bytes used per key).
+- [ ] P3: Add an integration-style mock-provider test that exercises `/api/answer` and `/api/answer/stream` response shapes.
 
 ## Implemented
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
