@@ -19,9 +19,13 @@ export type UnifiedSearchType =
 export type UnifiedSearchOperators = {
   type?: Exclude<UnifiedSearchType, "all">;
   space?: string;
+  spaceId?: string;
   tags?: string[];
+  notTags?: string[];
   hasNote?: boolean;
+  notHasNote?: boolean;
   hasCitation?: boolean;
+  notHasCitation?: boolean;
 };
 
 export type ParsedUnifiedSearchQuery = {
@@ -75,12 +79,34 @@ export function normalizeQuery(raw: string): NormalizedQuery {
 }
 
 function tokenizeOperatorQuery(raw: string): string[] {
+  const trimmedRaw = raw.trim();
+  if (!trimmedRaw) return [];
+
+  // If quotes are unbalanced, don't apply "quoted token" semantics.
+  // This avoids swallowing trailing operators into a single token.
+  let quoteCount = 0;
+  for (let i = 0; i < trimmedRaw.length; i += 1) {
+    const ch = trimmedRaw[i];
+    if (ch !== '"') continue;
+    const prev = trimmedRaw[i - 1];
+    if (prev === "\\") continue;
+    quoteCount += 1;
+  }
+  if (quoteCount % 2 === 1) {
+    return trimmedRaw.split(/\s+/).filter(Boolean);
+  }
+
   const tokens: string[] = [];
   let current = "";
   let inQuotes = false;
 
-  for (let i = 0; i < raw.length; i += 1) {
-    const ch = raw[i];
+  for (let i = 0; i < trimmedRaw.length; i += 1) {
+    const ch = trimmedRaw[i];
+    if (ch === "\\" && trimmedRaw[i + 1] === '"') {
+      current += '"';
+      i += 1;
+      continue;
+    }
     if (ch === '"') {
       inQuotes = !inQuotes;
       continue;
@@ -131,6 +157,7 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   const textTokens: string[] = [];
   const operators: UnifiedSearchOperators = {};
   const tags: string[] = [];
+  const notTags: string[] = [];
 
   for (const token of tokens) {
     const sep = token.indexOf(":");
@@ -139,15 +166,26 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       continue;
     }
 
-    const key = token.slice(0, sep).trim().toLowerCase();
-    const value = token.slice(sep + 1).trim();
+    let key = token.slice(0, sep).trim().toLowerCase();
+    let value = token.slice(sep + 1).trim();
+    const negated = key.startsWith("-");
+    if (negated) key = key.slice(1).trim();
+    // Tokenizer removes balanced quotes already; this is only to clean up
+    // values when we fall back to whitespace tokenization (unbalanced quotes).
+    if (value.startsWith('"') && value.endsWith('"') && value.length >= 2) {
+      const inner = value.slice(1, -1);
+      if (!inner.includes('"')) value = inner;
+    } else {
+      if (value.startsWith('"') && !value.slice(1).includes('"')) value = value.slice(1);
+      if (value.endsWith('"') && !value.slice(0, -1).includes('"')) value = value.slice(0, -1);
+    }
 
     if (!key || !value) {
       textTokens.push(token);
       continue;
     }
 
-    if (key === "type" || key === "in") {
+    if (!negated && (key === "type" || key === "in")) {
       const normalizedType = normalizeTypeToken(value);
       if (normalizedType) {
         operators.type = normalizedType;
@@ -155,24 +193,32 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       }
     }
 
-    if (key === "space") {
+    if (!negated && key === "space") {
       operators.space = value;
       continue;
     }
 
+    if (!negated && (key === "spaceid" || key === "space_id")) {
+      operators.spaceId = value;
+      continue;
+    }
+
     if (key === "tag") {
-      tags.push(value);
+      if (negated) notTags.push(value);
+      else tags.push(value);
       continue;
     }
 
     if (key === "has") {
       const normalizedHas = normalizeHasToken(value);
       if (normalizedHas === "note") {
-        operators.hasNote = true;
+        if (negated) operators.notHasNote = true;
+        else operators.hasNote = true;
         continue;
       }
       if (normalizedHas === "citation") {
-        operators.hasCitation = true;
+        if (negated) operators.notHasCitation = true;
+        else operators.hasCitation = true;
         continue;
       }
     }
@@ -183,6 +229,9 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   const text = textTokens.join(" ").trim();
   if (tags.length) {
     operators.tags = tags;
+  }
+  if (notTags.length) {
+    operators.notTags = notTags;
   }
 
   return { text, query: normalizeQuery(text), operators };

@@ -207,11 +207,17 @@ export default function UnifiedSearch() {
     const parts: string[] = [];
     if (operators.type) parts.push(`type:${operators.type}`);
     if (operators.space) parts.push(`space:"${operators.space}"`);
+    if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
     if (operators.tags?.length) {
       parts.push(...operators.tags.map((tag) => `tag:${tag}`));
     }
+    if (operators.notTags?.length) {
+      parts.push(...operators.notTags.map((tag) => `-tag:${tag}`));
+    }
     if (operators.hasNote) parts.push("has:note");
+    if (operators.notHasNote) parts.push("-has:note");
     if (operators.hasCitation) parts.push("has:citation");
+    if (operators.notHasCitation) parts.push("-has:citation");
     return parts;
   }, [operators]);
 
@@ -280,18 +286,36 @@ export default function UnifiedSearch() {
         const spaceId = (thread.spaceId ?? "").toLowerCase();
         if (!spaceName.includes(needle) && spaceId !== needle) return false;
       }
+      if (operators.spaceId) {
+        const needle = operators.spaceId.toLowerCase();
+        const spaceId = (thread.spaceId ?? "").toLowerCase();
+        if (spaceId !== needle) return false;
+      }
       if (operators.tags?.length) {
         const tagSet = new Set((thread.tags ?? []).map((tag) => tag.toLowerCase()));
         for (const tag of operators.tags) {
           if (!tagSet.has(tag.toLowerCase())) return false;
         }
       }
+      if (operators.notTags?.length) {
+        const tagSet = new Set((thread.tags ?? []).map((tag) => tag.toLowerCase()));
+        for (const tag of operators.notTags) {
+          if (tagSet.has(tag.toLowerCase())) return false;
+        }
+      }
       if (operators.hasNote) {
         const note = notes[thread.id] ?? "";
         if (!note.trim()) return false;
       }
+      if (operators.notHasNote) {
+        const note = notes[thread.id] ?? "";
+        if (note.trim()) return false;
+      }
       if (operators.hasCitation) {
         if (!thread.citations || thread.citations.length === 0) return false;
+      }
+      if (operators.notHasCitation) {
+        if (thread.citations && thread.citations.length > 0) return false;
       }
       return true;
     });
@@ -311,12 +335,21 @@ export default function UnifiedSearch() {
         })
       : spaces;
     const operatorFiltered = textFiltered.filter((space) => {
+      if (operators.hasNote || operators.hasCitation) return false;
       if (operators.tags?.length) {
         const tagSet = new Set(
           (spaceTags[space.id] ?? []).map((tag) => tag.toLowerCase())
         );
         for (const tag of operators.tags) {
           if (!tagSet.has(tag.toLowerCase())) return false;
+        }
+      }
+      if (operators.notTags?.length) {
+        const tagSet = new Set(
+          (spaceTags[space.id] ?? []).map((tag) => tag.toLowerCase())
+        );
+        for (const tag of operators.notTags) {
+          if (tagSet.has(tag.toLowerCase())) return false;
         }
       }
       return true;
@@ -364,11 +397,18 @@ export default function UnifiedSearch() {
         })
       : tasks;
     const operatorFiltered = textFiltered.filter((task) => {
+      if (operators.hasNote || operators.hasCitation) return false;
+      if (operators.tags?.length) return false;
       if (operators.space) {
         const needle = operators.space.toLowerCase();
         const spaceName = (task.spaceName ?? "").toLowerCase();
         const spaceId = (task.spaceId ?? "").toLowerCase();
         if (!spaceName.includes(needle) && spaceId !== needle) return false;
+      }
+      if (operators.spaceId) {
+        const needle = operators.spaceId.toLowerCase();
+        const spaceId = (task.spaceId ?? "").toLowerCase();
+        if (spaceId !== needle) return false;
       }
       return true;
     });
@@ -985,9 +1025,11 @@ export default function UnifiedSearch() {
                 type:threads|spaces|collections|files|tasks
               </span>
               , <span className="text-signal-text">space:&quot;Name&quot;</span>,{" "}
+              <span className="text-signal-text">spaceId:abc</span>,{" "}
               <span className="text-signal-text">tag:foo</span>,{" "}
+              <span className="text-signal-text">-tag:foo</span>,{" "}
               <span className="text-signal-text">has:note</span>,{" "}
-              <span className="text-signal-text">has:citation</span>
+              <span className="text-signal-text">-has:note</span>
             </span>
             <div className="flex items-center gap-2">
               <button

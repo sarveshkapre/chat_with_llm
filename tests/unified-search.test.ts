@@ -242,4 +242,29 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.hasCitation).toBe(true);
     expect(parsed.text).toBe("roadmap");
   });
+
+  it("supports negative tag and has operators", () => {
+    const parsed = parseUnifiedSearchQuery("-tag:foo -has:note hello");
+    expect(parsed.text).toBe("hello");
+    expect(parsed.operators.notTags).toEqual(["foo"]);
+    expect(parsed.operators.notHasNote).toBe(true);
+  });
+
+  it("supports spaceId exact match operator", () => {
+    const parsed = parseUnifiedSearchQuery("spaceId:space-123 roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.spaceId).toBe("space-123");
+  });
+
+  it("falls back gracefully on unbalanced quotes", () => {
+    const parsed = parseUnifiedSearchQuery('space:"Deep Work tag:alpha roadmap');
+    // Unbalanced quotes: still parse later operators instead of swallowing them.
+    expect(parsed.operators.tags).toEqual(["alpha"]);
+    expect(parsed.text).toContain("roadmap");
+  });
+
+  it("supports escaped quotes inside quoted values", () => {
+    const parsed = parseUnifiedSearchQuery("tag:\"deep \\\"work\\\"\"");
+    expect(parsed.operators.tags).toEqual(['deep "work"']);
+  });
 });
