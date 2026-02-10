@@ -7,12 +7,6 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] (Selected 2026-02-10) P1: Add a "Data tools" panel in Library: export raw local data (all `signal-*` keys) + safe reset that forces an export first. (Score: impact=high effort=small risk=low confidence=high)
-- [ ] (Selected 2026-02-10) P1: Add a storage usage indicator for `signal-*` localStorage keys (approx bytes + warn near quota). (Score: impact=med effort=small risk=low confidence=high)
-- [ ] (Selected 2026-02-10) P2: Add integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider) to lock response shapes + validation errors. (Score: impact=high effort=small risk=low confidence=high)
-- [ ] (Selected 2026-02-10) P2: Make mock streaming delay configurable so tests/smoke can run fast without changing prod behavior. (Score: impact=med effort=small risk=low confidence=high)
-- [ ] (Selected 2026-02-10) P3: Harden `npm run smoke:mock` NDJSON checks to fail on a trailing partial JSON line (stream framing). (Score: impact=med effort=small risk=low confidence=high)
-- [ ] (Selected 2026-02-10) P3: Document end-user recovery steps for corruption backups (`signal-corrupt-*`) and the new raw export/reset flows. (Score: impact=med effort=small risk=low confidence=med)
 - [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows. (Score: impact=low effort=med risk=low confidence=med)
 - [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset). (Score: impact=med effort=med risk=low confidence=med)
@@ -32,6 +26,9 @@
 - 2026-02-10: Unified Search bulk favorite/unfavorite actions (`src/components/unified-search.tsx`) (commit `2c94219`).
 - 2026-02-10: Local storage corruption backups on JSON parse failures + regression tests (`src/lib/storage.ts`, `src/lib/unified-search.ts`, `src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`, `src/components/report-view.tsx`, `tests/storage.test.ts`) (commit `716763b`).
 - 2026-02-10: Mock smoke verification path + on-demand CI workflow (`scripts/smoke.mjs`, `.github/workflows/smoke.yml`, `package.json`, `PROJECT.md`) (commit `fe19614`).
+- 2026-02-10: Added integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider), configurable mock stream delay, and stricter NDJSON smoke framing checks (`tests/api-answer.test.ts`, `tests/api-answer-stream.test.ts`, `src/app/api/answer/stream/route.ts`, `scripts/smoke.mjs`) (commit `f278cd6`).
+- 2026-02-10: Added Library "Data tools" panel (export raw `signal-*` localStorage + export-gated reset) and a `signal-*` localStorage usage indicator (`src/components/chat-app.tsx`, `src/lib/signal-storage.ts`) (commit `e42bb68`).
+- 2026-02-10: Documented local-first data export/reset and corruption recovery steps (`docs/data-recovery.md`, `README.md`) (commit `3fac87f`).
 
 ## Insights
 - Scorecard failures were not from scan results; they were caused by workflow policy validation when `publish_results: true` was combined with write-level permissions.
