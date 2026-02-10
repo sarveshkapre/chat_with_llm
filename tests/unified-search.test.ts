@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  computeRelevanceScore,
+  matchesQuery,
+  normalizeQuery,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
@@ -109,5 +112,58 @@ describe("resolveActiveSelectedIds", () => {
       activeIds: ["t3", "t1"],
       missingCount: 1,
     });
+  });
+});
+
+describe("normalizeQuery", () => {
+  it("normalizes whitespace, lowercases, and de-dupes tokens", () => {
+    expect(normalizeQuery("  Hello   WORLD  world ")).toEqual({
+      normalized: "hello world world",
+      tokens: ["hello", "world"],
+    });
+  });
+
+  it("returns empty fields for empty input", () => {
+    expect(normalizeQuery("   ")).toEqual({ normalized: "", tokens: [] });
+  });
+});
+
+describe("matchesQuery", () => {
+  it("matches phrase queries across combined fields", () => {
+    const query = normalizeQuery("foo bar");
+    expect(matchesQuery(["start foo bar end"], query)).toBe(true);
+  });
+
+  it("matches multi-word queries when all tokens exist across fields", () => {
+    const query = normalizeQuery("foo bar");
+    expect(matchesQuery(["has foo", "and bar"], query)).toBe(true);
+  });
+
+  it("rejects multi-word queries when a token is missing", () => {
+    const query = normalizeQuery("foo bar");
+    expect(matchesQuery(["only foo"], query)).toBe(false);
+  });
+
+  it("matches single token queries as substring match", () => {
+    const query = normalizeQuery("needle");
+    expect(matchesQuery(["haystack needle haystack"], query)).toBe(true);
+  });
+});
+
+describe("computeRelevanceScore", () => {
+  it("weights title-like fields higher than body fields for the same match", () => {
+    const query = normalizeQuery("alpha");
+    const titleScore = computeRelevanceScore([{ text: "alpha", weight: 6 }], query);
+    const bodyScore = computeRelevanceScore([{ text: "alpha", weight: 1 }], query);
+    expect(titleScore).toBeGreaterThan(bodyScore);
+  });
+
+  it("rewards exact and prefix matches over plain includes", () => {
+    const query = normalizeQuery("alpha");
+    const exact = computeRelevanceScore([{ text: "alpha", weight: 1 }], query);
+    const prefix = computeRelevanceScore([{ text: "alpha beta", weight: 1 }], query);
+    const includes = computeRelevanceScore([{ text: "beta alpha gamma", weight: 1 }], query);
+    expect(exact).toBeGreaterThan(prefix);
+    expect(prefix).toBeGreaterThan(includes);
   });
 });

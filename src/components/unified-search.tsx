@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import Link from "next/link";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
@@ -11,6 +18,9 @@ import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  computeRelevanceScore,
+  matchesQuery,
+  normalizeQuery,
   parseStored,
   pruneSelectedIds,
   resolveActiveSelectedIds,
@@ -39,6 +49,7 @@ const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 
 export default function UnifiedSearch() {
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<
     "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
   >("all");
@@ -82,12 +93,11 @@ export default function UnifiedSearch() {
   >(null);
   const threadsRef = useRef<Thread[]>(threads);
   const selectedThreadIdsRef = useRef<string[]>(selectedThreadIds);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const normalized = query.trim().toLowerCase();
-  const normalizedTokens = useMemo(
-    () => normalized.split(/\s+/).filter(Boolean),
-    [normalized]
-  );
+  const queryInfo = useMemo(() => normalizeQuery(deferredQuery), [deferredQuery]);
+  const normalized = queryInfo.normalized;
+  const normalizedTokens = queryInfo.tokens;
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -137,28 +147,26 @@ export default function UnifiedSearch() {
     };
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement) return;
+      if (active instanceof HTMLTextAreaElement) return;
+      if (active instanceof HTMLElement && active.isContentEditable) return;
+      event.preventDefault();
+      inputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
   function toTime(value?: string) {
     const parsed = Date.parse(value ?? "");
     return Number.isNaN(parsed) ? 0 : parsed;
   }
-
-  const relevanceScore = useCallback(
-    (parts: string[]) => {
-      if (!normalized) return 0;
-      let score = 0;
-      parts.forEach((part) => {
-        const text = part.toLowerCase();
-        if (!text) return;
-        if (text.includes(normalized)) score += 8;
-        if (text.startsWith(normalized)) score += 4;
-        normalizedTokens.forEach((token) => {
-          if (text.includes(token)) score += 1;
-        });
-      });
-      return score;
-    },
-    [normalized, normalizedTokens]
-  );
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -205,69 +213,66 @@ export default function UnifiedSearch() {
             citationText,
             notes[thread.id] ?? "",
           ];
-          return fields.some((field) => field.toLowerCase().includes(normalized));
+          return matchesQuery(fields, queryInfo);
         })
       : threads;
     return textFiltered.filter((thread) =>
       applyTimelineWindow(thread.createdAt, timelineWindow)
     );
-  }, [threads, normalized, notes, timelineWindow]);
+  }, [threads, normalized, notes, timelineWindow, queryInfo]);
 
   const filteredSpaces = useMemo(() => {
     const textFiltered = normalized
       ? spaces.filter((space) => {
-          return (
-            space.name.toLowerCase().includes(normalized) ||
-            (space.instructions ?? "").toLowerCase().includes(normalized)
-          );
+          return matchesQuery([space.name, space.instructions ?? ""], queryInfo);
         })
       : spaces;
     return textFiltered.filter((space) =>
       applyTimelineWindow(space.createdAt, timelineWindow)
     );
-  }, [spaces, normalized, timelineWindow]);
+  }, [spaces, normalized, timelineWindow, queryInfo]);
 
   const filteredCollections = useMemo(() => {
     const textFiltered = normalized
       ? collections.filter((collection) =>
-          collection.name.toLowerCase().includes(normalized)
+          matchesQuery([collection.name], queryInfo)
         )
       : collections;
     return textFiltered.filter((collection) =>
       applyTimelineWindow(collection.createdAt, timelineWindow)
     );
-  }, [collections, normalized, timelineWindow]);
+  }, [collections, normalized, timelineWindow, queryInfo]);
 
   const filteredFiles = useMemo(() => {
     const textFiltered = normalized
       ? files.filter((file) => {
-          return (
-            file.name.toLowerCase().includes(normalized) ||
-            file.text.toLowerCase().includes(normalized)
-          );
+          return matchesQuery([file.name, file.text], queryInfo);
         })
       : files;
     return textFiltered.filter((file) =>
       applyTimelineWindow(file.addedAt, timelineWindow)
     );
-  }, [files, normalized, timelineWindow]);
+  }, [files, normalized, timelineWindow, queryInfo]);
 
   const filteredTasks = useMemo(() => {
     const textFiltered = normalized
       ? tasks.filter((task) => {
-          return (
-            task.name.toLowerCase().includes(normalized) ||
-            task.prompt.toLowerCase().includes(normalized) ||
-            (task.spaceName ?? "").toLowerCase().includes(normalized) ||
-            task.mode.toLowerCase().includes(normalized) ||
-            task.cadence.toLowerCase().includes(normalized)
+          return matchesQuery(
+            [
+              task.name,
+              task.prompt,
+              task.spaceName ?? "",
+              task.mode,
+              task.cadence,
+            ],
+            queryInfo
           );
         })
       : tasks;
     return textFiltered.filter((task) =>
       applyTimelineWindow(task.createdAt, timelineWindow)
     );
-  }, [tasks, normalized, timelineWindow]);
+  }, [tasks, normalized, timelineWindow, queryInfo]);
 
   const toggleThreadField = useCallback(
     (threadId: string, field: "favorite" | "pinned" | "archived") => {
@@ -365,105 +370,120 @@ export default function UnifiedSearch() {
   }, [applyBulkAction, bulkSpaceId, spaces]);
 
   const sortedThreads = useMemo(() => {
-    const next = [...filteredThreads];
-    next.sort((a, b) => {
-      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
-      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
-      const noteA = notes[a.id] ?? "";
-      const noteB = notes[b.id] ?? "";
-      const citationA = a.citations
+    const scored = filteredThreads.map((thread) => {
+      const note = notes[thread.id] ?? "";
+      const citationText = thread.citations
         .map((citation) => `${citation.title} ${citation.url}`)
         .join(" ");
-      const citationB = b.citations
-        .map((citation) => `${citation.title} ${citation.url}`)
-        .join(" ");
-      const scoreA = relevanceScore([
-        a.title ?? a.question,
-        a.question,
-        a.answer,
-        (a.tags ?? []).join(" "),
-        a.spaceName ?? "",
-        citationA,
-        noteA,
-      ]);
-      const scoreB = relevanceScore([
-        b.title ?? b.question,
-        b.question,
-        b.answer,
-        (b.tags ?? []).join(" "),
-        b.spaceName ?? "",
-        citationB,
-        noteB,
-      ]);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return toTime(b.createdAt) - toTime(a.createdAt);
+      const score = computeRelevanceScore(
+        [
+          { text: thread.title ?? thread.question, weight: 8 },
+          { text: thread.question, weight: 6 },
+          { text: (thread.tags ?? []).join(" "), weight: 4 },
+          { text: thread.spaceName ?? "", weight: 3 },
+          { text: note, weight: 3 },
+          { text: citationText, weight: 2 },
+          { text: thread.answer, weight: 1 },
+        ],
+        queryInfo
+      );
+      return { thread, score };
     });
-    return next;
-  }, [filteredThreads, relevanceScore, sortBy, notes]);
+    scored.sort((a, b) => {
+      if (sortBy === "newest")
+        return toTime(b.thread.createdAt) - toTime(a.thread.createdAt);
+      if (sortBy === "oldest")
+        return toTime(a.thread.createdAt) - toTime(b.thread.createdAt);
+      if (b.score !== a.score) return b.score - a.score;
+      return toTime(b.thread.createdAt) - toTime(a.thread.createdAt);
+    });
+    return scored.map((entry) => entry.thread);
+  }, [filteredThreads, sortBy, notes, queryInfo]);
 
   const sortedSpaces = useMemo(() => {
-    const next = [...filteredSpaces];
-    next.sort((a, b) => {
-      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
-      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
-      const scoreA = relevanceScore([a.name, a.instructions ?? ""]);
-      const scoreB = relevanceScore([b.name, b.instructions ?? ""]);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return toTime(b.createdAt) - toTime(a.createdAt);
+    const scored = filteredSpaces.map((space) => ({
+      space,
+      score: computeRelevanceScore(
+        [
+          { text: space.name, weight: 8 },
+          { text: space.instructions ?? "", weight: 2 },
+        ],
+        queryInfo
+      ),
+    }));
+    scored.sort((a, b) => {
+      if (sortBy === "newest")
+        return toTime(b.space.createdAt) - toTime(a.space.createdAt);
+      if (sortBy === "oldest")
+        return toTime(a.space.createdAt) - toTime(b.space.createdAt);
+      if (b.score !== a.score) return b.score - a.score;
+      return toTime(b.space.createdAt) - toTime(a.space.createdAt);
     });
-    return next;
-  }, [filteredSpaces, relevanceScore, sortBy]);
+    return scored.map((entry) => entry.space);
+  }, [filteredSpaces, sortBy, queryInfo]);
 
   const sortedCollections = useMemo(() => {
-    const next = [...filteredCollections];
-    next.sort((a, b) => {
-      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
-      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
-      const scoreA = relevanceScore([a.name]);
-      const scoreB = relevanceScore([b.name]);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return toTime(b.createdAt) - toTime(a.createdAt);
+    const scored = filteredCollections.map((collection) => ({
+      collection,
+      score: computeRelevanceScore([{ text: collection.name, weight: 8 }], queryInfo),
+    }));
+    scored.sort((a, b) => {
+      if (sortBy === "newest")
+        return toTime(b.collection.createdAt) - toTime(a.collection.createdAt);
+      if (sortBy === "oldest")
+        return toTime(a.collection.createdAt) - toTime(b.collection.createdAt);
+      if (b.score !== a.score) return b.score - a.score;
+      return toTime(b.collection.createdAt) - toTime(a.collection.createdAt);
     });
-    return next;
-  }, [filteredCollections, relevanceScore, sortBy]);
+    return scored.map((entry) => entry.collection);
+  }, [filteredCollections, sortBy, queryInfo]);
 
   const sortedFiles = useMemo(() => {
-    const next = [...filteredFiles];
-    next.sort((a, b) => {
-      if (sortBy === "newest") return toTime(b.addedAt) - toTime(a.addedAt);
-      if (sortBy === "oldest") return toTime(a.addedAt) - toTime(b.addedAt);
-      const scoreA = relevanceScore([a.name, a.text]);
-      const scoreB = relevanceScore([b.name, b.text]);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return toTime(b.addedAt) - toTime(a.addedAt);
+    const scored = filteredFiles.map((file) => ({
+      file,
+      score: computeRelevanceScore(
+        [
+          { text: file.name, weight: 8 },
+          { text: file.text, weight: 1 },
+        ],
+        queryInfo
+      ),
+    }));
+    scored.sort((a, b) => {
+      if (sortBy === "newest")
+        return toTime(b.file.addedAt) - toTime(a.file.addedAt);
+      if (sortBy === "oldest")
+        return toTime(a.file.addedAt) - toTime(b.file.addedAt);
+      if (b.score !== a.score) return b.score - a.score;
+      return toTime(b.file.addedAt) - toTime(a.file.addedAt);
     });
-    return next;
-  }, [filteredFiles, relevanceScore, sortBy]);
+    return scored.map((entry) => entry.file);
+  }, [filteredFiles, sortBy, queryInfo]);
 
   const sortedTasks = useMemo(() => {
-    const next = [...filteredTasks];
-    next.sort((a, b) => {
-      if (sortBy === "newest") return toTime(b.createdAt) - toTime(a.createdAt);
-      if (sortBy === "oldest") return toTime(a.createdAt) - toTime(b.createdAt);
-      const scoreA = relevanceScore([
-        a.name,
-        a.prompt,
-        a.spaceName ?? "",
-        a.mode,
-        a.cadence,
-      ]);
-      const scoreB = relevanceScore([
-        b.name,
-        b.prompt,
-        b.spaceName ?? "",
-        b.mode,
-        b.cadence,
-      ]);
-      if (scoreB !== scoreA) return scoreB - scoreA;
-      return toTime(b.createdAt) - toTime(a.createdAt);
+    const scored = filteredTasks.map((task) => ({
+      task,
+      score: computeRelevanceScore(
+        [
+          { text: task.name, weight: 8 },
+          { text: task.prompt, weight: 2 },
+          { text: task.spaceName ?? "", weight: 3 },
+          { text: task.mode, weight: 1 },
+          { text: task.cadence, weight: 1 },
+        ],
+        queryInfo
+      ),
+    }));
+    scored.sort((a, b) => {
+      if (sortBy === "newest")
+        return toTime(b.task.createdAt) - toTime(a.task.createdAt);
+      if (sortBy === "oldest")
+        return toTime(a.task.createdAt) - toTime(b.task.createdAt);
+      if (b.score !== a.score) return b.score - a.score;
+      return toTime(b.task.createdAt) - toTime(a.task.createdAt);
     });
-    return next;
-  }, [filteredTasks, relevanceScore, sortBy]);
+    return scored.map((entry) => entry.task);
+  }, [filteredTasks, sortBy, queryInfo]);
 
   const shownThreads = useMemo(
     () => sortedThreads.slice(0, resultLimit),
@@ -758,6 +778,7 @@ export default function UnifiedSearch() {
       <main className="px-6 py-10">
         <div className="max-w-3xl space-y-3">
           <input
+            ref={inputRef}
             value={query}
             onChange={(event) => {
               const value = event.target.value;
@@ -766,6 +787,16 @@ export default function UnifiedSearch() {
               pushRecentQuery(value);
             }}
             onBlur={() => pushRecentQuery(query)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                pushRecentQuery(query);
+              }
+              if (event.key === "Escape") {
+                if (!query) return;
+                event.preventDefault();
+                setQuery("");
+              }
+            }}
             placeholder="Search threads, spaces, collections, files, and tasks"
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />

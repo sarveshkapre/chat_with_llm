@@ -3,6 +3,11 @@ import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
 
+export type NormalizedQuery = {
+  normalized: string;
+  tokens: string[];
+};
+
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -11,6 +16,66 @@ const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
 
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
+}
+
+export function normalizeQuery(raw: string): NormalizedQuery {
+  const normalized = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  if (!normalized) return { normalized: "", tokens: [] };
+  const tokens: string[] = [];
+  const seen = new Set<string>();
+  for (const token of normalized.split(" ")) {
+    const trimmed = token.trim();
+    if (!trimmed) continue;
+    if (seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    tokens.push(trimmed);
+  }
+  return { normalized, tokens };
+}
+
+export function matchesQuery(parts: string[], query: NormalizedQuery): boolean {
+  if (!query.normalized) return true;
+  const combined = parts
+    .filter(Boolean)
+    .join("\n")
+    .toLowerCase();
+  if (!combined) return false;
+  if (combined.includes(query.normalized)) return true;
+  if (query.tokens.length <= 1) {
+    return query.tokens.length === 1 ? combined.includes(query.tokens[0]) : true;
+  }
+  // Multi-word query: treat as phrase OR all-tokens (across all fields).
+  return query.tokens.every((token) => combined.includes(token));
+}
+
+export type WeightedField = {
+  text: string;
+  weight: number;
+};
+
+export function computeRelevanceScore(
+  fields: WeightedField[],
+  query: NormalizedQuery
+): number {
+  if (!query.normalized) return 0;
+  let score = 0;
+
+  for (const field of fields) {
+    if (!field.text) continue;
+    const text = field.text.toLowerCase();
+    if (!text) continue;
+    const weight = Math.max(0, field.weight);
+
+    if (text === query.normalized) score += 20 * weight;
+    else if (text.startsWith(query.normalized)) score += 12 * weight;
+    else if (text.includes(query.normalized)) score += 8 * weight;
+
+    for (const token of query.tokens) {
+      if (text.includes(token)) score += 1 * weight;
+    }
+  }
+
+  return score;
 }
 
 export function applyTimelineWindow(
