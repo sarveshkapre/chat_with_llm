@@ -30,6 +30,25 @@ export type ParsedUnifiedSearchQuery = {
   operators: UnifiedSearchOperators;
 };
 
+export type ThreadMatchBadge =
+  | "title"
+  | "question"
+  | "tag"
+  | "space"
+  | "note"
+  | "citation"
+  | "answer";
+
+export type ThreadMatchInputs = {
+  title?: string | null;
+  question?: string | null;
+  answer?: string | null;
+  tags?: string[] | null;
+  spaceName?: string | null;
+  note?: string | null;
+  citationsText?: string | null;
+};
+
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -182,6 +201,36 @@ export function matchesQuery(parts: string[], query: NormalizedQuery): boolean {
   }
   // Multi-word query: treat as phrase OR all-tokens (across all fields).
   return query.tokens.every((token) => combined.includes(token));
+}
+
+export function computeThreadMatchBadges(
+  input: ThreadMatchInputs,
+  query: NormalizedQuery
+): ThreadMatchBadge[] {
+  if (!query.normalized && query.tokens.length === 0) return [];
+
+  const matchesField = (value?: string | null) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return false;
+    const lowered = trimmed.toLowerCase();
+    if (query.normalized && lowered.includes(query.normalized)) return true;
+    return query.tokens.some((token) => token && lowered.includes(token));
+  };
+
+  const badges: ThreadMatchBadge[] = [];
+
+  const title = input.title?.trim();
+  const question = input.question?.trim();
+  if (title && matchesField(title)) badges.push("title");
+  else if (question && matchesField(question)) badges.push("question");
+
+  if ((input.tags ?? []).some((tag) => matchesField(tag))) badges.push("tag");
+  if (matchesField(input.spaceName)) badges.push("space");
+  if (matchesField(input.note)) badges.push("note");
+  if (matchesField(input.citationsText)) badges.push("citation");
+  if (matchesField(input.answer)) badges.push("answer");
+
+  return badges;
 }
 
 export type WeightedField = {

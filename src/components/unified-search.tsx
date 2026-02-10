@@ -19,6 +19,7 @@ import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
   computeRelevanceScore,
+  computeThreadMatchBadges,
   matchesQuery,
   parseUnifiedSearchQuery,
   parseStored,
@@ -47,6 +48,16 @@ const FILES_KEY = "signal-files-v1";
 const TASKS_KEY = "signal-tasks-v1";
 const NOTES_KEY = "signal-notes-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
+
+const THREAD_BADGE_LABELS: Record<string, string> = {
+  title: "Title",
+  question: "Question",
+  tag: "Tag",
+  space: "Space",
+  note: "Note",
+  citation: "Citation",
+  answer: "Answer",
+};
 
 export default function UnifiedSearch() {
   const [query, setQuery] = useState("");
@@ -1027,6 +1038,21 @@ export default function UnifiedSearch() {
                   {topThreadResults.length ? (
                     topThreadResults.map((thread) => {
                       const snippet = buildThreadSnippet(thread);
+                      const citationText = thread.citations
+                        .map((citation) => `${citation.title} ${citation.url}`)
+                        .join(" ");
+                      const badges = computeThreadMatchBadges(
+                        {
+                          title: thread.title,
+                          question: thread.question,
+                          answer: thread.answer,
+                          tags: thread.tags,
+                          spaceName: thread.spaceName,
+                          note: notes[thread.id] ?? "",
+                          citationsText: citationText,
+                        },
+                        queryInfo
+                      );
                       return (
                         <Link
                           key={`top-thread-${thread.id}`}
@@ -1040,6 +1066,23 @@ export default function UnifiedSearch() {
                             <p className="mt-1 line-clamp-2 text-[11px] text-signal-muted">
                               {renderHighlighted(snippet)}
                             </p>
+                          ) : null}
+                          {badges.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {badges.slice(0, 3).map((badge) => (
+                                <span
+                                  key={`top-thread-${thread.id}-badge-${badge}`}
+                                  className="rounded-full border border-white/10 bg-black/20 px-2 py-[2px] text-[10px] text-signal-muted"
+                                >
+                                  {THREAD_BADGE_LABELS[badge] ?? badge}
+                                </span>
+                              ))}
+                              {badges.length > 3 ? (
+                                <span className="text-[10px] text-signal-muted">
+                                  +{badges.length - 3}
+                                </span>
+                              ) : null}
+                            </div>
                           ) : null}
                         </Link>
                       );
@@ -1278,6 +1321,21 @@ export default function UnifiedSearch() {
                     {shownThreads.map((thread) => {
                       const snippet = buildThreadSnippet(thread);
                       const selected = activeSelectedThreadIds.includes(thread.id);
+                      const citationText = thread.citations
+                        .map((citation) => `${citation.title} ${citation.url}`)
+                        .join(" ");
+                      const badges = computeThreadMatchBadges(
+                        {
+                          title: thread.title,
+                          question: thread.question,
+                          answer: thread.answer,
+                          tags: thread.tags,
+                          spaceName: thread.spaceName,
+                          note: notes[thread.id] ?? "",
+                          citationsText: citationText,
+                        },
+                        queryInfo
+                      );
                       return (
                         <div
                           key={thread.id}
@@ -1329,6 +1387,23 @@ export default function UnifiedSearch() {
                             {thread.favorite ? " · favorite" : ""}
                             {thread.archived ? " · archived" : ""}
                           </p>
+                          {badges.length ? (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {badges.slice(0, 4).map((badge) => (
+                                <span
+                                  key={`thread-${thread.id}-badge-${badge}`}
+                                  className="rounded-full border border-white/10 bg-black/20 px-2 py-[2px] text-[10px] text-signal-muted"
+                                >
+                                  {THREAD_BADGE_LABELS[badge] ?? badge}
+                                </span>
+                              ))}
+                              {badges.length > 4 ? (
+                                <span className="text-[10px] text-signal-muted">
+                                  +{badges.length - 4}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : null}
                           <div className="mt-2">
                             <label className="text-[11px] text-signal-muted">
                               Space

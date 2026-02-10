@@ -3,6 +3,7 @@ import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
   computeRelevanceScore,
+  computeThreadMatchBadges,
   matchesQuery,
   normalizeQuery,
   parseUnifiedSearchQuery,
@@ -166,6 +167,47 @@ describe("computeRelevanceScore", () => {
     const includes = computeRelevanceScore([{ text: "beta alpha gamma", weight: 1 }], query);
     expect(exact).toBeGreaterThan(prefix);
     expect(prefix).toBeGreaterThan(includes);
+  });
+});
+
+describe("computeThreadMatchBadges", () => {
+  it("returns badges for fields that contain the query (phrase or token hits)", () => {
+    const query = normalizeQuery("deep work");
+    const badges = computeThreadMatchBadges(
+      {
+        title: "Deep work notes",
+        question: "ignored",
+        answer: "This is about focused sessions.",
+        tags: ["alpha", "work"],
+        spaceName: "Personal",
+        note: "Remember Deep Work chapter 2",
+        citationsText: "Deep Work https://example.com",
+      },
+      query
+    );
+    expect(badges).toEqual(["title", "tag", "note", "citation"]);
+  });
+
+  it("falls back to question badge when there is no title", () => {
+    const query = normalizeQuery("roadmap");
+    const badges = computeThreadMatchBadges(
+      {
+        title: null,
+        question: "Product roadmap review",
+        answer: "",
+        tags: [],
+      },
+      query
+    );
+    expect(badges).toEqual(["question"]);
+  });
+
+  it("returns an empty list for an empty query", () => {
+    const badges = computeThreadMatchBadges(
+      { title: "Hello", question: "Hello", answer: "Hello" },
+      normalizeQuery("")
+    );
+    expect(badges).toEqual([]);
   });
 });
 
