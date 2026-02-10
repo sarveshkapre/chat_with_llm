@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AnswerResponse } from "@/lib/types/answer";
+import { readStoredJson } from "@/lib/storage";
 
 const STORAGE_KEY = "signal-history-v2";
 
@@ -12,14 +13,9 @@ export default function ReportView() {
     if (typeof window === "undefined") return null;
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id");
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored || !id) return null;
-    try {
-      const threads = JSON.parse(stored) as AnswerResponse[];
-      return threads.find((thread) => thread.id === id) ?? null;
-    } catch {
-      return null;
-    }
+    if (!id) return null;
+    const threads = readStoredJson<AnswerResponse[]>(STORAGE_KEY, []);
+    return threads.find((thread) => thread.id === id) ?? null;
   }, []);
 
   useEffect(() => {

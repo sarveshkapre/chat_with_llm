@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Collection } from "@/lib/types/collection";
 import type { AnswerResponse } from "@/lib/types/answer";
 import { nanoid } from "nanoid";
+import { readStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -19,25 +20,11 @@ const THREADS_KEY = "signal-history-v2";
 
 export default function CollectionsView() {
   const [collections, setCollections] = useState<Collection[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(COLLECTIONS_KEY);
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored) as Collection[];
-    } catch {
-      return [];
-    }
+    return readStoredJson<Collection[]>(COLLECTIONS_KEY, []);
   });
 
   const [threads, setThreads] = useState<Thread[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(THREADS_KEY);
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored) as Thread[];
-    } catch {
-      return [];
-    }
+    return readStoredJson<Thread[]>(THREADS_KEY, []);
   });
 
   const [collectionName, setCollectionName] = useState("");

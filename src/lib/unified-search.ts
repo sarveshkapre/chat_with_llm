@@ -1,4 +1,5 @@
 import type { Space } from "@/lib/types/space";
+import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
 
@@ -9,14 +10,7 @@ const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
 };
 
 export function parseStored<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  return readStoredJson(key, fallback);
 }
 
 export function applyTimelineWindow(

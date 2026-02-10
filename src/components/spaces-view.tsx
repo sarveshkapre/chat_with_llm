@@ -5,6 +5,7 @@ import Link from "next/link";
 import { nanoid } from "nanoid";
 import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
 import type { AnswerResponse } from "@/lib/types/answer";
+import { readStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -82,56 +83,28 @@ function sourcePolicyLabel(policy: SpaceSourcePolicy) {
 
 export default function SpacesView() {
   const [spaces, setSpaces] = useState<Space[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(SPACES_KEY);
-    if (!stored) return [];
-    try {
-      const parsed = JSON.parse(stored) as Space[];
-      return parsed.map((space) => ({
-        ...space,
-        preferredModel:
-          normalizeRequestModel(space.preferredModel) === "auto"
-            ? null
-            : normalizeRequestModel(space.preferredModel),
-        sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
-      }));
-    } catch {
-      return [];
-    }
+    const parsed = readStoredJson<Space[]>(SPACES_KEY, []);
+    return parsed.map((space) => ({
+      ...space,
+      preferredModel:
+        normalizeRequestModel(space.preferredModel) === "auto"
+          ? null
+          : normalizeRequestModel(space.preferredModel),
+      sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
+    }));
   });
   const [threads] = useState<Thread[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(THREADS_KEY);
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored) as Thread[];
-    } catch {
-      return [];
-    }
+    return readStoredJson<Thread[]>(THREADS_KEY, []);
   });
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() => {
     if (typeof window === "undefined") return null;
     return localStorage.getItem(ACTIVE_SPACE_KEY);
   });
   const [archivedSpaces, setArchivedSpaces] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = localStorage.getItem(ARCHIVED_SPACES_KEY);
-    if (!stored) return [];
-    try {
-      return JSON.parse(stored) as string[];
-    } catch {
-      return [];
-    }
+    return readStoredJson<string[]>(ARCHIVED_SPACES_KEY, []);
   });
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() => {
-    if (typeof window === "undefined") return {};
-    const stored = localStorage.getItem(SPACE_TAGS_KEY);
-    if (!stored) return {};
-    try {
-      return JSON.parse(stored) as Record<string, string[]>;
-    } catch {
-      return {};
-    }
+    return readStoredJson<Record<string, string[]>>(SPACE_TAGS_KEY, {});
   });
   const [spaceTagDrafts, setSpaceTagDrafts] = useState<Record<string, string>>(
     {}

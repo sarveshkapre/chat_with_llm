@@ -13,6 +13,7 @@ import type { Task, TaskCadence } from "@/lib/types/task";
 import type { LibraryFile } from "@/lib/types/file";
 import type { Collection } from "@/lib/types/collection";
 import { cn } from "@/lib/utils";
+import { readStoredJson } from "@/lib/storage";
 import {
   canReadAsText,
   readFileAsText,
@@ -362,143 +363,58 @@ export default function ChatApp() {
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as Thread[];
-        const normalized = parsed.map((thread) => normalizeThread(thread));
-        const pruned = normalized.filter((thread) => !isThreadExpired(thread));
-        const removed = normalized.length - pruned.length;
-        if (removed > 0) {
-          setNotice(`Removed ${removed} expired thread${removed === 1 ? "" : "s"}.`);
-        }
-        setThreads(pruned);
-      } catch {
-        setThreads([]);
-      }
+    const parsedThreads = readStoredJson<Thread[]>(STORAGE_KEY, []);
+    const normalizedThreads = parsedThreads.map((thread) => normalizeThread(thread));
+    const prunedThreads = normalizedThreads.filter(
+      (thread) => !isThreadExpired(thread)
+    );
+    const removed = normalizedThreads.length - prunedThreads.length;
+    if (removed > 0) {
+      setNotice(`Removed ${removed} expired thread${removed === 1 ? "" : "s"}.`);
     }
+    setThreads(prunedThreads);
 
-    const spaceStore = localStorage.getItem(SPACES_KEY);
-    if (spaceStore) {
-      try {
-        const parsed = JSON.parse(spaceStore) as Space[];
-        const normalized = parsed.map((space) => ({
-          ...space,
-          preferredModel:
-            normalizeRequestModel(space.preferredModel) === "auto"
-              ? null
-              : normalizeRequestModel(space.preferredModel),
-          sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
-        }));
-        setSpaces(normalized);
-      } catch {
-        setSpaces([]);
-      }
-    }
+    const parsedSpaces = readStoredJson<Space[]>(SPACES_KEY, []);
+    setSpaces(
+      parsedSpaces.map((space) => ({
+        ...space,
+        preferredModel:
+          normalizeRequestModel(space.preferredModel) === "auto"
+            ? null
+            : normalizeRequestModel(space.preferredModel),
+        sourcePolicy: normalizeSourcePolicy(space.sourcePolicy),
+      }))
+    );
 
-    const taskStore = localStorage.getItem(TASKS_KEY);
-    if (taskStore) {
-      try {
-        const parsed = JSON.parse(taskStore) as Task[];
-        setTasks(parsed);
-      } catch {
-        setTasks([]);
-      }
-    }
+    setTasks(readStoredJson<Task[]>(TASKS_KEY, []));
+    setLibraryFiles(readStoredJson<LibraryFile[]>(FILES_KEY, []));
+    setCollections(readStoredJson<Collection[]>(COLLECTIONS_KEY, []));
+    setNotes(readStoredJson<Record<string, string>>(NOTES_KEY, {}));
 
-    const fileStore = localStorage.getItem(FILES_KEY);
-    if (fileStore) {
-      try {
-        const parsed = JSON.parse(fileStore) as LibraryFile[];
-        setLibraryFiles(parsed);
-      } catch {
-        setLibraryFiles([]);
-      }
-    }
+    const parsedSearches = readStoredJson<typeof savedSearches>(SEARCHES_KEY, []);
+    setSavedSearches(
+      parsedSearches.map((item) => ({
+        ...item,
+        archivedOnly: item.archivedOnly ?? false,
+        spaceFilter: item.spaceFilter ?? "",
+      }))
+    );
 
-    const collectionStore = localStorage.getItem(COLLECTIONS_KEY);
-    if (collectionStore) {
-      try {
-        const parsed = JSON.parse(collectionStore) as Collection[];
-        setCollections(parsed);
-      } catch {
-        setCollections([]);
-      }
-    }
+    setPinnedSearchIds(readStoredJson<string[]>(PINNED_SEARCHES_KEY, []));
 
-    const notesStore = localStorage.getItem(NOTES_KEY);
-    if (notesStore) {
-      try {
-        const parsed = JSON.parse(notesStore) as Record<string, string>;
-        setNotes(parsed);
-      } catch {
-        setNotes({});
-      }
-    }
+    const parsedRecent = readStoredJson<typeof recentFilters>(RECENT_FILTERS_KEY, []);
+    setRecentFilters(
+      parsedRecent.map((item) => ({
+        ...item,
+        pinned: item.pinned ?? false,
+      }))
+    );
 
-    const searchStore = localStorage.getItem(SEARCHES_KEY);
-    if (searchStore) {
-      try {
-        const parsed = JSON.parse(searchStore) as typeof savedSearches;
-        const normalized = parsed.map((item) => ({
-          ...item,
-          archivedOnly: item.archivedOnly ?? false,
-          spaceFilter: item.spaceFilter ?? "",
-        }));
-        setSavedSearches(normalized);
-      } catch {
-        setSavedSearches([]);
-      }
-    }
-
-    const pinnedSearchStore = localStorage.getItem(PINNED_SEARCHES_KEY);
-    if (pinnedSearchStore) {
-      try {
-        const parsed = JSON.parse(pinnedSearchStore) as string[];
-        setPinnedSearchIds(parsed);
-      } catch {
-        setPinnedSearchIds([]);
-      }
-    }
-
-    const recentStore = localStorage.getItem(RECENT_FILTERS_KEY);
-    if (recentStore) {
-      try {
-        const parsed = JSON.parse(recentStore) as typeof recentFilters;
-        const normalized = parsed.map((item) => ({
-          ...item,
-          pinned: item.pinned ?? false,
-        }));
-        setRecentFilters(normalized);
-      } catch {
-        setRecentFilters([]);
-      }
-    }
-
-    const archivedSpaceStore = localStorage.getItem(ARCHIVED_SPACES_KEY);
-    if (archivedSpaceStore) {
-      try {
-        const parsed = JSON.parse(archivedSpaceStore) as string[];
-        setArchivedSpaces(parsed);
-      } catch {
-        setArchivedSpaces([]);
-      }
-    }
-
-    const spaceTagsStore = localStorage.getItem(SPACE_TAGS_KEY);
-    if (spaceTagsStore) {
-      try {
-        const parsed = JSON.parse(spaceTagsStore) as Record<string, string[]>;
-        setSpaceTags(parsed);
-      } catch {
-        setSpaceTags({});
-      }
-    }
+    setArchivedSpaces(readStoredJson<string[]>(ARCHIVED_SPACES_KEY, []));
+    setSpaceTags(readStoredJson<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
 
     const active = localStorage.getItem(ACTIVE_SPACE_KEY);
-    if (active) {
-      setActiveSpaceId(active);
-    }
+    if (active) setActiveSpaceId(active);
   }, []);
 
   useEffect(() => {
