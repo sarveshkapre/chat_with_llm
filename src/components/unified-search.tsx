@@ -162,6 +162,9 @@ export default function UnifiedSearch() {
       setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
       setTasks(parseStored<Task[]>(TASKS_KEY, []));
       setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
+      setSavedSearches(
+        parseStored<UnifiedSavedSearch[]>(SAVED_SEARCH_KEY, [])
+      );
       setVerbatim(parseStored<boolean>(VERBATIM_KEY, false));
 
       // Cross-tab or focus reloads can remove threads; keep selection consistent with reality.
@@ -183,6 +186,7 @@ export default function UnifiedSearch() {
           FILES_KEY,
           TASKS_KEY,
           RECENT_SEARCH_KEY,
+          SAVED_SEARCH_KEY,
           VERBATIM_KEY,
         ].includes(event.key)
       ) {
@@ -1058,7 +1062,11 @@ export default function UnifiedSearch() {
               <span className="text-signal-text">
                 type:threads|spaces|collections|files|tasks
               </span>
-              , <span className="text-signal-text">space:&quot;Name&quot;</span>,{" "}
+              ,{" "}
+              <span className="text-signal-text">
+                space:&quot;Name contains&quot;
+              </span>
+              ,{" "}
               <span className="text-signal-text">spaceId:abc</span>,{" "}
               <span className="text-signal-text">tag:foo</span>,{" "}
               <span className="text-signal-text">-tag:foo</span>,{" "}
@@ -1066,7 +1074,7 @@ export default function UnifiedSearch() {
               <span className="text-signal-text">-has:note</span>,{" "}
               <span className="text-signal-text">has:citation</span>,{" "}
               <span className="text-signal-text">-has:citation</span>,{" "}
-              <span className="text-signal-text">verbatim:true</span>
+              <span className="text-signal-text">verbatim:true|false</span>
             </span>
             <div className="flex items-center gap-2">
               <button

@@ -7,6 +7,14 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Cycle 9 (2026-02-10) Plan
+- [ ] P1: Unified Search performance pass for large libraries: precompute per-item normalized search blobs (lowercased combined text), tag sets, and citation joins; skip relevance scoring when sort is not `relevance` (or query is empty); reduce per-keystroke allocations. (Score: impact=high effort=med risk=low-med confidence=high)
+- [ ] P1: Unified Search cross-tab consistency: reload saved searches (`signal-unified-saved-v1`) during focus/storage refresh and include it in the storage-event key allowlist. (Score: impact=med effort=low risk=low confidence=high)
+- [ ] P2: Unified Search export: include saved searches in Markdown export and add a dedicated "Export saved searches" affordance. (Score: impact=low-med effort=low risk=low confidence=high)
+- [ ] P3: Unified Search operators help: clarify `space:` (contains) vs `spaceId:` (exact), document `verbatim:false`, and add one or two copy-ready examples. (Score: impact=low-med effort=low risk=low confidence=high)
+- [ ] P3: Tests: add regression coverage for prepared-text query matching and relevance short-circuit behavior. (Score: impact=low effort=low risk=low confidence=high)
+- [ ] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Score: impact=med effort=med risk=med confidence=med)
+
 ### Cycle 8 (2026-02-10) Plan
 - [ ] P3: Unified Search performance pass for large libraries: cache normalized fields per item (threads/spaces/collections/files/tasks) and avoid recomputing snippets/citation joins when query changes. (Score: impact=med effort=med-high risk=med confidence=med)
 - [ ] P4: Unified Search saved searches export to Markdown (and include in existing export surfaces). (Score: impact=low-med effort=low risk=low confidence=high)
