@@ -100,7 +100,14 @@ async function readNdjsonUntilDone(response) {
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const event = JSON.parse(trimmed);
+      let event;
+      try {
+        event = JSON.parse(trimmed);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unknown JSON parse error";
+        throw new Error(`Failed to parse NDJSON event (${message}): ${trimmed}`);
+      }
       events.push(event);
       if (event.type === "done") {
         return events;
@@ -109,6 +116,10 @@ async function readNdjsonUntilDone(response) {
         throw new Error(`Stream returned error: ${event.message ?? "unknown"}`);
       }
     }
+  }
+
+  if (buffer.trim()) {
+    throw new Error(`Stream ended with trailing partial line: ${buffer.trim()}`);
   }
 
   return events;
@@ -125,6 +136,9 @@ async function main() {
     PROVIDER: provider,
     PORT: String(port),
   };
+  if (provider === "mock" && !env.MOCK_STREAM_DELAY_MS) {
+    env.MOCK_STREAM_DELAY_MS = "0";
+  }
 
   if (!skipBuild) {
     await exec(npmBin(), ["run", "build"], { env });

@@ -7,16 +7,16 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] (Selected 2026-02-10) P1: Add a "Data tools" panel in Library: export raw local data (all `signal-*` keys) + safe reset that forces an export first.
-- [ ] (Selected 2026-02-10) P1: Add a storage usage indicator for `signal-*` localStorage keys (approx bytes + warn near quota).
-- [ ] (Selected 2026-02-10) P2: Add integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider) to lock response shapes + validation errors.
-- [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection.
-- [ ] P3: Document end-user recovery steps for corruption backups (`signal-corrupt-*`) and the new raw export / reset flows.
-- [ ] P3: Follow up on server-backed persistence planning for notes/threads beyond localStorage (ADR + migration sketch).
-- [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows.
-- [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset).
-- [ ] P3: Add an e2e-style smoke assertion for NDJSON stream framing (no partial JSON lines) using `npm run smoke:mock`.
-- [ ] P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo.
+- [ ] (Selected 2026-02-10) P1: Add a "Data tools" panel in Library: export raw local data (all `signal-*` keys) + safe reset that forces an export first. (Score: impact=high effort=small risk=low confidence=high)
+- [ ] (Selected 2026-02-10) P1: Add a storage usage indicator for `signal-*` localStorage keys (approx bytes + warn near quota). (Score: impact=med effort=small risk=low confidence=high)
+- [ ] (Selected 2026-02-10) P2: Add integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider) to lock response shapes + validation errors. (Score: impact=high effort=small risk=low confidence=high)
+- [ ] (Selected 2026-02-10) P2: Make mock streaming delay configurable so tests/smoke can run fast without changing prod behavior. (Score: impact=med effort=small risk=low confidence=high)
+- [ ] (Selected 2026-02-10) P3: Harden `npm run smoke:mock` NDJSON checks to fail on a trailing partial JSON line (stream framing). (Score: impact=med effort=small risk=low confidence=high)
+- [ ] (Selected 2026-02-10) P3: Document end-user recovery steps for corruption backups (`signal-corrupt-*`) and the new raw export/reset flows. (Score: impact=med effort=small risk=low confidence=med)
+- [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection. (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows. (Score: impact=low effort=med risk=low confidence=med)
+- [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset). (Score: impact=med effort=med risk=low confidence=med)
+- [ ] P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo. (Score: impact=low effort=med risk=med confidence=med)
 
 ## Implemented
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).

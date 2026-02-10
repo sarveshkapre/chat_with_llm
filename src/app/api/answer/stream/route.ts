@@ -91,6 +91,7 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   const provider = process.env.PROVIDER ?? "auto";
   const openaiKey = process.env.OPENAI_API_KEY;
+  const mockDelayMs = Number(process.env.MOCK_STREAM_DELAY_MS ?? "15") || 0;
 
   const stream = new ReadableStream({
     start: async (controller) => {
@@ -114,7 +115,9 @@ export async function POST(request: Request) {
           const words = response.answer.split(" ");
           for (const word of words) {
             write({ type: "delta", text: `${word} ` });
-            await new Promise((resolve) => setTimeout(resolve, 15));
+            if (mockDelayMs > 0) {
+              await new Promise((resolve) => setTimeout(resolve, mockDelayMs));
+            }
           }
 
           const sanitized: AnswerResponse = {
