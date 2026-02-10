@@ -27,6 +27,11 @@ import {
   stripAttachmentText,
 } from "@/lib/attachments";
 import { searchLibraryFiles } from "@/lib/file-search";
+import {
+  captureDeletedAnchors,
+  restoreDeletedAnchors,
+  type DeletedAnchor,
+} from "@/lib/library-undo";
 import { Document, HeadingLevel, Packer, Paragraph } from "docx";
 import { nanoid } from "nanoid";
 
@@ -50,6 +55,22 @@ type StreamMessage =
   | { type: "delta"; text: string }
   | { type: "done"; payload: AnswerResponse }
   | { type: "error"; message: string };
+
+type UndoToast =
+  | {
+      kind: "bulk-delete";
+      message: string;
+      deleted: DeletedAnchor<Thread>[];
+      selectedIds: string[];
+      currentId: string | null;
+    }
+  | {
+      kind: "bulk-archive";
+      message: string;
+      previousArchived: Record<string, boolean>;
+      selectedIds: string[];
+      currentId: string | null;
+    };
 
 const MODES: { id: AnswerMode; label: string; blurb: string }[] = [
   {
@@ -364,6 +385,7 @@ export default function ChatApp() {
   const [dataToolsExportedAt, setDataToolsExportedAt] = useState<string | null>(
     null
   );
+  const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
   const [rewriteModel, setRewriteModel] = useState<(typeof REWRITE_MODELS)[number]>(
@@ -558,6 +580,12 @@ export default function ChatApp() {
     const timeout = window.setTimeout(() => setNotice(null), 3200);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (!undoToast) return;
+    const timeout = window.setTimeout(() => setUndoToast(null), 8000);
+    return () => window.clearTimeout(timeout);
+  }, [undoToast]);
 
   useEffect(() => {
     if (!loading || mode !== "research") {
@@ -1335,17 +1363,30 @@ ${answer.citations
 
   function bulkArchive(next: boolean) {
     if (!selectedThreadIds.length) return;
+    const selectedIds = [...selectedThreadIds];
+    const previousArchived: Record<string, boolean> = {};
+    threads.forEach((thread) => {
+      if (selectedIds.includes(thread.id)) {
+        previousArchived[thread.id] = Boolean(thread.archived);
+      }
+    });
     setThreads((prev) =>
       prev.map((thread) =>
-        selectedThreadIds.includes(thread.id)
+        selectedIds.includes(thread.id)
           ? { ...thread, archived: next }
           : thread
       )
     );
-    if (current && selectedThreadIds.includes(current.id)) {
+    if (current && selectedIds.includes(current.id)) {
       setCurrent((prev) => (prev ? { ...prev, archived: next } : prev));
     }
-    setNotice(next ? "Threads archived." : "Threads unarchived.");
+    setUndoToast({
+      kind: "bulk-archive",
+      message: next ? "Threads archived." : "Threads unarchived.",
+      previousArchived,
+      selectedIds,
+      currentId: current?.id ?? null,
+    });
   }
 
   function togglePin(id: string) {
@@ -2002,14 +2043,23 @@ ${answer.citations
 
   function bulkDeleteThreads() {
     if (!selectedThreadIds.length) return;
+    const selectedIds = [...selectedThreadIds];
+    const deleted = captureDeletedAnchors(threads, selectedIds);
+    const currentId = current?.id ?? null;
     setThreads((prev) =>
-      prev.filter((thread) => !selectedThreadIds.includes(thread.id))
+      prev.filter((thread) => !selectedIds.includes(thread.id))
     );
-    if (current && selectedThreadIds.includes(current.id)) {
+    if (current && selectedIds.includes(current.id)) {
       setCurrent(null);
     }
     setSelectedThreadIds([]);
-    setNotice("Selected threads deleted.");
+    setUndoToast({
+      kind: "bulk-delete",
+      message: "Selected threads deleted.",
+      deleted,
+      selectedIds,
+      currentId,
+    });
   }
 
   function bulkAssignSpace() {
@@ -4747,6 +4797,49 @@ ${answer.citations
         Signal Search is a free-tier answer engine with custom branding. Live
         search and advanced tools unlock when you add a provider key.
       </footer>
+
+      {undoToast ? (
+        <div className="fixed bottom-20 right-6 flex max-w-xs items-center justify-between gap-3 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs text-emerald-100 shadow-xl">
+          <p className="min-w-0 flex-1 truncate">{undoToast.message}</p>
+          <button
+            onClick={() => {
+              const toast = undoToast;
+              setUndoToast(null);
+              if (toast.kind === "bulk-delete") {
+                setThreads((prev) => {
+                  const next = restoreDeletedAnchors(prev, toast.deleted);
+                  if (toast.currentId) {
+                    const match =
+                      next.find((thread) => thread.id === toast.currentId) ?? null;
+                    if (match) setCurrent(match);
+                  }
+                  return next;
+                });
+                setSelectedThreadIds(toast.selectedIds);
+                return;
+              }
+
+              setThreads((prev) =>
+                prev.map((thread) => {
+                  if (!(thread.id in toast.previousArchived)) return thread;
+                  return { ...thread, archived: toast.previousArchived[thread.id] };
+                })
+              );
+              if (toast.currentId && toast.currentId in toast.previousArchived) {
+                setCurrent((prev) =>
+                  prev
+                    ? { ...prev, archived: toast.previousArchived[toast.currentId] }
+                    : prev
+                );
+              }
+              setSelectedThreadIds(toast.selectedIds);
+            }}
+            className="shrink-0 rounded-full border border-emerald-500/40 px-3 py-1 text-[11px] text-emerald-100 hover:bg-emerald-500/10"
+          >
+            Undo
+          </button>
+        </div>
+      ) : null}
 
       {notice ? (
         <div className="fixed bottom-6 right-6 rounded-2xl border border-white/10 bg-signal-surface/90 px-4 py-2 text-xs text-signal-text shadow-xl">
