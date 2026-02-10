@@ -15,6 +15,7 @@ import {
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
+  topKSearchResults,
   toggleVisibleSelection,
 } from "@/lib/unified-search";
 
@@ -515,5 +516,67 @@ describe("sortSearchResults", () => {
     const scoreOf = (item: { id: string }) => (item.id === "a" ? 2 : item.id === "b" ? 2 : 1);
     const sorted = sortSearchResults(items, "relevance", query, scoreOf);
     expect(sorted.map((item) => item.id)).toEqual(["b", "a", "c"]);
+  });
+});
+
+describe("topKSearchResults", () => {
+  it("returns empty list when limit is zero", () => {
+    const items = [{ id: "a", createdMs: 1 }];
+    expect(topKSearchResults(items, "newest", normalizeQuery(""), 0, () => 0)).toEqual([]);
+  });
+
+  it("matches full sort slice for newest/oldest", () => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      id: `t-${index}`,
+      createdMs: index % 2 === 0 ? index * 3 : index * 7,
+    }));
+    const limit = 7;
+
+    const newestTop = topKSearchResults(items, "newest", normalizeQuery(""), limit, () => 0);
+    const newestFull = sortSearchResults(items, "newest", normalizeQuery(""), () => 0).slice(
+      0,
+      limit
+    );
+    expect(newestTop.map((item) => item.id)).toEqual(newestFull.map((item) => item.id));
+
+    const oldestTop = topKSearchResults(items, "oldest", normalizeQuery(""), limit, () => 0);
+    const oldestFull = sortSearchResults(items, "oldest", normalizeQuery(""), () => 0).slice(
+      0,
+      limit
+    );
+    expect(oldestTop.map((item) => item.id)).toEqual(oldestFull.map((item) => item.id));
+  });
+
+  it("matches full sort slice for relevance (including newest tie-break)", () => {
+    const items = [
+      { id: "a", createdMs: 5 },
+      { id: "b", createdMs: 10 },
+      { id: "c", createdMs: 7 },
+      { id: "d", createdMs: 12 },
+      { id: "e", createdMs: 11 },
+    ];
+    const query = normalizeQuery("needle");
+    const scoreOf = (item: { id: string }) => {
+      if (item.id === "a") return 2;
+      if (item.id === "b") return 2;
+      if (item.id === "c") return 1;
+      if (item.id === "d") return 3;
+      return 3;
+    };
+    const limit = 3;
+    const top = topKSearchResults(items, "relevance", query, limit, scoreOf);
+    const full = sortSearchResults(items, "relevance", query, scoreOf).slice(0, limit);
+    expect(top.map((item) => item.id)).toEqual(full.map((item) => item.id));
+  });
+
+  it("falls back to newest when sorting by relevance with an empty query", () => {
+    const items = [
+      { id: "a", createdMs: 1 },
+      { id: "b", createdMs: 10 },
+      { id: "c", createdMs: 7 },
+    ];
+    const limit = 2;
+    const top = topKSearchResults(items, "relevance", normalizeQuery(""), limit, () => 0);
+    expect(top.map((item) => item.id)).toEqual(["b", "c"]);
   });
 });

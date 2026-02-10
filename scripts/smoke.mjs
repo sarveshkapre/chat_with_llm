@@ -171,6 +171,11 @@ async function main() {
       throw new Error("Home page did not contain expected title text");
     }
 
+    const searchHtml = await fetch(`${baseUrl}/search`).then((r) => r.text());
+    if (!searchHtml.includes("Unified Search") || !searchHtml.includes("Signal Search")) {
+      throw new Error("/search page did not contain expected Unified Search content");
+    }
+
     const answerBody = {
       question: "Smoke test: what is Signal Search?",
       mode: "quick",

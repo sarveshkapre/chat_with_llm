@@ -452,6 +452,148 @@ export function sortSearchResults<T extends { createdMs: number }>(
   return scored.map((entry) => entry.item);
 }
 
+type Compare<T> = (a: T, b: T) => number;
+
+class BinaryHeap<T> {
+  private readonly data: T[] = [];
+  private readonly compare: Compare<T>;
+
+  constructor(compare: Compare<T>) {
+    this.compare = compare;
+  }
+
+  size(): number {
+    return this.data.length;
+  }
+
+  peek(): T | undefined {
+    return this.data[0];
+  }
+
+  values(): T[] {
+    return [...this.data];
+  }
+
+  push(value: T) {
+    this.data.push(value);
+    this.bubbleUp(this.data.length - 1);
+  }
+
+  replaceTop(value: T) {
+    if (this.data.length === 0) {
+      this.data.push(value);
+      return;
+    }
+    this.data[0] = value;
+    this.bubbleDown(0);
+  }
+
+  private bubbleUp(index: number) {
+    let i = index;
+    while (i > 0) {
+      const parent = (i - 1) >> 1;
+      if (this.compare(this.data[i], this.data[parent]) >= 0) break;
+      const tmp = this.data[i];
+      this.data[i] = this.data[parent];
+      this.data[parent] = tmp;
+      i = parent;
+    }
+  }
+
+  private bubbleDown(index: number) {
+    let i = index;
+    const length = this.data.length;
+    while (true) {
+      const left = i * 2 + 1;
+      if (left >= length) return;
+      const right = left + 1;
+      let best = left;
+      if (right < length && this.compare(this.data[right], this.data[left]) < 0) {
+        best = right;
+      }
+      if (this.compare(this.data[best], this.data[i]) >= 0) return;
+      const tmp = this.data[i];
+      this.data[i] = this.data[best];
+      this.data[best] = tmp;
+      i = best;
+    }
+  }
+}
+
+function topKSorted<T>(items: readonly T[], limit: number, compareBest: Compare<T>): T[] {
+  if (limit <= 0) return [];
+  if (items.length <= limit) return [...items].sort(compareBest);
+
+  // Keep a heap of the current top-k, with the *worst* item at the root so
+  // we can cheaply decide whether a new candidate should be included.
+  const heap = new BinaryHeap<T>((a, b) => -compareBest(a, b));
+
+  for (const item of items) {
+    if (heap.size() < limit) {
+      heap.push(item);
+      continue;
+    }
+    const worst = heap.peek();
+    if (!worst) continue;
+    if (compareBest(item, worst) < 0) {
+      heap.replaceTop(item);
+    }
+  }
+
+  const result = heap.values();
+  result.sort(compareBest);
+  return result;
+}
+
+export function topKSearchResults<T extends { createdMs: number }>(
+  items: T[],
+  sortBy: SortBy,
+  query: NormalizedQuery,
+  limit: number,
+  scoreOf: (item: T) => number
+): T[] {
+  if (limit <= 0) return [];
+  if (items.length <= limit) {
+    return sortSearchResults(items, sortBy, query, scoreOf);
+  }
+
+  if (sortBy === "newest") {
+    return topKSorted(items, limit, (a, b) => b.createdMs - a.createdMs);
+  }
+  if (sortBy === "oldest") {
+    return topKSorted(items, limit, (a, b) => a.createdMs - b.createdMs);
+  }
+
+  // "Relevance" behaves like newest when there is no query.
+  if (!query.normalized) {
+    return topKSorted(items, limit, (a, b) => b.createdMs - a.createdMs);
+  }
+
+  type Scored = { item: T; score: number };
+  const compareBest: Compare<Scored> = (a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.item.createdMs - a.item.createdMs;
+  };
+  const heap = new BinaryHeap<Scored>((a, b) => -compareBest(a, b));
+
+  for (const item of items) {
+    const entry = { item, score: scoreOf(item) };
+    if (heap.size() < limit) {
+      heap.push(entry);
+      continue;
+    }
+    const worst = heap.peek();
+    if (!worst) continue;
+    if (compareBest(entry, worst) < 0) {
+      heap.replaceTop(entry);
+    }
+  }
+
+  const result = heap.values();
+  result.sort(compareBest);
+  return result.map((entry) => entry.item);
+}
+
 export function filterThreadEntries<
   T extends {
     thread: { createdAt?: string | null | undefined };

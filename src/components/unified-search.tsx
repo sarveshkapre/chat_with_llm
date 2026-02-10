@@ -30,6 +30,7 @@ import {
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
+  topKSearchResults,
   toggleVisibleSelection,
   type TimelineWindow,
   type SortBy,
@@ -593,8 +594,10 @@ export default function UnifiedSearch() {
     );
   }, [applyBulkAction, bulkSpaceId, spaces]);
 
-  const sortedThreads = useMemo<PreparedThread[]>(() => {
-    return sortSearchResults(filteredThreads, sortBy, matchQueryInfo, (entry) => {
+  const uiLimit = useMemo(() => Math.max(resultLimit, 3), [resultLimit]);
+
+  const scoreThreadEntry = useCallback(
+    (entry: PreparedThread) => {
       const thread = entry.thread;
       return computeRelevanceScore(
         [
@@ -608,11 +611,12 @@ export default function UnifiedSearch() {
         ],
         matchQueryInfo
       );
-    });
-  }, [filteredThreads, sortBy, matchQueryInfo]);
+    },
+    [matchQueryInfo]
+  );
 
-  const sortedSpaces = useMemo<PreparedSpace[]>(() => {
-    return sortSearchResults(filteredSpaces, sortBy, matchQueryInfo, (entry) =>
+  const scoreSpaceEntry = useCallback(
+    (entry: PreparedSpace) =>
       computeRelevanceScore(
         [
           { text: entry.space.name, weight: 8 },
@@ -620,34 +624,30 @@ export default function UnifiedSearch() {
           { text: entry.space.instructions ?? "", weight: 2 },
         ],
         matchQueryInfo
-      )
-    );
-  }, [filteredSpaces, sortBy, matchQueryInfo]);
+      ),
+    [matchQueryInfo]
+  );
 
-  const sortedCollections = useMemo<PreparedCollection[]>(() => {
-    return sortSearchResults(
-      filteredCollections,
-      sortBy,
-      matchQueryInfo,
-      (entry) =>
-        computeRelevanceScore([{ text: entry.collection.name, weight: 8 }], matchQueryInfo)
-    );
-  }, [filteredCollections, sortBy, matchQueryInfo]);
+  const scoreCollectionEntry = useCallback(
+    (entry: PreparedCollection) =>
+      computeRelevanceScore([{ text: entry.collection.name, weight: 8 }], matchQueryInfo),
+    [matchQueryInfo]
+  );
 
-  const sortedFiles = useMemo<PreparedFile[]>(() => {
-    return sortSearchResults(filteredFiles, sortBy, matchQueryInfo, (entry) =>
+  const scoreFileEntry = useCallback(
+    (entry: PreparedFile) =>
       computeRelevanceScore(
         [
           { text: entry.file.name, weight: 8 },
           { text: entry.file.text, weight: 1 },
         ],
         matchQueryInfo
-      )
-    );
-  }, [filteredFiles, sortBy, matchQueryInfo]);
+      ),
+    [matchQueryInfo]
+  );
 
-  const sortedTasks = useMemo<PreparedTask[]>(() => {
-    return sortSearchResults(filteredTasks, sortBy, matchQueryInfo, (entry) =>
+  const scoreTaskEntry = useCallback(
+    (entry: PreparedTask) =>
       computeRelevanceScore(
         [
           { text: entry.task.name, weight: 8 },
@@ -657,13 +657,39 @@ export default function UnifiedSearch() {
           { text: entry.task.cadence, weight: 1 },
         ],
         matchQueryInfo
-      )
+      ),
+    [matchQueryInfo]
+  );
+
+  const visibleThreads = useMemo<PreparedThread[]>(() => {
+    return topKSearchResults(filteredThreads, sortBy, matchQueryInfo, uiLimit, scoreThreadEntry);
+  }, [filteredThreads, sortBy, matchQueryInfo, uiLimit, scoreThreadEntry]);
+
+  const visibleSpaces = useMemo<PreparedSpace[]>(() => {
+    return topKSearchResults(filteredSpaces, sortBy, matchQueryInfo, uiLimit, scoreSpaceEntry);
+  }, [filteredSpaces, sortBy, matchQueryInfo, uiLimit, scoreSpaceEntry]);
+
+  const visibleCollections = useMemo<PreparedCollection[]>(() => {
+    return topKSearchResults(
+      filteredCollections,
+      sortBy,
+      matchQueryInfo,
+      uiLimit,
+      scoreCollectionEntry
     );
-  }, [filteredTasks, sortBy, matchQueryInfo]);
+  }, [filteredCollections, sortBy, matchQueryInfo, uiLimit, scoreCollectionEntry]);
+
+  const visibleFiles = useMemo<PreparedFile[]>(() => {
+    return topKSearchResults(filteredFiles, sortBy, matchQueryInfo, uiLimit, scoreFileEntry);
+  }, [filteredFiles, sortBy, matchQueryInfo, uiLimit, scoreFileEntry]);
+
+  const visibleTasks = useMemo<PreparedTask[]>(() => {
+    return topKSearchResults(filteredTasks, sortBy, matchQueryInfo, uiLimit, scoreTaskEntry);
+  }, [filteredTasks, sortBy, matchQueryInfo, uiLimit, scoreTaskEntry]);
 
   const shownThreads = useMemo(
-    () => sortedThreads.slice(0, resultLimit),
-    [sortedThreads, resultLimit]
+    () => visibleThreads.slice(0, resultLimit),
+    [visibleThreads, resultLimit]
   );
   const shownThreadIdSet = useMemo(
     () => new Set(shownThreads.map((entry) => entry.thread.id)),
@@ -675,20 +701,20 @@ export default function UnifiedSearch() {
       .length;
   }, [activeSelectedThreadIds, shownThreadIdSet]);
   const shownSpaces = useMemo(
-    () => sortedSpaces.slice(0, resultLimit),
-    [sortedSpaces, resultLimit]
+    () => visibleSpaces.slice(0, resultLimit),
+    [visibleSpaces, resultLimit]
   );
   const shownCollections = useMemo(
-    () => sortedCollections.slice(0, resultLimit),
-    [sortedCollections, resultLimit]
+    () => visibleCollections.slice(0, resultLimit),
+    [visibleCollections, resultLimit]
   );
   const shownFiles = useMemo(
-    () => sortedFiles.slice(0, resultLimit),
-    [sortedFiles, resultLimit]
+    () => visibleFiles.slice(0, resultLimit),
+    [visibleFiles, resultLimit]
   );
   const shownTasks = useMemo(
-    () => sortedTasks.slice(0, resultLimit),
-    [sortedTasks, resultLimit]
+    () => visibleTasks.slice(0, resultLimit),
+    [visibleTasks, resultLimit]
   );
 
   const setAllShownThreadSelection = useCallback(
@@ -704,14 +730,14 @@ export default function UnifiedSearch() {
     shownThreads.length > 0 &&
     shownThreads.every((entry) => activeSelectedThreadIds.includes(entry.thread.id));
 
-  const topThreadResults = useMemo(() => sortedThreads.slice(0, 3), [sortedThreads]);
-  const topSpaceResults = useMemo(() => sortedSpaces.slice(0, 3), [sortedSpaces]);
+  const topThreadResults = useMemo(() => visibleThreads.slice(0, 3), [visibleThreads]);
+  const topSpaceResults = useMemo(() => visibleSpaces.slice(0, 3), [visibleSpaces]);
   const topCollectionResults = useMemo(
-    () => sortedCollections.slice(0, 3),
-    [sortedCollections]
+    () => visibleCollections.slice(0, 3),
+    [visibleCollections]
   );
-  const topFileResults = useMemo(() => sortedFiles.slice(0, 3), [sortedFiles]);
-  const topTaskResults = useMemo(() => sortedTasks.slice(0, 3), [sortedTasks]);
+  const topFileResults = useMemo(() => visibleFiles.slice(0, 3), [visibleFiles]);
+  const topTaskResults = useMemo(() => visibleTasks.slice(0, 3), [visibleTasks]);
 
   const snippetFromText = useCallback(
     (text: string) => {
@@ -792,13 +818,29 @@ export default function UnifiedSearch() {
 
   function exportResults() {
     const exportedSavedSearches = sortSavedSearches(savedSearches);
+    const exportedThreads = sortSearchResults(
+      filteredThreads,
+      sortBy,
+      matchQueryInfo,
+      scoreThreadEntry
+    );
+    const exportedSpaces = sortSearchResults(filteredSpaces, sortBy, matchQueryInfo, scoreSpaceEntry);
+    const exportedCollections = sortSearchResults(
+      filteredCollections,
+      sortBy,
+      matchQueryInfo,
+      scoreCollectionEntry
+    );
+    const exportedFiles = sortSearchResults(filteredFiles, sortBy, matchQueryInfo, scoreFileEntry);
+    const exportedTasks = sortSearchResults(filteredTasks, sortBy, matchQueryInfo, scoreTaskEntry);
     const lines: string[] = [
       "# Signal Search Unified Export",
       "",
       `Query: ${query || "None"}`,
       `Filter: ${effectiveFilter}`,
       `Sort: ${sortBy}`,
-      `Result limit (UI): ${resultLimit}`,
+      `Result limit (UI display only): ${resultLimit}`,
+      `Export: includes all matches (not limited by UI result limit)`,
       "",
       `Threads: ${filteredThreads.length}`,
       `Spaces: ${filteredSpaces.length}`,
@@ -807,7 +849,7 @@ export default function UnifiedSearch() {
       `Tasks: ${filteredTasks.length}`,
       "",
       "## Threads",
-      ...sortedThreads.map((entry, index) => {
+      ...exportedThreads.map((entry, index) => {
         const thread = entry.thread;
         const title = thread.title ?? thread.question;
         return [
@@ -818,7 +860,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Spaces",
-      ...sortedSpaces.map((entry, index) => {
+      ...exportedSpaces.map((entry, index) => {
         const space = entry.space;
         const tags = entry.tags.length ? entry.tags.join(", ") : "None";
         return [
@@ -830,7 +872,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Collections",
-      ...sortedCollections.map((entry, index) => {
+      ...exportedCollections.map((entry, index) => {
         const collection = entry.collection;
         return [
           `${index + 1}. ${collection.name}`,
@@ -839,7 +881,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Files",
-      ...sortedFiles.map((entry, index) => {
+      ...exportedFiles.map((entry, index) => {
         const file = entry.file;
         return [
           `${index + 1}. ${file.name}`,
@@ -849,7 +891,7 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Tasks",
-      ...sortedTasks.map((entry, index) => {
+      ...exportedTasks.map((entry, index) => {
         const task = entry.task;
         return [
           `${index + 1}. ${task.name}`,
@@ -912,9 +954,24 @@ export default function UnifiedSearch() {
   }
 
   function exportCsv() {
+    const exportedThreads = sortSearchResults(
+      filteredThreads,
+      sortBy,
+      matchQueryInfo,
+      scoreThreadEntry
+    );
+    const exportedSpaces = sortSearchResults(filteredSpaces, sortBy, matchQueryInfo, scoreSpaceEntry);
+    const exportedCollections = sortSearchResults(
+      filteredCollections,
+      sortBy,
+      matchQueryInfo,
+      scoreCollectionEntry
+    );
+    const exportedFiles = sortSearchResults(filteredFiles, sortBy, matchQueryInfo, scoreFileEntry);
+    const exportedTasks = sortSearchResults(filteredTasks, sortBy, matchQueryInfo, scoreTaskEntry);
     const lines = [
       ["type", "title", "space", "mode", "created_at"].join(","),
-      ...sortedThreads.map((entry) => {
+      ...exportedThreads.map((entry) => {
         const thread = entry.thread;
         return [
           "thread",
@@ -924,7 +981,7 @@ export default function UnifiedSearch() {
           thread.createdAt,
         ].join(",");
       }),
-      ...sortedSpaces.map((entry) => {
+      ...exportedSpaces.map((entry) => {
         const space = entry.space;
         return [
           "space",
@@ -934,7 +991,7 @@ export default function UnifiedSearch() {
           space.createdAt,
         ].join(",");
       }),
-      ...sortedCollections.map((entry) => {
+      ...exportedCollections.map((entry) => {
         const collection = entry.collection;
         return [
           "collection",
@@ -944,7 +1001,7 @@ export default function UnifiedSearch() {
           collection.createdAt,
         ].join(",");
       }),
-      ...sortedFiles.map((entry) => {
+      ...exportedFiles.map((entry) => {
         const file = entry.file;
         return [
           "file",
@@ -954,7 +1011,7 @@ export default function UnifiedSearch() {
           file.addedAt,
         ].join(",");
       }),
-      ...sortedTasks.map((entry) => {
+      ...exportedTasks.map((entry) => {
         const task = entry.task;
         return [
           "task",
