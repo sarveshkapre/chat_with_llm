@@ -7,12 +7,12 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
-- [ ] P3: Add unified search snippet match highlighting (query/token emphasis) to improve scanability. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Improve unified search relevance scoring (better weighting for title/question exact matches + citations/notes tie-breakers) and add regression tests. (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add keyboard shortcuts for search surfaces (e.g., `/` focus search, `Esc` clear, `j/k` navigate). (Score: impact=med effort=med risk=low confidence=med)
 - [ ] P3: Add a debounced query input option for unified search to reduce re-render cost on large libraries. (Score: impact=low effort=low risk=low confidence=med)
 
 ## Implemented
+- 2026-02-10: Added unified search match highlighting for query/tokens across titles + snippets (`src/components/unified-search.tsx`, `src/lib/highlight.ts`) (commit `ce3429c`).
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
 - 2026-02-09: Enforced workflow policy checks (pinned action SHAs + explicit `permissions:`) via `npm run check:workflows` and CI step, with regression tests (`scripts/check-workflows.mjs`, `scripts/workflow-policy.mjs`, `tests/workflow-policy.test.ts`, `.github/workflows/ci.yml`) (commit `0a9bbdf`).
 - 2026-02-09: Migrated SARIF upload to CodeQL action v4 (`.github/workflows/scorecard.yml`) (commit `0a9bbdf`).

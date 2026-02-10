@@ -23,6 +23,7 @@
 - 2026-02-10 | Add Library bulk undo for archive/delete | Reduce fear of bulk actions and make local-first workflows safer | `npm test` (`tests/library-undo.test.ts`) + `npm run lint` | 661ff10 | high | trusted
 - 2026-02-10 | Add Data health warning + diagnostics bundle (full + redacted) | Make corruption/quota issues diagnosable without developer tools; improve support workflows | `npm run build` + `npm run smoke:mock` | 50055b4 | high | trusted
 - 2026-02-10 | Remove Next build warning from Node WebStorage by lazy-loading `docx` | Keep production builds clean and reduce baseline bundle weight; avoid SSR-side access to Node WebStorage globals | `npm run build` (no `--localstorage-file` warning) | 30a28ca | high | trusted
+- 2026-02-10 | Add unified search match highlighting (query/token emphasis) | Improve scanability of search results without changing ranking logic | `npm test` + `npm run lint` + `npm run build` | ce3429c | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -33,7 +34,6 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P3: Add unified search snippet match highlighting.
 - P3: Improve unified search relevance scoring and add regression tests.
 - P3: Add keyboard shortcuts for search surfaces.
 - P3: Add a debounced query input option for unified search.
@@ -64,6 +64,9 @@
 - 2026-02-10 | `npm run build` | `Compiled successfully` (no `--localstorage-file` warning) | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock ...` | pass
 - 2026-02-10 | `gh run list --limit 5 --branch main` | `CI/Scorecard in_progress for commit 30a28ca` | pass (untrusted)
+- 2026-02-10 | `npm test` | `Test Files 9 passed (9)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
