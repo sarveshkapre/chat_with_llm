@@ -62,6 +62,9 @@
 - 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=63391 deltaEvents=15` | pass
 - 2026-02-10 | `gh run watch 21873582273 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
+- 2026-02-10 | `npm test` | `Test Files 10 passed (10)` | pass
+- 2026-02-10 | `gh run watch 21873684101 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
+- 2026-02-10 | `gh run watch 21873684098 --exit-status` | `Scorecard ... completed success` | pass (untrusted)
 - 2026-02-10 | `npm test` | `Test Files 7 passed (7)` | pass
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` (warning observed: `--localstorage-file` path invalid) | pass
