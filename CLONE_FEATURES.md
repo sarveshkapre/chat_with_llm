@@ -7,12 +7,16 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+- [ ] (Selected 2026-02-10) P1: Add a "Data tools" panel in Library: export raw local data (all `signal-*` keys) + safe reset that forces an export first.
+- [ ] (Selected 2026-02-10) P1: Add a storage usage indicator for `signal-*` localStorage keys (approx bytes + warn near quota).
+- [ ] (Selected 2026-02-10) P2: Add integration-style tests for `/api/answer` and `/api/answer/stream` (mock provider) to lock response shapes + validation errors.
 - [ ] P2: Make Unified Search bulk actions resilient when selected threads disappear (cross-tab updates), and ensure bulk toolbar messages always reflect active selection.
+- [ ] P3: Document end-user recovery steps for corruption backups (`signal-corrupt-*`) and the new raw export / reset flows.
 - [ ] P3: Follow up on server-backed persistence planning for notes/threads beyond localStorage (ADR + migration sketch).
-- [ ] P3: Add lightweight localStorage “export raw data” debug action (threads/spaces/collections/files/tasks) to help users recover from corruption.
-- [ ] P3: Add a “safe reset” flow that clears local-only state but first forces a backup export (guardrail for support/debug).
-- [ ] P3: Add optional “storage usage” indicator to warn before localStorage quota issues (approximate bytes used per key).
-- [ ] P3: Add an integration-style mock-provider test that exercises `/api/answer` and `/api/answer/stream` response shapes.
+- [ ] P3: Add a "download diagnostics" bundle (export raw JSON + app/version + anonymized stats) for support workflows.
+- [ ] P3: Add "search health" self-check (detect corrupt JSON keys and prompt to export + reset).
+- [ ] P3: Add an e2e-style smoke assertion for NDJSON stream framing (no partial JSON lines) using `npm run smoke:mock`.
+- [ ] P3: Add local-only "undo" for destructive library bulk actions (delete/archive filtered) similar to Unified Search bulk undo.
 
 ## Implemented
 - 2026-02-09: Added repo maintainer contract + memory tracking files (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) (commit `5a36bd8`).
