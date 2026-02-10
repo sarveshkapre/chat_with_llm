@@ -37,6 +37,11 @@
 - LocalStorage remains the single source of truth; until server sync exists we need light-weight resiliency features (like snippets plus filtering) to avoid data lock-in.
 - Market scan (untrusted, links only): comparable products emphasize citations + “save to collections/spaces” workflows and quick iteration loops.
 - Sources: Perplexity (https://www.perplexity.ai) docs: thread retention + recovery (https://www.perplexity.ai/help-center/en/articles/12637451-where-did-my-threads-go), thread context + web toggle constraints (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Spaces source selection (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces); Kagi Assistant docs (https://help.kagi.com/kagi/ai/assistant.html); Elicit export docs (https://support.elicit.com/en/articles/1153857); Arc Search (https://arc.net/search).
+- Gap map (untrusted, synthesized):
+- Missing: accounts/auth + database-backed storage + secure sharing model; robust file ingestion (PDF/DOCX/etc) + retrieval.
+- Weak: durable background jobs (research/tasks) + notifications/timezones; user-facing recovery flows for local-only data.
+- Parity: citations + web toggle, multi-turn threads, exports, “save/organize” surfaces (collections/spaces).
+- Differentiator: local-first unified search with in-place bulk actions and workspace templates without forcing signup.
 
 ## Notes
 - This file is maintained by the autonomous clone loop.
