@@ -4,6 +4,7 @@ import {
   applyTimelineWindow,
   computeRelevanceScore,
   computeThreadMatchBadges,
+  matchesLoweredText,
   matchesQuery,
   normalizeQuery,
   parseUnifiedSearchQuery,
@@ -156,6 +157,31 @@ describe("matchesQuery", () => {
     expect(matchesQuery(["foo bar"], verbatimQuery)).toBe(true);
     expect(matchesQuery(["foo", "bar"], verbatimQuery)).toBe(false);
     expect(matchesQuery(["something else"], verbatimQuery)).toBe(false);
+  });
+});
+
+describe("matchesLoweredText", () => {
+  it("matches phrase queries against pre-lowered combined text", () => {
+    const query = normalizeQuery("Foo Bar");
+    expect(matchesLoweredText("start foo bar end", query)).toBe(true);
+  });
+
+  it("matches multi-word queries when all tokens exist", () => {
+    const query = normalizeQuery("foo bar");
+    expect(matchesLoweredText("has foo and bar", query)).toBe(true);
+  });
+
+  it("treats token-less queries as phrase-only matches", () => {
+    const verbatimQuery = { normalized: "foo bar", tokens: [] };
+    expect(matchesLoweredText("foo bar", verbatimQuery)).toBe(true);
+    expect(matchesLoweredText("foo\nbar", verbatimQuery)).toBe(false);
+  });
+
+  it("matchesQuery and matchesLoweredText agree for equivalent inputs", () => {
+    const query = normalizeQuery("Deep Work");
+    const parts = ["Deep", "work session"];
+    const lowered = parts.join("\n").toLowerCase();
+    expect(matchesQuery(parts, query)).toBe(matchesLoweredText(lowered, query));
   });
 });
 

@@ -20,7 +20,7 @@ import {
   applyTimelineWindow,
   computeRelevanceScore,
   computeThreadMatchBadges,
-  matchesQuery,
+  matchesLoweredText,
   parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
@@ -48,6 +48,49 @@ type Thread = AnswerResponse & {
   pinned?: boolean;
   favorite?: boolean;
   archived?: boolean;
+};
+
+type PreparedThread = {
+  thread: Thread;
+  createdMs: number;
+  combinedLower: string;
+  spaceNameLower: string;
+  spaceIdLower: string;
+  tagSetLower: Set<string>;
+  tagsText: string;
+  note: string;
+  noteTrimmed: string;
+  citationsText: string;
+  hasCitation: boolean;
+};
+
+type PreparedSpace = {
+  space: Space;
+  createdMs: number;
+  combinedLower: string;
+  tagSetLower: Set<string>;
+  tags: string[];
+  tagsText: string;
+};
+
+type PreparedCollection = {
+  collection: Collection;
+  createdMs: number;
+  combinedLower: string;
+};
+
+type PreparedFile = {
+  file: LibraryFile;
+  createdMs: number;
+  combinedLower: string;
+};
+
+type PreparedTask = {
+  task: Task;
+  createdMs: number;
+  combinedLower: string;
+  spaceNameLower: string;
+  spaceIdLower: string;
 };
 
 const THREADS_KEY = "signal-history-v2";
@@ -81,6 +124,7 @@ export default function UnifiedSearch() {
     "relevance"
   );
   const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>("all");
+  const [timelineNowMs, setTimelineNowMs] = useState(0);
   const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
   const [verbatim, setVerbatim] = useState<boolean>(() =>
     parseStored<boolean>(VERBATIM_KEY, false)
@@ -220,6 +264,14 @@ export default function UnifiedSearch() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const tick = () => setTimelineNowMs(Date.now());
+    tick();
+    const interval = window.setInterval(tick, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
   const operatorSummary = useMemo(() => {
     const parts: string[] = [];
     if (operators.type) parts.push(`type:${operators.type}`);
@@ -285,161 +337,235 @@ export default function UnifiedSearch() {
     return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  const filteredThreads = useMemo(() => {
+  const preparedThreads = useMemo<PreparedThread[]>(() => {
+    return threads.map((thread) => {
+      const citationsText = thread.citations
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const tagsText = (thread.tags ?? []).join(" ");
+      const note = notes[thread.id] ?? "";
+      const noteTrimmed = note.trim();
+      const combinedLower = [
+        thread.title ?? thread.question,
+        thread.question,
+        thread.answer,
+        tagsText,
+        thread.spaceName ?? "",
+        citationsText,
+        note,
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase();
+
+      return {
+        thread,
+        createdMs: toTime(thread.createdAt),
+        combinedLower,
+        spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
+        spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
+        tagSetLower: new Set((thread.tags ?? []).map((tag) => tag.toLowerCase())),
+        tagsText,
+        note,
+        noteTrimmed,
+        citationsText,
+        hasCitation: Boolean(thread.citations && thread.citations.length > 0),
+      };
+    });
+  }, [threads, notes]);
+
+  const preparedSpaces = useMemo<PreparedSpace[]>(() => {
+    return spaces.map((space) => {
+      const tags = spaceTags[space.id] ?? [];
+      const tagsText = tags.join(" ");
+      const combinedLower = [space.name, space.instructions ?? "", tagsText]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase();
+      return {
+        space,
+        createdMs: toTime(space.createdAt),
+        combinedLower,
+        tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+        tags,
+        tagsText,
+      };
+    });
+  }, [spaces, spaceTags]);
+
+  const preparedCollections = useMemo<PreparedCollection[]>(() => {
+    return collections.map((collection) => ({
+      collection,
+      createdMs: toTime(collection.createdAt),
+      combinedLower: collection.name.trim().toLowerCase(),
+    }));
+  }, [collections]);
+
+  const preparedFiles = useMemo<PreparedFile[]>(() => {
+    return files.map((file) => ({
+      file,
+      createdMs: toTime(file.addedAt),
+      combinedLower: [file.name, file.text].filter(Boolean).join("\n").toLowerCase(),
+    }));
+  }, [files]);
+
+  const preparedTasks = useMemo<PreparedTask[]>(() => {
+    return tasks.map((task) => ({
+      task,
+      createdMs: toTime(task.createdAt),
+      combinedLower: [
+        task.name,
+        task.prompt,
+        task.spaceName ?? "",
+        task.mode,
+        task.cadence,
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase(),
+      spaceNameLower: (task.spaceName ?? "").toLowerCase(),
+      spaceIdLower: (task.spaceId ?? "").toLowerCase(),
+    }));
+  }, [tasks]);
+
+  const filteredThreads = useMemo<PreparedThread[]>(() => {
     const textFiltered = normalized
-      ? threads.filter((thread) => {
-          const citationText = thread.citations
-            .map((citation) => `${citation.title} ${citation.url}`)
-            .join(" ");
-          const fields = [
-            thread.title ?? thread.question,
-            thread.question,
-            thread.answer,
-            (thread.tags ?? []).join(" "),
-            thread.spaceName ?? "",
-            citationText,
-            notes[thread.id] ?? "",
-          ];
-          return matchesQuery(fields, matchQueryInfo);
-        })
-      : threads;
-    const operatorFiltered = textFiltered.filter((thread) => {
+      ? preparedThreads.filter((entry) =>
+          matchesLoweredText(entry.combinedLower, matchQueryInfo)
+        )
+      : preparedThreads;
+
+    return textFiltered.filter((entry) => {
+      if (!applyTimelineWindow(entry.thread.createdAt, timelineWindow, timelineNowMs))
+        return false;
+
       if (operators.space) {
         const needle = operators.space.toLowerCase();
-        const spaceName = (thread.spaceName ?? "").toLowerCase();
-        const spaceId = (thread.spaceId ?? "").toLowerCase();
-        if (!spaceName.includes(needle) && spaceId !== needle) return false;
+        if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
+          return false;
       }
       if (operators.spaceId) {
         const needle = operators.spaceId.toLowerCase();
-        const spaceId = (thread.spaceId ?? "").toLowerCase();
-        if (spaceId !== needle) return false;
+        if (entry.spaceIdLower !== needle) return false;
       }
       if (operators.tags?.length) {
-        const tagSet = new Set((thread.tags ?? []).map((tag) => tag.toLowerCase()));
         for (const tag of operators.tags) {
-          if (!tagSet.has(tag.toLowerCase())) return false;
+          if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
         }
       }
       if (operators.notTags?.length) {
-        const tagSet = new Set((thread.tags ?? []).map((tag) => tag.toLowerCase()));
         for (const tag of operators.notTags) {
-          if (tagSet.has(tag.toLowerCase())) return false;
+          if (entry.tagSetLower.has(tag.toLowerCase())) return false;
         }
       }
       if (operators.hasNote) {
-        const note = notes[thread.id] ?? "";
-        if (!note.trim()) return false;
+        if (!entry.noteTrimmed) return false;
       }
       if (operators.notHasNote) {
-        const note = notes[thread.id] ?? "";
-        if (note.trim()) return false;
+        if (entry.noteTrimmed) return false;
       }
       if (operators.hasCitation) {
-        if (!thread.citations || thread.citations.length === 0) return false;
+        if (!entry.hasCitation) return false;
       }
       if (operators.notHasCitation) {
-        if (thread.citations && thread.citations.length > 0) return false;
+        if (entry.hasCitation) return false;
       }
       return true;
     });
-    return operatorFiltered.filter((thread) =>
-      applyTimelineWindow(thread.createdAt, timelineWindow)
-    );
-  }, [threads, normalized, notes, timelineWindow, matchQueryInfo, operators]);
+  }, [
+    preparedThreads,
+    normalized,
+    timelineWindow,
+    timelineNowMs,
+    matchQueryInfo,
+    operators,
+  ]);
 
   const filteredSpaces = useMemo(() => {
     const textFiltered = normalized
-      ? spaces.filter((space) => {
-          const tagsText = (spaceTags[space.id] ?? []).join(" ");
-          return matchesQuery(
-            [space.name, space.instructions ?? "", tagsText],
-            matchQueryInfo
-          );
-        })
-      : spaces;
-    const operatorFiltered = textFiltered.filter((space) => {
+      ? preparedSpaces.filter((entry) =>
+          matchesLoweredText(entry.combinedLower, matchQueryInfo)
+        )
+      : preparedSpaces;
+    const operatorFiltered = textFiltered.filter((entry) => {
+      if (!applyTimelineWindow(entry.space.createdAt, timelineWindow, timelineNowMs))
+        return false;
       if (operators.hasNote || operators.hasCitation) return false;
       if (operators.tags?.length) {
-        const tagSet = new Set(
-          (spaceTags[space.id] ?? []).map((tag) => tag.toLowerCase())
-        );
         for (const tag of operators.tags) {
-          if (!tagSet.has(tag.toLowerCase())) return false;
+          if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
         }
       }
       if (operators.notTags?.length) {
-        const tagSet = new Set(
-          (spaceTags[space.id] ?? []).map((tag) => tag.toLowerCase())
-        );
         for (const tag of operators.notTags) {
-          if (tagSet.has(tag.toLowerCase())) return false;
+          if (entry.tagSetLower.has(tag.toLowerCase())) return false;
         }
       }
       return true;
     });
-    return operatorFiltered.filter((space) =>
-      applyTimelineWindow(space.createdAt, timelineWindow)
-    );
-  }, [spaces, normalized, timelineWindow, matchQueryInfo, operators, spaceTags]);
+    return operatorFiltered;
+  }, [
+    preparedSpaces,
+    normalized,
+    timelineWindow,
+    timelineNowMs,
+    matchQueryInfo,
+    operators,
+  ]);
 
   const filteredCollections = useMemo(() => {
     const textFiltered = normalized
-      ? collections.filter((collection) =>
-          matchesQuery([collection.name], matchQueryInfo)
+      ? preparedCollections.filter((entry) =>
+          matchesLoweredText(entry.combinedLower, matchQueryInfo)
         )
-      : collections;
-    return textFiltered.filter((collection) =>
-      applyTimelineWindow(collection.createdAt, timelineWindow)
+      : preparedCollections;
+    return textFiltered.filter((entry) =>
+      applyTimelineWindow(entry.collection.createdAt, timelineWindow, timelineNowMs)
     );
-  }, [collections, normalized, timelineWindow, matchQueryInfo]);
+  }, [preparedCollections, normalized, timelineWindow, timelineNowMs, matchQueryInfo]);
 
   const filteredFiles = useMemo(() => {
     const textFiltered = normalized
-      ? files.filter((file) => {
-          return matchesQuery([file.name, file.text], matchQueryInfo);
-        })
-      : files;
-    return textFiltered.filter((file) =>
-      applyTimelineWindow(file.addedAt, timelineWindow)
+      ? preparedFiles.filter((entry) =>
+          matchesLoweredText(entry.combinedLower, matchQueryInfo)
+        )
+      : preparedFiles;
+    return textFiltered.filter((entry) =>
+      applyTimelineWindow(entry.file.addedAt, timelineWindow, timelineNowMs)
     );
-  }, [files, normalized, timelineWindow, matchQueryInfo]);
+  }, [preparedFiles, normalized, timelineWindow, timelineNowMs, matchQueryInfo]);
 
   const filteredTasks = useMemo(() => {
     const textFiltered = normalized
-      ? tasks.filter((task) => {
-          return matchesQuery(
-            [
-              task.name,
-              task.prompt,
-              task.spaceName ?? "",
-              task.mode,
-              task.cadence,
-            ],
-            matchQueryInfo
-          );
-        })
-      : tasks;
-    const operatorFiltered = textFiltered.filter((task) => {
+      ? preparedTasks.filter((entry) =>
+          matchesLoweredText(entry.combinedLower, matchQueryInfo)
+        )
+      : preparedTasks;
+    const operatorFiltered = textFiltered.filter((entry) => {
+      if (!applyTimelineWindow(entry.task.createdAt, timelineWindow, timelineNowMs))
+        return false;
       if (operators.hasNote || operators.hasCitation) return false;
       if (operators.tags?.length) return false;
       if (operators.space) {
         const needle = operators.space.toLowerCase();
-        const spaceName = (task.spaceName ?? "").toLowerCase();
-        const spaceId = (task.spaceId ?? "").toLowerCase();
-        if (!spaceName.includes(needle) && spaceId !== needle) return false;
+        if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
+          return false;
       }
       if (operators.spaceId) {
         const needle = operators.spaceId.toLowerCase();
-        const spaceId = (task.spaceId ?? "").toLowerCase();
-        if (spaceId !== needle) return false;
+        if (entry.spaceIdLower !== needle) return false;
       }
       return true;
     });
-    return operatorFiltered.filter((task) =>
-      applyTimelineWindow(task.createdAt, timelineWindow)
-    );
-  }, [tasks, normalized, timelineWindow, matchQueryInfo, operators]);
+    return operatorFiltered;
+  }, [
+    preparedTasks,
+    normalized,
+    timelineWindow,
+    timelineNowMs,
+    matchQueryInfo,
+    operators,
+  ]);
 
   const toggleThreadField = useCallback(
     (threadId: string, field: "favorite" | "pinned" | "archived") => {
@@ -536,124 +662,173 @@ export default function UnifiedSearch() {
     );
   }, [applyBulkAction, bulkSpaceId, spaces]);
 
-  const sortedThreads = useMemo(() => {
-    const scored = filteredThreads.map((thread) => {
-      const note = notes[thread.id] ?? "";
-      const citationText = thread.citations
-        .map((citation) => `${citation.title} ${citation.url}`)
-        .join(" ");
+  const sortedThreads = useMemo<PreparedThread[]>(() => {
+    const next = [...filteredThreads];
+
+    if (sortBy === "newest") {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+    if (sortBy === "oldest") {
+      next.sort((a, b) => a.createdMs - b.createdMs);
+      return next;
+    }
+
+    if (!matchQueryInfo.normalized) {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+
+    const scored = next.map((entry) => {
+      const thread = entry.thread;
       const score = computeRelevanceScore(
         [
           { text: thread.title ?? thread.question, weight: 8 },
           { text: thread.question, weight: 6 },
-          { text: (thread.tags ?? []).join(" "), weight: 4 },
+          { text: entry.tagsText, weight: 4 },
           { text: thread.spaceName ?? "", weight: 3 },
-          { text: note, weight: 3 },
-          { text: citationText, weight: 2 },
+          { text: entry.note, weight: 3 },
+          { text: entry.citationsText, weight: 2 },
           { text: thread.answer, weight: 1 },
         ],
         matchQueryInfo
       );
-      return { thread, score };
+      return { entry, score };
     });
     scored.sort((a, b) => {
-      if (sortBy === "newest")
-        return toTime(b.thread.createdAt) - toTime(a.thread.createdAt);
-      if (sortBy === "oldest")
-        return toTime(a.thread.createdAt) - toTime(b.thread.createdAt);
       if (b.score !== a.score) return b.score - a.score;
-      return toTime(b.thread.createdAt) - toTime(a.thread.createdAt);
+      return b.entry.createdMs - a.entry.createdMs;
     });
-    return scored.map((entry) => entry.thread);
-  }, [filteredThreads, sortBy, notes, matchQueryInfo]);
+    return scored.map((item) => item.entry);
+  }, [filteredThreads, sortBy, matchQueryInfo]);
 
-  const sortedSpaces = useMemo(() => {
-    const scored = filteredSpaces.map((space) => ({
-      space,
+  const sortedSpaces = useMemo<PreparedSpace[]>(() => {
+    const next = [...filteredSpaces];
+    if (sortBy === "newest") {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+    if (sortBy === "oldest") {
+      next.sort((a, b) => a.createdMs - b.createdMs);
+      return next;
+    }
+    if (!matchQueryInfo.normalized) {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+
+    const scored = next.map((entry) => ({
+      entry,
       score: computeRelevanceScore(
         [
-          { text: space.name, weight: 8 },
-          { text: (spaceTags[space.id] ?? []).join(" "), weight: 4 },
-          { text: space.instructions ?? "", weight: 2 },
+          { text: entry.space.name, weight: 8 },
+          { text: entry.tagsText, weight: 4 },
+          { text: entry.space.instructions ?? "", weight: 2 },
         ],
         matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
-      if (sortBy === "newest")
-        return toTime(b.space.createdAt) - toTime(a.space.createdAt);
-      if (sortBy === "oldest")
-        return toTime(a.space.createdAt) - toTime(b.space.createdAt);
       if (b.score !== a.score) return b.score - a.score;
-      return toTime(b.space.createdAt) - toTime(a.space.createdAt);
+      return b.entry.createdMs - a.entry.createdMs;
     });
-    return scored.map((entry) => entry.space);
-  }, [filteredSpaces, sortBy, matchQueryInfo, spaceTags]);
+    return scored.map((item) => item.entry);
+  }, [filteredSpaces, sortBy, matchQueryInfo]);
 
-  const sortedCollections = useMemo(() => {
-    const scored = filteredCollections.map((collection) => ({
-      collection,
+  const sortedCollections = useMemo<PreparedCollection[]>(() => {
+    const next = [...filteredCollections];
+    if (sortBy === "newest") {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+    if (sortBy === "oldest") {
+      next.sort((a, b) => a.createdMs - b.createdMs);
+      return next;
+    }
+    if (!matchQueryInfo.normalized) {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+
+    const scored = next.map((entry) => ({
+      entry,
       score: computeRelevanceScore(
-        [{ text: collection.name, weight: 8 }],
+        [{ text: entry.collection.name, weight: 8 }],
         matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
-      if (sortBy === "newest")
-        return toTime(b.collection.createdAt) - toTime(a.collection.createdAt);
-      if (sortBy === "oldest")
-        return toTime(a.collection.createdAt) - toTime(b.collection.createdAt);
       if (b.score !== a.score) return b.score - a.score;
-      return toTime(b.collection.createdAt) - toTime(a.collection.createdAt);
+      return b.entry.createdMs - a.entry.createdMs;
     });
-    return scored.map((entry) => entry.collection);
+    return scored.map((item) => item.entry);
   }, [filteredCollections, sortBy, matchQueryInfo]);
 
-  const sortedFiles = useMemo(() => {
-    const scored = filteredFiles.map((file) => ({
-      file,
+  const sortedFiles = useMemo<PreparedFile[]>(() => {
+    const next = [...filteredFiles];
+    if (sortBy === "newest") {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+    if (sortBy === "oldest") {
+      next.sort((a, b) => a.createdMs - b.createdMs);
+      return next;
+    }
+    if (!matchQueryInfo.normalized) {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+
+    const scored = next.map((entry) => ({
+      entry,
       score: computeRelevanceScore(
         [
-          { text: file.name, weight: 8 },
-          { text: file.text, weight: 1 },
+          { text: entry.file.name, weight: 8 },
+          { text: entry.file.text, weight: 1 },
         ],
         matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
-      if (sortBy === "newest")
-        return toTime(b.file.addedAt) - toTime(a.file.addedAt);
-      if (sortBy === "oldest")
-        return toTime(a.file.addedAt) - toTime(b.file.addedAt);
       if (b.score !== a.score) return b.score - a.score;
-      return toTime(b.file.addedAt) - toTime(a.file.addedAt);
+      return b.entry.createdMs - a.entry.createdMs;
     });
-    return scored.map((entry) => entry.file);
+    return scored.map((item) => item.entry);
   }, [filteredFiles, sortBy, matchQueryInfo]);
 
-  const sortedTasks = useMemo(() => {
-    const scored = filteredTasks.map((task) => ({
-      task,
+  const sortedTasks = useMemo<PreparedTask[]>(() => {
+    const next = [...filteredTasks];
+    if (sortBy === "newest") {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+    if (sortBy === "oldest") {
+      next.sort((a, b) => a.createdMs - b.createdMs);
+      return next;
+    }
+    if (!matchQueryInfo.normalized) {
+      next.sort((a, b) => b.createdMs - a.createdMs);
+      return next;
+    }
+
+    const scored = next.map((entry) => ({
+      entry,
       score: computeRelevanceScore(
         [
-          { text: task.name, weight: 8 },
-          { text: task.prompt, weight: 2 },
-          { text: task.spaceName ?? "", weight: 3 },
-          { text: task.mode, weight: 1 },
-          { text: task.cadence, weight: 1 },
+          { text: entry.task.name, weight: 8 },
+          { text: entry.task.prompt, weight: 2 },
+          { text: entry.task.spaceName ?? "", weight: 3 },
+          { text: entry.task.mode, weight: 1 },
+          { text: entry.task.cadence, weight: 1 },
         ],
         matchQueryInfo
       ),
     }));
     scored.sort((a, b) => {
-      if (sortBy === "newest")
-        return toTime(b.task.createdAt) - toTime(a.task.createdAt);
-      if (sortBy === "oldest")
-        return toTime(a.task.createdAt) - toTime(b.task.createdAt);
       if (b.score !== a.score) return b.score - a.score;
-      return toTime(b.task.createdAt) - toTime(a.task.createdAt);
+      return b.entry.createdMs - a.entry.createdMs;
     });
-    return scored.map((entry) => entry.task);
+    return scored.map((item) => item.entry);
   }, [filteredTasks, sortBy, matchQueryInfo]);
 
   const shownThreads = useMemo(
@@ -661,7 +836,7 @@ export default function UnifiedSearch() {
     [sortedThreads, resultLimit]
   );
   const shownThreadIdSet = useMemo(
-    () => new Set(shownThreads.map((thread) => thread.id)),
+    () => new Set(shownThreads.map((entry) => entry.thread.id)),
     [shownThreads]
   );
   const hiddenSelectedCount = useMemo(() => {
@@ -688,7 +863,7 @@ export default function UnifiedSearch() {
 
   const setAllShownThreadSelection = useCallback(
     (enabled: boolean) => {
-      const visibleIds = shownThreads.map((thread) => thread.id);
+      const visibleIds = shownThreads.map((entry) => entry.thread.id);
       setSelectedThreadIds((previous) =>
         toggleVisibleSelection(previous, visibleIds, enabled)
       );
@@ -697,7 +872,7 @@ export default function UnifiedSearch() {
   );
   const allShownSelected =
     shownThreads.length > 0 &&
-    shownThreads.every((thread) => activeSelectedThreadIds.includes(thread.id));
+    shownThreads.every((entry) => activeSelectedThreadIds.includes(entry.thread.id));
 
   const topThreadResults = useMemo(() => sortedThreads.slice(0, 3), [sortedThreads]);
   const topSpaceResults = useMemo(() => sortedSpaces.slice(0, 3), [sortedSpaces]);
@@ -734,14 +909,12 @@ export default function UnifiedSearch() {
   );
 
   const buildThreadSnippet = useCallback(
-    (thread: Thread) => {
-      const citationText = thread.citations
-        .map((citation) => `${citation.title} ${citation.url}`)
-        .join(" ");
+    (entry: PreparedThread) => {
+      const thread = entry.thread;
       const candidates = [
         thread.answer,
-        notes[thread.id] ?? "",
-        citationText,
+        entry.note,
+        entry.citationsText,
         thread.question,
       ];
       for (const candidate of candidates) {
@@ -750,7 +923,7 @@ export default function UnifiedSearch() {
       }
       return "";
     },
-    [notes, snippetFromText]
+    [snippetFromText]
   );
 
   const renderHighlighted = useCallback(
@@ -803,7 +976,8 @@ export default function UnifiedSearch() {
       `Tasks: ${filteredTasks.length}`,
       "",
       "## Threads",
-      ...sortedThreads.map((thread, index) => {
+      ...sortedThreads.map((entry, index) => {
+        const thread = entry.thread;
         const title = thread.title ?? thread.question;
         return [
           `${index + 1}. ${title}`,
@@ -813,10 +987,9 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Spaces",
-      ...sortedSpaces.map((space, index) => {
-        const tags = (spaceTags[space.id] ?? []).length
-          ? (spaceTags[space.id] ?? []).join(", ")
-          : "None";
+      ...sortedSpaces.map((entry, index) => {
+        const space = entry.space;
+        const tags = entry.tags.length ? entry.tags.join(", ") : "None";
         return [
           `${index + 1}. ${space.name}`,
           `   - Instructions: ${space.instructions || "None"}`,
@@ -826,7 +999,8 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Collections",
-      ...sortedCollections.map((collection, index) => {
+      ...sortedCollections.map((entry, index) => {
+        const collection = entry.collection;
         return [
           `${index + 1}. ${collection.name}`,
           `   - Created: ${new Date(collection.createdAt).toLocaleString()}`,
@@ -834,7 +1008,8 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Files",
-      ...sortedFiles.map((file, index) => {
+      ...sortedFiles.map((entry, index) => {
+        const file = entry.file;
         return [
           `${index + 1}. ${file.name}`,
           `   - Size: ${Math.round(file.size / 1024)} KB`,
@@ -843,7 +1018,8 @@ export default function UnifiedSearch() {
       }),
       "",
       "## Tasks",
-      ...sortedTasks.map((task, index) => {
+      ...sortedTasks.map((entry, index) => {
+        const task = entry.task;
         return [
           `${index + 1}. ${task.name}`,
           `   - Cadence: ${task.cadence} at ${task.time}`,
@@ -866,51 +1042,56 @@ export default function UnifiedSearch() {
   function exportCsv() {
     const lines = [
       ["type", "title", "space", "mode", "created_at"].join(","),
-      ...sortedThreads.map((thread) =>
-        [
+      ...sortedThreads.map((entry) => {
+        const thread = entry.thread;
+        return [
           "thread",
           `"${(thread.title ?? thread.question).replace(/\"/g, '""')}"`,
           `"${(thread.spaceName ?? "None").replace(/\"/g, '""')}"`,
           thread.mode,
           thread.createdAt,
-        ].join(",")
-      ),
-      ...sortedSpaces.map((space) =>
-        [
+        ].join(",");
+      }),
+      ...sortedSpaces.map((entry) => {
+        const space = entry.space;
+        return [
           "space",
           `"${space.name.replace(/\"/g, '""')}"`,
           "",
           "",
           space.createdAt,
-        ].join(",")
-      ),
-      ...sortedCollections.map((collection) =>
-        [
+        ].join(",");
+      }),
+      ...sortedCollections.map((entry) => {
+        const collection = entry.collection;
+        return [
           "collection",
           `"${collection.name.replace(/\"/g, '""')}"`,
           "",
           "",
           collection.createdAt,
-        ].join(",")
-      ),
-      ...sortedFiles.map((file) =>
-        [
+        ].join(",");
+      }),
+      ...sortedFiles.map((entry) => {
+        const file = entry.file;
+        return [
           "file",
           `"${file.name.replace(/\"/g, '""')}"`,
           "",
           "",
           file.addedAt,
-        ].join(",")
-      ),
-      ...sortedTasks.map((task) =>
-        [
+        ].join(",");
+      }),
+      ...sortedTasks.map((entry) => {
+        const task = entry.task;
+        return [
           "task",
           `"${task.name.replace(/\"/g, '""')}"`,
           `"${(task.spaceName ?? "None").replace(/\"/g, '""')}"`,
           task.mode,
           task.nextRun,
-        ].join(",")
-      ),
+        ].join(",");
+      }),
     ];
 
     const blob = new Blob([lines.join("\n")], { type: "text/csv" });
@@ -1368,11 +1549,9 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topThreadResults.length ? (
-                    topThreadResults.map((thread) => {
-                      const snippet = buildThreadSnippet(thread);
-                      const citationText = thread.citations
-                        .map((citation) => `${citation.title} ${citation.url}`)
-                        .join(" ");
+                    topThreadResults.map((entry) => {
+                      const thread = entry.thread;
+                      const snippet = buildThreadSnippet(entry);
                       const badges = computeThreadMatchBadges(
                         {
                           title: thread.title,
@@ -1380,8 +1559,8 @@ export default function UnifiedSearch() {
                           answer: thread.answer,
                           tags: thread.tags,
                           spaceName: thread.spaceName,
-                          note: notes[thread.id] ?? "",
-                          citationsText: citationText,
+                          note: entry.note,
+                          citationsText: entry.citationsText,
                         },
                         matchQueryInfo
                       );
@@ -1430,15 +1609,18 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topSpaceResults.length ? (
-                    topSpaceResults.map((space) => (
-                      <Link
-                        key={`top-space-${space.id}`}
-                        href={`/?space=${space.id}`}
-                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
-                      >
-                        {renderHighlighted(space.name)}
-                      </Link>
-                    ))
+                    topSpaceResults.map((entry) => {
+                      const space = entry.space;
+                      return (
+                        <Link
+                          key={`top-space-${space.id}`}
+                          href={`/?space=${space.id}`}
+                          className="block truncate text-xs text-signal-text hover:text-signal-accent"
+                        >
+                          {renderHighlighted(space.name)}
+                        </Link>
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-signal-muted">No space hits.</p>
                   )}
@@ -1450,15 +1632,18 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topCollectionResults.length ? (
-                    topCollectionResults.map((collection) => (
-                      <Link
-                        key={`top-collection-${collection.id}`}
-                        href={`/?collection=${collection.id}`}
-                        className="block truncate text-xs text-signal-text hover:text-signal-accent"
-                      >
-                        {renderHighlighted(collection.name)}
-                      </Link>
-                    ))
+                    topCollectionResults.map((entry) => {
+                      const collection = entry.collection;
+                      return (
+                        <Link
+                          key={`top-collection-${collection.id}`}
+                          href={`/?collection=${collection.id}`}
+                          className="block truncate text-xs text-signal-text hover:text-signal-accent"
+                        >
+                          {renderHighlighted(collection.name)}
+                        </Link>
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-signal-muted">
                       No collection hits.
@@ -1472,14 +1657,17 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topFileResults.length ? (
-                    topFileResults.map((file) => (
-                      <p
-                        key={`top-file-${file.id}`}
-                        className="truncate text-xs text-signal-text"
-                      >
-                        {renderHighlighted(file.name)}
-                      </p>
-                    ))
+                    topFileResults.map((entry) => {
+                      const file = entry.file;
+                      return (
+                        <p
+                          key={`top-file-${file.id}`}
+                          className="truncate text-xs text-signal-text"
+                        >
+                          {renderHighlighted(file.name)}
+                        </p>
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-signal-muted">No file hits.</p>
                   )}
@@ -1491,14 +1679,17 @@ export default function UnifiedSearch() {
                 </p>
                 <div className="mt-2 space-y-1">
                   {topTaskResults.length ? (
-                    topTaskResults.map((task) => (
-                      <p
-                        key={`top-task-${task.id}`}
-                        className="truncate text-xs text-signal-text"
-                      >
-                        {renderHighlighted(task.name)}
-                      </p>
-                    ))
+                    topTaskResults.map((entry) => {
+                      const task = entry.task;
+                      return (
+                        <p
+                          key={`top-task-${task.id}`}
+                          className="truncate text-xs text-signal-text"
+                        >
+                          {renderHighlighted(task.name)}
+                        </p>
+                      );
+                    })
                   ) : (
                     <p className="text-xs text-signal-muted">No task hits.</p>
                   )}
@@ -1650,12 +1841,10 @@ export default function UnifiedSearch() {
                         </button>
                       </div>
                     </div>
-                    {shownThreads.map((thread) => {
-                      const snippet = buildThreadSnippet(thread);
+                    {shownThreads.map((entry) => {
+                      const thread = entry.thread;
+                      const snippet = buildThreadSnippet(entry);
                       const selected = activeSelectedThreadIds.includes(thread.id);
-                      const citationText = thread.citations
-                        .map((citation) => `${citation.title} ${citation.url}`)
-                        .join(" ");
                       const badges = computeThreadMatchBadges(
                         {
                           title: thread.title,
@@ -1663,8 +1852,8 @@ export default function UnifiedSearch() {
                           answer: thread.answer,
                           tags: thread.tags,
                           spaceName: thread.spaceName,
-                          note: notes[thread.id] ?? "",
-                          citationsText: citationText,
+                          note: entry.note,
+                          citationsText: entry.citationsText,
                         },
                         matchQueryInfo
                       );
@@ -1786,8 +1975,9 @@ export default function UnifiedSearch() {
                     No matching spaces.
                   </p>
                 ) : (
-                  shownSpaces.map((space) => {
-                    const tags = spaceTags[space.id] ?? [];
+                  shownSpaces.map((entry) => {
+                    const space = entry.space;
+                    const tags = entry.tags;
                     return (
                       <div
                         key={space.id}
@@ -1843,25 +2033,28 @@ export default function UnifiedSearch() {
                     No matching collections.
                   </p>
                 ) : (
-                  shownCollections.map((collection) => (
-                    <div
-                      key={collection.id}
-                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                    >
-                      <p className="text-sm text-signal-text">
-                        {renderHighlighted(collection.name)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        {new Date(collection.createdAt).toLocaleString()}
-                      </p>
-                      <Link
-                        href={`/?collection=${collection.id}`}
-                        className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                  shownCollections.map((entry) => {
+                    const collection = entry.collection;
+                    return (
+                      <div
+                        key={collection.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
                       >
-                        Open
-                      </Link>
-                    </div>
-                  ))
+                        <p className="text-sm text-signal-text">
+                          {renderHighlighted(collection.name)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {new Date(collection.createdAt).toLocaleString()}
+                        </p>
+                        <Link
+                          href={`/?collection=${collection.id}`}
+                          className="mt-2 inline-block rounded-full border border-white/10 px-2 py-1 text-[11px]"
+                        >
+                          Open
+                        </Link>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>
@@ -1876,24 +2069,27 @@ export default function UnifiedSearch() {
                 {filteredFiles.length === 0 ? (
                   <p className="text-xs text-signal-muted">No matching files.</p>
                 ) : (
-                  shownFiles.map((file) => (
-                    <div
-                      key={file.id}
-                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                    >
-                      <p className="text-sm text-signal-text">
-                        {renderHighlighted(file.name)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        {Math.round(file.size / 1024)} KB
-                      </p>
-                      <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
-                        {renderHighlighted(
-                          file.text.slice(0, 180).replace(/\s+/g, " ").trim()
-                        )}
-                      </p>
-                    </div>
-                  ))
+                  shownFiles.map((entry) => {
+                    const file = entry.file;
+                    return (
+                      <div
+                        key={file.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                      >
+                        <p className="text-sm text-signal-text">
+                          {renderHighlighted(file.name)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {Math.round(file.size / 1024)} KB
+                        </p>
+                        <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
+                          {renderHighlighted(
+                            file.text.slice(0, 180).replace(/\s+/g, " ").trim()
+                          )}
+                        </p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>
@@ -1908,25 +2104,28 @@ export default function UnifiedSearch() {
                 {filteredTasks.length === 0 ? (
                   <p className="text-xs text-signal-muted">No matching tasks.</p>
                 ) : (
-                  shownTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
-                    >
-                      <p className="text-sm text-signal-text">
-                        {renderHighlighted(task.name)}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        {task.cadence} at {task.time} · {task.mode}
-                      </p>
-                      <p className="mt-1 text-[11px] text-signal-muted">
-                        Next run: {new Date(task.nextRun).toLocaleString()}
-                      </p>
-                      <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
-                        {renderHighlighted(task.prompt)}
-                      </p>
-                    </div>
-                  ))
+                  shownTasks.map((entry) => {
+                    const task = entry.task;
+                    return (
+                      <div
+                        key={task.id}
+                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                      >
+                        <p className="text-sm text-signal-text">
+                          {renderHighlighted(task.name)}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          {task.cadence} at {task.time} · {task.mode}
+                        </p>
+                        <p className="mt-1 text-[11px] text-signal-muted">
+                          Next run: {new Date(task.nextRun).toLocaleString()}
+                        </p>
+                        <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
+                          {renderHighlighted(task.prompt)}
+                        </p>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </section>

@@ -270,6 +270,16 @@ export function matchesQuery(parts: string[], query: NormalizedQuery): boolean {
   return query.tokens.every((token) => combined.includes(token));
 }
 
+export function matchesLoweredText(loweredText: string, query: NormalizedQuery): boolean {
+  if (!query.normalized) return true;
+  const combined = loweredText ?? "";
+  if (!combined) return false;
+  if (combined.includes(query.normalized)) return true;
+  if (query.tokens.length === 0) return false;
+  if (query.tokens.length === 1) return combined.includes(query.tokens[0]);
+  return query.tokens.every((token) => combined.includes(token));
+}
+
 export function computeThreadMatchBadges(
   input: ThreadMatchInputs,
   query: NormalizedQuery
