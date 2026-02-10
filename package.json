@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "eslint --fix .",
-    "check:workflows": "node scripts/check-workflows.mjs"
+    "check:workflows": "node scripts/check-workflows.mjs",
+    "smoke:mock": "node scripts/smoke.mjs --provider mock"
   },
   "dependencies": {
     "clsx": "^2.1.1",

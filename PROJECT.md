@@ -12,6 +12,7 @@ npm run build    # Production build
 npm run start    # Run production server
 npm run lint     # Lint
 npm test         # Run unit tests
+npm run smoke:mock # Build + start + minimal HTTP checks (mock provider)
 ```
 
 ## Environment variables
