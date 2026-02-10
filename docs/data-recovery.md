@@ -12,8 +12,15 @@ Notes:
 - The export can contain sensitive content (threads, notes, files). Store it securely.
 - Exports are "raw": values are stored exactly as they appear in `localStorage` (often JSON strings).
 
+## Download Diagnostics Bundle
+In **Library → Data tools**, you can also download a diagnostics bundle:
+- **Diagnostics (redacted)**: key names + counts/metadata, with values omitted.
+- **Diagnostics (full)**: includes raw `signal-*` key/values (may contain sensitive content).
+
+This is useful when you need to debug local-only issues (corruption backups, quota pressure, missing threads after a parse failure).
+
 ## Reset This Browser (Local-Only)
-1. Export raw local data first.
+1. Export raw local data (or download diagnostics) first.
 2. Click **Reset this browser** in **Library → Data tools**.
 
 This removes all `signal-*` keys for Signal Search from this browser and reloads the app.
@@ -34,4 +41,3 @@ If Signal Search fails to parse a stored JSON blob, it will:
    - Re-insert the repaired JSON into the original `signal-*` key via your browser devtools.
 
 If you are not comfortable editing `localStorage`, export the data and reset the browser so the app becomes usable again.
-

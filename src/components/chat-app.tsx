@@ -173,6 +173,9 @@ const RECENT_FILTERS_KEY = "signal-recent-filters-v1";
 const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
 const SPACE_TAGS_KEY = "signal-space-tags-v1";
 
+const CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
+const CORRUPT_BACKUP_PREFIX = "signal-corrupt-backup-v1:";
+
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
 const MAX_LIBRARY_FILES = 20;
@@ -385,6 +388,10 @@ export default function ChatApp() {
   const [dataToolsExportedAt, setDataToolsExportedAt] = useState<string | null>(
     null
   );
+  const [corruptLatestKeys, setCorruptLatestKeys] = useState<
+    Array<{ latestKey: string; originalKey: string; backupKey: string | null }>
+  >([]);
+  const [corruptBackupCount, setCorruptBackupCount] = useState(0);
   const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
@@ -535,6 +542,20 @@ export default function ChatApp() {
 
   useEffect(() => {
     setSignalStorageUsage(getStorageUsageByPrefix("signal-"));
+    const latestEntries = getStorageEntriesByPrefix(CORRUPT_LATEST_PREFIX);
+    setCorruptLatestKeys(
+      latestEntries
+        .map((entry) => {
+          const originalKey = entry.key.slice(CORRUPT_LATEST_PREFIX.length);
+          return {
+            latestKey: entry.key,
+            originalKey: originalKey || "(unknown)",
+            backupKey: entry.value,
+          };
+        })
+        .sort((a, b) => a.originalKey.localeCompare(b.originalKey))
+    );
+    setCorruptBackupCount(getStorageEntriesByPrefix(CORRUPT_BACKUP_PREFIX).length);
   }, [
     threads,
     spaces,
@@ -1778,9 +1799,64 @@ ${answer.citations
     setNotice("Exported raw local data. Reset is now enabled for this session.");
   }
 
+  function exportDiagnosticsBundle(includeRawValues: boolean) {
+    const entries = getStorageEntriesByPrefix("signal-");
+    const exportedAt = new Date().toISOString();
+    const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? null;
+
+    const payload = {
+      version: 1,
+      kind: "signal-diagnostics",
+      exportMode: includeRawValues ? "full" : "redacted",
+      exportedAt,
+      app: {
+        name: "signal-search",
+        version: appVersion,
+      },
+      environment: {
+        userAgent: typeof navigator === "undefined" ? null : navigator.userAgent,
+        language: typeof navigator === "undefined" ? null : navigator.language,
+        timeZone:
+          typeof Intl === "undefined"
+            ? null
+            : Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
+      },
+      stats: {
+        threads: threads.length,
+        spaces: spaces.length,
+        collections: collections.length,
+        files: libraryFiles.length,
+        tasks: tasks.length,
+        notes: Object.keys(notes).length,
+        signalStorage: signalStorageUsage,
+        corruptLatestKeys: corruptLatestKeys.length,
+        corruptBackupKeys: corruptBackupCount,
+      },
+      storage: {
+        keys: entries.length,
+        entries: includeRawValues
+          ? entries
+          : entries.map((entry) => ({ key: entry.key, value: null })),
+      },
+    };
+
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-diagnostics-${includeRawValues ? "full" : "redacted"}-${Date.now()}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    setDataToolsExportedAt(exportedAt);
+    setNotice("Downloaded diagnostics bundle. Reset is now enabled for this session.");
+  }
+
   function resetLocalData() {
     if (!dataToolsExportedAt) {
-      setNotice("Export raw local data first to enable reset.");
+      setNotice("Export raw local data or diagnostics first to enable reset.");
       return;
     }
 
@@ -3512,6 +3588,36 @@ ${answer.citations
                   start failing to save.
                 </p>
               ) : null}
+              {corruptLatestKeys.length || corruptBackupCount ? (
+                <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">
+                  <p className="font-medium">Data health warning</p>
+                  <p className="mt-1 text-amber-100/90">
+                    Signal Search backed up corrupted localStorage JSON under{" "}
+                    <span className="font-mono">signal-corrupt-*</span> keys.
+                    Export diagnostics or raw local data before resetting.
+                  </p>
+                  <p className="mt-2 text-amber-100/90">
+                    Corrupt pointers: {corruptLatestKeys.length} · Backups:{" "}
+                    {corruptBackupCount}
+                  </p>
+                  {corruptLatestKeys.length ? (
+                    <p className="mt-2 text-amber-100/90">
+                      Affected keys:{" "}
+                      {corruptLatestKeys
+                        .slice(0, 3)
+                        .map((item) => item.originalKey)
+                        .join(", ")}
+                      {corruptLatestKeys.length > 3
+                        ? ` (+${corruptLatestKeys.length - 3} more)`
+                        : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-2 text-[11px] text-signal-muted">
+                  Data health: OK
+                </p>
+              )}
               {dataToolsExportedAt ? (
                 <p className="mt-2 text-[11px] text-signal-muted">
                   Exported: {new Date(dataToolsExportedAt).toLocaleString()}
@@ -3522,6 +3628,18 @@ ${answer.citations
                 </p>
               )}
               <div className="mt-3 flex flex-col gap-2">
+                <button
+                  onClick={() => exportDiagnosticsBundle(false)}
+                  className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
+                >
+                  Download diagnostics (redacted)
+                </button>
+                <button
+                  onClick={() => exportDiagnosticsBundle(true)}
+                  className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
+                >
+                  Download diagnostics (full)
+                </button>
                 <button
                   onClick={exportRawLocalData}
                   className="w-full rounded-full border border-white/10 px-3 py-2 text-[11px] text-signal-muted"
@@ -4825,10 +4943,11 @@ ${answer.citations
                   return { ...thread, archived: toast.previousArchived[thread.id] };
                 })
               );
-              if (toast.currentId && toast.currentId in toast.previousArchived) {
+              const currentId = toast.currentId;
+              if (currentId && currentId in toast.previousArchived) {
                 setCurrent((prev) =>
                   prev
-                    ? { ...prev, archived: toast.previousArchived[toast.currentId] }
+                    ? { ...prev, archived: toast.previousArchived[currentId] }
                     : prev
                 );
               }
