@@ -961,6 +961,7 @@ export default function UnifiedSearch() {
   }
 
   function exportResults() {
+    const exportedSavedSearches = sortSavedSearches(savedSearches);
     const lines: string[] = [
       "# Signal Search Unified Export",
       "",
@@ -1028,6 +1029,18 @@ export default function UnifiedSearch() {
           `   - Next run: ${new Date(task.nextRun).toLocaleString()}`,
         ].join("\n");
       }),
+      "",
+      "## Saved Searches",
+      ...(exportedSavedSearches.length
+        ? exportedSavedSearches.map((saved, index) => {
+            return [
+              `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
+              `   - Query: ${saved.query || "None"}`,
+              `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
+              `   - Updated: ${new Date(saved.updatedAt).toLocaleString()}`,
+            ].join("\n");
+          })
+        : ["(none)"]),
     ];
 
     const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
@@ -1035,6 +1048,35 @@ export default function UnifiedSearch() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `signal-search-export-${Date.now()}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportSavedSearches() {
+    const exportedSavedSearches = sortSavedSearches(savedSearches);
+    const lines: string[] = [
+      "# Signal Search Saved Searches",
+      "",
+      `Exported: ${new Date().toLocaleString()}`,
+      "",
+      ...(exportedSavedSearches.length
+        ? exportedSavedSearches.map((saved, index) => {
+            return [
+              `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
+              `   - Query: ${saved.query || "None"}`,
+              `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
+              `   - Created: ${new Date(saved.createdAt).toLocaleString()}`,
+              `   - Updated: ${new Date(saved.updatedAt).toLocaleString()}`,
+            ].join("\n");
+          })
+        : ["(none)"]),
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `signal-search-saved-searches-${Date.now()}.md`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -1436,6 +1478,12 @@ export default function UnifiedSearch() {
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-signal-muted">
                 <span>Saved searches</span>
+                <button
+                  onClick={exportSavedSearches}
+                  className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
+                >
+                  Export
+                </button>
               </div>
               <div className="space-y-2">
                 {sortedSavedSearches.map((saved) => {
