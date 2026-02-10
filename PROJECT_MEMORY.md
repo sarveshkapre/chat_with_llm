@@ -36,6 +36,7 @@
 - 2026-02-10 | Speed up Unified Search filtering/sorting by caching normalized combined text per item | Reduce per-keystroke allocations for large libraries and keep relevance work bounded when query is empty or sort is time-based | `npm test` + `npm run lint` + `npm run build` + `npm run smoke:mock` | 8627eef | high | trusted
 - 2026-02-10 | Export saved searches to Markdown and include them in Unified Search export | Make saved query workflows portable and easier to back up/share (local-first) | `npm test` + `npm run lint` | 828639e | high | trusted
 - 2026-02-10 | Refactor Unified Search filtering/sorting into pure helpers + add unit tests for cross-type operators and relevance/newest fallback | Reduce UI duplication and lock operator semantics in tests without changing behavior | `npm test` + `npm run lint` + `npm run build` + `node scripts/smoke.mjs --provider mock --skip-build` | 793f3e5 | high | trusted
+- 2026-02-10 | Unified Search UI: top-k selection for display; full sort only on export | Reduce per-keystroke work for large local-first libraries while keeping exports complete and correctly ordered | `npm test` + `npm run lint` + `npm run build` + `node scripts/smoke.mjs --provider mock --skip-build` | ff0e16d | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
@@ -47,7 +48,7 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small.
+- P4: Unified Search performance: reduce relevance scoring overhead for large result sets (avoid repeated `toLowerCase()` and per-field allocations when scoring).
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
@@ -119,6 +120,10 @@
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=64451 deltaEvents=15` | pass
+- 2026-02-10 | `npm test` | `Test Files 10 passed (10)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-10 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=64882 deltaEvents=15` | pass
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
