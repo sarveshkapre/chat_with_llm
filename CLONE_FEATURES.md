@@ -8,20 +8,14 @@
 
 ## Candidate Features To Do
 ### Cycle 9 (2026-02-10) Plan
-- [ ] P1: Unified Search performance pass for large libraries: precompute per-item normalized search blobs (lowercased combined text), tag sets, and citation joins; skip relevance scoring when sort is not `relevance` (or query is empty); reduce per-keystroke allocations. (Score: impact=high effort=med risk=low-med confidence=high)
-- [ ] P1: Unified Search cross-tab consistency: reload saved searches (`signal-unified-saved-v1`) during focus/storage refresh and include it in the storage-event key allowlist. (Score: impact=med effort=low risk=low confidence=high)
-- [ ] P2: Unified Search export: include saved searches in Markdown export and add a dedicated "Export saved searches" affordance. (Score: impact=low-med effort=low risk=low confidence=high)
-- [ ] P3: Unified Search operators help: clarify `space:` (contains) vs `spaceId:` (exact), document `verbatim:false`, and add one or two copy-ready examples. (Score: impact=low-med effort=low risk=low confidence=high)
-- [ ] P3: Tests: add regression coverage for prepared-text query matching and relevance short-circuit behavior. (Score: impact=low effort=low risk=low confidence=high)
+- [ ] P3: Unified Search operators help: add one or two copy-ready examples (threads/spaces/files) and clarify that `space:` matches name-contains OR exact space id. (Score: impact=low-med effort=low risk=low confidence=high)
+- [ ] P3: Tests: add more coverage for cross-type operators and timeline+sort interactions (threads/spaces/files/tasks). (Score: impact=low effort=low risk=low confidence=high)
 - [ ] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Score: impact=med effort=med risk=med confidence=med)
 
-### Cycle 8 (2026-02-10) Plan
-- [ ] P3: Unified Search performance pass for large libraries: cache normalized fields per item (threads/spaces/collections/files/tasks) and avoid recomputing snippets/citation joins when query changes. (Score: impact=med effort=med-high risk=med confidence=med)
-- [ ] P4: Unified Search saved searches export to Markdown (and include in existing export surfaces). (Score: impact=low-med effort=low risk=low confidence=high)
-- [ ] P4: Unified Search operators: clarify semantics in inline help (`space:` contains vs `spaceId:` exact; negative operators) and add copy-to-clipboard examples. (Score: impact=low-med effort=low risk=low confidence=high)
-- [ ] P4: Tests: add more coverage for cross-type operators (`space:` on tasks, `tag:` on spaces) and timeline+sort interactions. (Score: impact=low effort=low risk=low confidence=high)
-
 ## Implemented
+- 2026-02-10: Unified Search cross-tab consistency: reload saved searches on focus/storage refresh and include `signal-unified-saved-v1` in the storage-event key allowlist; updated inline operator help to document `space:` and `verbatim:false` (`src/components/unified-search.tsx`). (commit `5f82826`)
+- 2026-02-10: Unified Search performance pass: precompute per-item lowercased combined search text + tag sets and reuse them for filtering; skip relevance scoring work when query is empty or sort is by time; added `matchesLoweredText()` helper + regression tests (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`). (commit `8627eef`)
+- 2026-02-10: Unified Search export: include saved searches in Markdown export and add a dedicated "Export" button for saved searches (`src/components/unified-search.tsx`). (commit `828639e`)
 - 2026-02-10: Unified Search saved searches (presets): save current query + filters (type/sort/time/limit) into `signal-unified-saved-v1`, with pin/rename/run/delete UI (`src/components/unified-search.tsx`, `src/lib/saved-searches.ts`, `tests/saved-searches.test.ts`). (commit `9bcfc13`)
 - 2026-02-10: Unified Search negative operators + parsing hardening: `-tag:` and `-has:` support, new `spaceId:` exact operator, safer tokenization for unbalanced quotes + escaped quotes, and regression tests (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `1d2a19a`)
 - 2026-02-10: Unified Search now indexes Space tags (`signal-space-tags-v1`), supports `tag:` operator filtering for Spaces, and boosts relevance when the free-text query matches tags (`src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `285d9c8`)

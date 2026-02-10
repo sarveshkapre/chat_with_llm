@@ -32,19 +32,23 @@
 - 2026-02-10 | Add Unified Search saved searches (presets) | Make power-user search workflows sticky by enabling “save/pin/run” without retyping operators and filters | `npm test` (`tests/saved-searches.test.ts`) + `npm run lint` + `npm run build` | 9bcfc13 | high | trusted
 - 2026-02-10 | Add Unified Search negative operators and harden query parsing | Improve search expressiveness (`-tag:`, `-has:`) while avoiding brittle operator parsing from unbalanced quotes | `npm test` (`tests/unified-search.test.ts`) + `npm run lint` + `npm run build` | 1d2a19a | high | trusted
 - 2026-02-10 | Add Unified Search verbatim toggle + `verbatim:true|false` operator | Support phrase-only matching (no token fallback) for parity with baseline chat-history search expectations, while preserving default behavior | `npm test` + `npm run lint` + `npm run build` + `npm run smoke:mock` | dbe007a | high | trusted
+- 2026-02-10 | Sync Unified Search saved searches across tabs/focus and clarify operators help | Avoid cross-tab state drift for power-user workflows and make operator semantics clearer at the point of use | `npm test` + `npm run lint` | 5f82826 | high | trusted
+- 2026-02-10 | Speed up Unified Search filtering/sorting by caching normalized combined text per item | Reduce per-keystroke allocations for large libraries and keep relevance work bounded when query is empty or sort is time-based | `npm test` + `npm run lint` + `npm run build` + `npm run smoke:mock` | 8627eef | high | trusted
+- 2026-02-10 | Export saved searches to Markdown and include them in Unified Search export | Make saved query workflows portable and easier to back up/share (local-first) | `npm test` + `npm run lint` | 828639e | high | trusted
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
 - 2026-02-09 | Workflow policy check initially missed `- uses:` YAML step form | Regex only matched `uses:` when it started the line (ignoring list item form) | Updated matcher to accept `- uses:` and added a unit test | Add regression tests for policy rules so guardrails don't become false-negative | 0a9bbdf | high
 - 2026-02-10 | `readStoredJson()` SSR guard update broke storage unit tests | Tests mocked `window` + `localStorage` but not `document` | Updated tests to define `document` for browser-mode cases | When hardening browser/SSR guards, update unit test environment shims in the same commit | 30a28ca | high
+- 2026-02-10 | `npm run smoke:mock` failed with `.next/lock` | Ran `next build` in parallel with `scripts/smoke.mjs`, which also executes `next build` | Re-ran `npm run smoke:mock` sequentially after the standalone build completed | Avoid parallelizing verification commands when one command internally runs the other (build+smoke); run smoke sequentially or pass `--skip-build` | 8627eef | medium
 
 ## Known Risks
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P3: Unified Search performance pass for large libraries (cache normalized fields, avoid recomputing snippets/citation joins).
-- P4: Unified Search saved searches export to Markdown.
-- P4: Clarify operator semantics in inline help (`space:` vs `spaceId:`, negative operators) and add a couple of copy-ready examples.
+- P3: Unified Search operators help: add copy-ready examples for common workflows (threads with citations, spaces by tag, tasks by space).
+- P3: Tests: add more coverage for cross-type operators and timeline+sort interactions.
+- P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
@@ -104,6 +108,12 @@
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=63686 deltaEvents=15` | pass
+- 2026-02-10 | `npm test` | `Test Files 10 passed (10)` | pass
+- 2026-02-10 | `npm run lint` | (no output) | pass
+- 2026-02-10 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-10 | `npm run smoke:mock` | `.next/lock` acquisition failed (build running concurrently) | fail
+- 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=64199 deltaEvents=15` | pass
+- 2026-02-10 | `gh run list --limit 10 --branch main` | `CI/Scorecard in_progress then success for pushed commits` | pass (untrusted)
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
