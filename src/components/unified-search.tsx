@@ -995,6 +995,18 @@ export default function UnifiedSearch() {
                         <button
                           onClick={() =>
                             applyBulkAction(
+                              (thread) => ({ ...thread, favorite: true }),
+                              `Favorited ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Favorite
+                        </button>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
                               (thread) => ({ ...thread, pinned: false }),
                               `Unpinned ${selectedCount} thread(s).`
                             )
@@ -1003,6 +1015,18 @@ export default function UnifiedSearch() {
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
                           Unpin
+                        </button>
+                        <button
+                          onClick={() =>
+                            applyBulkAction(
+                              (thread) => ({ ...thread, favorite: false }),
+                              `Unfavorited ${selectedCount} thread(s).`
+                            )
+                          }
+                          disabled={!selectedCount}
+                          className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
+                        >
+                          Unfavorite
                         </button>
                         <button
                           onClick={() =>
