@@ -114,6 +114,8 @@
 - 2026-02-10 | `npm run smoke:mock` | `.next/lock` acquisition failed (build running concurrently) | fail
 - 2026-02-10 | `npm run smoke:mock` | `Smoke OK: provider=mock port=64199 deltaEvents=15` | pass
 - 2026-02-10 | `gh run list --limit 10 --branch main` | `CI/Scorecard in_progress then success for pushed commits` | pass (untrusted)
+- 2026-02-10 | `gh run watch 21875053555 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-10 | `gh run watch 21875053531 --exit-status` | `Scorecard ... completed success` | pass (untrusted)
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
