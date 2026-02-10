@@ -7,6 +7,12 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Cycle 10 (2026-02-10) Plan
+- [ ] P2: Unified Search UI performance: avoid full sorting of large result sets on every keystroke by selecting top `max(resultLimit, 3)` items per section (heap top-k), and compute full ordering only on explicit export actions. (Score: impact=med-high effort=med risk=low-med confidence=high)
+- [ ] P3: Tests: add unit coverage that top-k selection matches `sortSearchResults(...).slice(0,k)` across sort modes (relevance/newest/oldest), including tie-break semantics. (Score: impact=med effort=low risk=low confidence=high)
+- [ ] P3: Smoke: extend `npm run smoke:mock` to verify `/search` renders (Unified Search page) in addition to `/`. (Score: impact=med effort=low risk=low confidence=high)
+- [ ] P4: Unified Search export UX: clarify in export header text that exports include all matches (not limited by UI result limit). (Score: impact=low effort=low risk=low confidence=high)
+
 ### Cycle 9 (2026-02-10) Plan
 - [x] P3: Unified Search operators help: add one or two copy-ready examples (threads/spaces/files) and clarify that `space:` matches name-contains OR exact space id. (Score: impact=low-med effort=low risk=low confidence=high)
 - [x] P3: Tests: add more coverage for cross-type operators and timeline+sort interactions (threads/spaces/files/tasks). (Score: impact=low effort=low risk=low confidence=high)
