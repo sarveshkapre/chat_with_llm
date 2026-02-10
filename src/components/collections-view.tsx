@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import type { Collection } from "@/lib/types/collection";
 import type { AnswerResponse } from "@/lib/types/answer";
@@ -31,6 +31,7 @@ export default function CollectionsView() {
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
@@ -45,6 +46,22 @@ export default function CollectionsView() {
     const timeout = window.setTimeout(() => setNotice(null), 2800);
     return () => window.clearTimeout(timeout);
   }, [notice]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement) return;
+      if (active instanceof HTMLTextAreaElement) return;
+      if (active instanceof HTMLElement && active.isContentEditable) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const summaries = useMemo(() => {
     const filtered = collections.filter((collection) =>
@@ -187,8 +204,15 @@ export default function CollectionsView() {
               Filter
             </p>
             <input
+              ref={searchInputRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                if (!search) return;
+                event.preventDefault();
+                setSearch("");
+              }}
               placeholder="Search collections"
               className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />

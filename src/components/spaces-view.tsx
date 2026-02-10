@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { nanoid } from "nanoid";
 import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
@@ -120,6 +120,7 @@ export default function SpacesView() {
   const [tagFilter, setTagFilter] = useState("");
   const [tagQuery, setTagQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
@@ -143,6 +144,22 @@ export default function SpacesView() {
   useEffect(() => {
     localStorage.setItem(SPACE_TAGS_KEY, JSON.stringify(spaceTags));
   }, [spaceTags]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement) return;
+      if (active instanceof HTMLTextAreaElement) return;
+      if (active instanceof HTMLElement && active.isContentEditable) return;
+      event.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
 
   useEffect(() => {
@@ -489,8 +506,15 @@ export default function SpacesView() {
               Filter
             </p>
             <input
+              ref={searchInputRef}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                if (!search) return;
+                event.preventDefault();
+                setSearch("");
+              }}
               placeholder="Search spaces"
               className="mt-3 w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
             />

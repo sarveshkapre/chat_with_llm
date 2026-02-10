@@ -403,6 +403,23 @@ export default function ChatApp() {
   const [useThreadContext, setUseThreadContext] = useState(true);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
+  const librarySearchInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "/") return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      const active = document.activeElement;
+      if (active instanceof HTMLInputElement) return;
+      if (active instanceof HTMLTextAreaElement) return;
+      if (active instanceof HTMLElement && active.isContentEditable) return;
+      event.preventDefault();
+      librarySearchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     const parsedThreads = readStoredJson<Thread[]>(STORAGE_KEY, []);
@@ -3425,8 +3442,15 @@ ${answer.citations
             </p>
             <div className="mt-3 space-y-2">
               <input
+                ref={librarySearchInputRef}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Escape") return;
+                  if (!search) return;
+                  event.preventDefault();
+                  setSearch("");
+                }}
                 placeholder="Search threads"
                 className="w-full rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-signal-text outline-none placeholder:text-signal-muted"
               />
