@@ -560,26 +560,22 @@ export default function UnifiedSearch() {
   );
 
   const renderHighlighted = useCallback(
-    (text: string, className?: string) => {
+    (text: string) => {
       const parts = buildHighlightParts(text, normalized, normalizedTokens);
       if (parts.length === 0) return null;
       if (parts.length === 1 && !parts[0].highlighted) return text;
-      return (
-        <span className={className}>
-          {parts.map((part, index) => (
-            <span
-              key={`${index}-${part.highlighted ? "h" : "n"}`}
-              className={
-                part.highlighted
-                  ? "rounded bg-signal-accent/20 px-1 text-signal-text"
-                  : undefined
-              }
-            >
-              {part.text}
-            </span>
-          ))}
+      return parts.map((part, index) => (
+        <span
+          key={`${index}-${part.highlighted ? "h" : "n"}`}
+          className={
+            part.highlighted
+              ? "rounded bg-signal-accent/20 px-1 text-signal-text"
+              : undefined
+          }
+        >
+          {part.text}
         </span>
-      );
+      ));
     },
     [normalized, normalizedTokens]
   );
