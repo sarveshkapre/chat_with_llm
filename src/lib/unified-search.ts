@@ -521,6 +521,207 @@ export function getExportEnvironmentMeta(
   return { locale, timeZone, utcOffset };
 }
 
+export type UnifiedSearchExportEnvironment = {
+  locale: string;
+  timeZone: string;
+  utcOffset: string;
+};
+
+export type UnifiedSearchExportSavedSearch = {
+  name: string;
+  pinned: boolean;
+  query: string;
+  filter: string;
+  sortBy: string;
+  timelineWindow: string;
+  resultLimit: number;
+  verbatim: boolean;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+export type UnifiedSearchMarkdownExportInput = {
+  exportedAt: string;
+  environment: UnifiedSearchExportEnvironment;
+  query: string;
+  filter: UnifiedSearchType;
+  sortBy: SortBy;
+  resultLimit: number;
+  threads: {
+    title: string;
+    spaceName?: string | null;
+    mode: string;
+    createdAt?: string | null;
+  }[];
+  spaces: {
+    name: string;
+    instructions?: string | null;
+    tags: string[];
+    createdAt?: string | null;
+  }[];
+  collections: {
+    name: string;
+    createdAt?: string | null;
+  }[];
+  files: {
+    name: string;
+    size: number;
+    addedAt?: string | null;
+  }[];
+  tasks: {
+    name: string;
+    cadence: string;
+    time: string;
+    mode: string;
+    sources: string;
+    spaceName?: string | null;
+    nextRun?: string | null;
+  }[];
+  savedSearches: UnifiedSearchExportSavedSearch[];
+};
+
+export type UnifiedSearchSavedSearchesMarkdownExportInput = {
+  exportedAt: string;
+  environment: UnifiedSearchExportEnvironment;
+  savedSearches: UnifiedSearchExportSavedSearch[];
+};
+
+function buildSavedSearchMarkdownLines(
+  savedSearches: UnifiedSearchExportSavedSearch[],
+  includeCreatedAt: boolean
+): string[] {
+  if (!savedSearches.length) return ["(none)"];
+  return savedSearches.map((saved, index) => {
+    return [
+      `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
+      `   - Query: ${saved.query || "None"}`,
+      `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
+      ...(includeCreatedAt
+        ? [`   - Created: ${formatTimestampForExport(saved.createdAt)}`]
+        : []),
+      `   - Updated: ${formatTimestampForExport(saved.updatedAt)}`,
+    ].join("\n");
+  });
+}
+
+export function buildUnifiedSearchMarkdownExport(
+  input: UnifiedSearchMarkdownExportInput
+): string {
+  const lines: string[] = [
+    "# Signal Search Unified Export",
+    "",
+    `Exported: ${formatTimestampForExport(input.exportedAt)}`,
+    `Environment: locale=${input.environment.locale} timeZone=${input.environment.timeZone} utcOffset=${input.environment.utcOffset}`,
+    "",
+    `Query: ${input.query || "None"}`,
+    `Filter: ${input.filter}`,
+    `Sort: ${input.sortBy}`,
+    `Result limit (UI display only): ${input.resultLimit}`,
+    `Export: includes all matches (not limited by UI result limit)`,
+    "",
+    `Threads: ${input.threads.length}`,
+    `Spaces: ${input.spaces.length}`,
+    `Collections: ${input.collections.length}`,
+    `Files: ${input.files.length}`,
+    `Tasks: ${input.tasks.length}`,
+    "",
+    "## Threads",
+    ...input.threads.map((thread, index) =>
+      [
+        `${index + 1}. ${thread.title}`,
+        `   - Space: ${thread.spaceName ?? "None"} · Mode: ${thread.mode}`,
+        `   - Created: ${formatTimestampForExport(thread.createdAt)}`,
+      ].join("\n")
+    ),
+    "",
+    "## Spaces",
+    ...input.spaces.map((space, index) =>
+      [
+        `${index + 1}. ${space.name}`,
+        `   - Instructions: ${space.instructions || "None"}`,
+        `   - Tags: ${space.tags.length ? space.tags.join(", ") : "None"}`,
+        `   - Created: ${formatTimestampForExport(space.createdAt)}`,
+      ].join("\n")
+    ),
+    "",
+    "## Collections",
+    ...input.collections.map((collection, index) =>
+      [
+        `${index + 1}. ${collection.name}`,
+        `   - Created: ${formatTimestampForExport(collection.createdAt)}`,
+      ].join("\n")
+    ),
+    "",
+    "## Files",
+    ...input.files.map((file, index) =>
+      [
+        `${index + 1}. ${file.name}`,
+        `   - Size: ${Math.round(file.size / 1024)} KB`,
+        `   - Added: ${formatTimestampForExport(file.addedAt)}`,
+      ].join("\n")
+    ),
+    "",
+    "## Tasks",
+    ...input.tasks.map((task, index) =>
+      [
+        `${index + 1}. ${task.name}`,
+        `   - Cadence: ${task.cadence} at ${task.time}`,
+        `   - Mode: ${task.mode} · Sources: ${task.sources === "web" ? "Web" : "Offline"}`,
+        `   - Space: ${task.spaceName ?? "None"}`,
+        `   - Next run: ${formatTimestampForExport(task.nextRun)}`,
+      ].join("\n")
+    ),
+    "",
+    "## Saved Searches",
+    ...buildSavedSearchMarkdownLines(input.savedSearches, false),
+  ];
+
+  return lines.join("\n");
+}
+
+export function buildUnifiedSearchSavedSearchesMarkdownExport(
+  input: UnifiedSearchSavedSearchesMarkdownExportInput
+): string {
+  const lines: string[] = [
+    "# Signal Search Saved Searches",
+    "",
+    `Exported: ${formatTimestampForExport(input.exportedAt)}`,
+    `Environment: locale=${input.environment.locale} timeZone=${input.environment.timeZone} utcOffset=${input.environment.utcOffset}`,
+    "",
+    ...buildSavedSearchMarkdownLines(input.savedSearches, true),
+  ];
+  return lines.join("\n");
+}
+
+export type UnifiedSearchCsvExportRow = {
+  type: string;
+  title: string;
+  space?: string | null;
+  mode?: string | null;
+  createdAt?: string | null;
+};
+
+export function escapeCsvCell(value: unknown): string {
+  const raw = value == null ? "" : String(value);
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
+export function buildUnifiedSearchCsvExport(
+  rows: UnifiedSearchCsvExportRow[]
+): string {
+  const lines = [
+    ["type", "title", "space", "mode", "created_at"]
+      .map((cell) => escapeCsvCell(cell))
+      .join(","),
+    ...rows.map((row) =>
+      [row.type, row.title, row.space ?? "", row.mode ?? "", row.createdAt ?? ""]
+        .map((cell) => escapeCsvCell(cell))
+        .join(",")
+    ),
+  ];
+  return lines.join("\n");
+}
+
 export function applyTimelineWindow(
   value: string | null | undefined,
   window: TimelineWindow,

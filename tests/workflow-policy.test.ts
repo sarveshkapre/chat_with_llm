@@ -77,4 +77,52 @@ jobs:
     });
     expect(violations.some((v) => v.message.includes("40-char SHA"))).toBe(true);
   });
+
+  test("accepts smoke workflow when smoke:mock command is present", async () => {
+    const { checkWorkflowText } = await loadPolicy();
+    const text = `
+name: Smoke
+on: [workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - run: npm run smoke:mock
+`;
+    const violations = checkWorkflowText({
+      filePath: "/repo/.github/workflows/smoke.yml",
+      text,
+    });
+    expect(violations).toEqual([]);
+  });
+
+  test("rejects smoke workflow when smoke:mock command is missing", async () => {
+    const { checkWorkflowText } = await loadPolicy();
+    const text = `
+name: Smoke
+on: [workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - run: npm run test
+`;
+    const violations = checkWorkflowText({
+      filePath: "/repo/.github/workflows/smoke.yml",
+      text,
+    });
+    expect(
+      violations.some((v) => v.message.includes("smoke.yml must execute"))
+    ).toBe(true);
+  });
 });

@@ -19,6 +19,9 @@ import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
   applyOperatorAutocomplete,
+  buildUnifiedSearchCsvExport,
+  buildUnifiedSearchMarkdownExport,
+  buildUnifiedSearchSavedSearchesMarkdownExport,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
   filterCollectionEntries,
@@ -26,7 +29,6 @@ import {
   filterSpaceEntries,
   filterTaskEntries,
   formatTimestampForDisplay,
-  formatTimestampForExport,
   getExportEnvironmentMeta,
   filterThreadEntries,
   getOperatorAutocomplete,
@@ -951,92 +953,47 @@ export default function UnifiedSearch() {
     );
     const exportedFiles = sortSearchResults(filteredFiles, sortBy, matchQueryInfo, scoreFileEntry);
     const exportedTasks = sortSearchResults(filteredTasks, sortBy, matchQueryInfo, scoreTaskEntry);
-    const lines: string[] = [
-      "# Signal Search Unified Export",
-      "",
-      `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
-      `Environment: locale=${exportEnvironment.locale} timeZone=${exportEnvironment.timeZone} utcOffset=${exportEnvironment.utcOffset}`,
-      "",
-      `Query: ${query || "None"}`,
-      `Filter: ${effectiveFilter}`,
-      `Sort: ${sortBy}`,
-      `Result limit (UI display only): ${resultLimit}`,
-      `Export: includes all matches (not limited by UI result limit)`,
-      "",
-      `Threads: ${filteredThreads.length}`,
-      `Spaces: ${filteredSpaces.length}`,
-      `Collections: ${filteredCollections.length}`,
-      `Files: ${filteredFiles.length}`,
-      `Tasks: ${filteredTasks.length}`,
-      "",
-      "## Threads",
-      ...exportedThreads.map((entry, index) => {
-        const thread = entry.thread;
-        const title = thread.title ?? thread.question;
-        return [
-          `${index + 1}. ${title}`,
-          `   - Space: ${thread.spaceName ?? "None"} · Mode: ${thread.mode}`,
-          `   - Created: ${formatTimestampForExport(thread.createdAt)}`,
-        ].join("\n");
-      }),
-      "",
-      "## Spaces",
-      ...exportedSpaces.map((entry, index) => {
-        const space = entry.space;
-        const tags = entry.tags.length ? entry.tags.join(", ") : "None";
-        return [
-          `${index + 1}. ${space.name}`,
-          `   - Instructions: ${space.instructions || "None"}`,
-          `   - Tags: ${tags}`,
-          `   - Created: ${formatTimestampForExport(space.createdAt)}`,
-        ].join("\n");
-      }),
-      "",
-      "## Collections",
-      ...exportedCollections.map((entry, index) => {
-        const collection = entry.collection;
-        return [
-          `${index + 1}. ${collection.name}`,
-          `   - Created: ${formatTimestampForExport(collection.createdAt)}`,
-        ].join("\n");
-      }),
-      "",
-      "## Files",
-      ...exportedFiles.map((entry, index) => {
-        const file = entry.file;
-        return [
-          `${index + 1}. ${file.name}`,
-          `   - Size: ${Math.round(file.size / 1024)} KB`,
-          `   - Added: ${formatTimestampForExport(file.addedAt)}`,
-        ].join("\n");
-      }),
-      "",
-      "## Tasks",
-      ...exportedTasks.map((entry, index) => {
-        const task = entry.task;
-        return [
-          `${index + 1}. ${task.name}`,
-          `   - Cadence: ${task.cadence} at ${task.time}`,
-          `   - Mode: ${task.mode} · Sources: ${task.sources === "web" ? "Web" : "Offline"}`,
-          `   - Space: ${task.spaceName ?? "None"}`,
-          `   - Next run: ${formatTimestampForExport(task.nextRun)}`,
-        ].join("\n");
-      }),
-      "",
-      "## Saved Searches",
-      ...(exportedSavedSearches.length
-        ? exportedSavedSearches.map((saved, index) => {
-            return [
-              `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
-              `   - Query: ${saved.query || "None"}`,
-              `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
-              `   - Updated: ${formatTimestampForExport(saved.updatedAt)}`,
-            ].join("\n");
-          })
-        : ["(none)"]),
-    ];
+    const markdown = buildUnifiedSearchMarkdownExport({
+      exportedAt: new Date().toISOString(),
+      environment: exportEnvironment,
+      query,
+      filter: effectiveFilter,
+      sortBy,
+      resultLimit,
+      threads: exportedThreads.map((entry) => ({
+        title: entry.thread.title ?? entry.thread.question,
+        spaceName: entry.thread.spaceName,
+        mode: entry.thread.mode,
+        createdAt: entry.thread.createdAt,
+      })),
+      spaces: exportedSpaces.map((entry) => ({
+        name: entry.space.name,
+        instructions: entry.space.instructions,
+        tags: entry.tags,
+        createdAt: entry.space.createdAt,
+      })),
+      collections: exportedCollections.map((entry) => ({
+        name: entry.collection.name,
+        createdAt: entry.collection.createdAt,
+      })),
+      files: exportedFiles.map((entry) => ({
+        name: entry.file.name,
+        size: entry.file.size,
+        addedAt: entry.file.addedAt,
+      })),
+      tasks: exportedTasks.map((entry) => ({
+        name: entry.task.name,
+        cadence: entry.task.cadence,
+        time: entry.task.time,
+        mode: entry.task.mode,
+        sources: entry.task.sources,
+        spaceName: entry.task.spaceName,
+        nextRun: entry.task.nextRun,
+      })),
+      savedSearches: exportedSavedSearches,
+    });
 
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const blob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -1048,26 +1005,12 @@ export default function UnifiedSearch() {
   function exportSavedSearches() {
     const exportEnvironment = getExportEnvironmentMeta();
     const exportedSavedSearches = sortSavedSearches(savedSearches);
-    const lines: string[] = [
-      "# Signal Search Saved Searches",
-      "",
-      `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
-      `Environment: locale=${exportEnvironment.locale} timeZone=${exportEnvironment.timeZone} utcOffset=${exportEnvironment.utcOffset}`,
-      "",
-      ...(exportedSavedSearches.length
-        ? exportedSavedSearches.map((saved, index) => {
-            return [
-              `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
-              `   - Query: ${saved.query || "None"}`,
-              `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
-              `   - Created: ${formatTimestampForExport(saved.createdAt)}`,
-              `   - Updated: ${formatTimestampForExport(saved.updatedAt)}`,
-            ].join("\n");
-          })
-        : ["(none)"]),
-    ];
-
-    const blob = new Blob([lines.join("\n")], { type: "text/markdown" });
+    const markdown = buildUnifiedSearchSavedSearchesMarkdownExport({
+      exportedAt: new Date().toISOString(),
+      environment: exportEnvironment,
+      savedSearches: exportedSavedSearches,
+    });
+    const blob = new Blob([markdown], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -1092,61 +1035,39 @@ export default function UnifiedSearch() {
     );
     const exportedFiles = sortSearchResults(filteredFiles, sortBy, matchQueryInfo, scoreFileEntry);
     const exportedTasks = sortSearchResults(filteredTasks, sortBy, matchQueryInfo, scoreTaskEntry);
-    const lines = [
-      ["type", "title", "space", "mode", "created_at"].join(","),
-      ...exportedThreads.map((entry) => {
-        const thread = entry.thread;
-        return [
-          "thread",
-          `"${(thread.title ?? thread.question).replace(/\"/g, '""')}"`,
-          `"${(thread.spaceName ?? "None").replace(/\"/g, '""')}"`,
-          thread.mode,
-          thread.createdAt,
-        ].join(",");
-      }),
-      ...exportedSpaces.map((entry) => {
-        const space = entry.space;
-        return [
-          "space",
-          `"${space.name.replace(/\"/g, '""')}"`,
-          "",
-          "",
-          space.createdAt,
-        ].join(",");
-      }),
-      ...exportedCollections.map((entry) => {
-        const collection = entry.collection;
-        return [
-          "collection",
-          `"${collection.name.replace(/\"/g, '""')}"`,
-          "",
-          "",
-          collection.createdAt,
-        ].join(",");
-      }),
-      ...exportedFiles.map((entry) => {
-        const file = entry.file;
-        return [
-          "file",
-          `"${file.name.replace(/\"/g, '""')}"`,
-          "",
-          "",
-          file.addedAt,
-        ].join(",");
-      }),
-      ...exportedTasks.map((entry) => {
-        const task = entry.task;
-        return [
-          "task",
-          `"${task.name.replace(/\"/g, '""')}"`,
-          `"${(task.spaceName ?? "None").replace(/\"/g, '""')}"`,
-          task.mode,
-          task.nextRun,
-        ].join(",");
-      }),
-    ];
+    const csv = buildUnifiedSearchCsvExport([
+      ...exportedThreads.map((entry) => ({
+        type: "thread",
+        title: entry.thread.title ?? entry.thread.question,
+        space: entry.thread.spaceName ?? "None",
+        mode: entry.thread.mode,
+        createdAt: entry.thread.createdAt,
+      })),
+      ...exportedSpaces.map((entry) => ({
+        type: "space",
+        title: entry.space.name,
+        createdAt: entry.space.createdAt,
+      })),
+      ...exportedCollections.map((entry) => ({
+        type: "collection",
+        title: entry.collection.name,
+        createdAt: entry.collection.createdAt,
+      })),
+      ...exportedFiles.map((entry) => ({
+        type: "file",
+        title: entry.file.name,
+        createdAt: entry.file.addedAt,
+      })),
+      ...exportedTasks.map((entry) => ({
+        type: "task",
+        title: entry.task.name,
+        space: entry.task.spaceName ?? "None",
+        mode: entry.task.mode,
+        createdAt: entry.task.nextRun,
+      })),
+    ]);
 
-    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -1251,12 +1172,14 @@ export default function UnifiedSearch() {
           </Link>
           <button
             onClick={exportResults}
+            aria-label="Export unified search results to Markdown"
             className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
           >
             Export results
           </button>
           <button
             onClick={exportCsv}
+            aria-label="Export unified search results to CSV"
             className="rounded-full border border-white/10 px-4 py-2 text-xs text-signal-text"
           >
             Export CSV
@@ -1436,6 +1359,7 @@ export default function UnifiedSearch() {
             <div className="flex items-center gap-2">
               <button
                 onClick={saveCurrentSearch}
+                aria-label="Save current unified search"
                 className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
               >
                 Save search
@@ -1446,6 +1370,7 @@ export default function UnifiedSearch() {
                     const parsed = parseUnifiedSearchQuery(query);
                     setQuery(parsed.text);
                   }}
+                  aria-label="Clear search operators from query"
                   className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                 >
                   Clear operators
@@ -1562,7 +1487,12 @@ export default function UnifiedSearch() {
             </label>
           </div>
           {toast ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200"
+            >
               <p>{toast.message}</p>
               {toast.undo ? (
                 <button
@@ -1587,6 +1517,7 @@ export default function UnifiedSearch() {
                 <span>Recent searches</span>
                 <button
                   onClick={clearRecentQueries}
+                  aria-label="Clear recent unified search queries"
                   className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                 >
                   Clear recent
@@ -1614,6 +1545,7 @@ export default function UnifiedSearch() {
                 <span>Saved searches</span>
                 <button
                   onClick={exportSavedSearches}
+                  aria-label="Export saved searches to Markdown"
                   className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                 >
                   Export
@@ -1674,6 +1606,7 @@ export default function UnifiedSearch() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => runSavedSearch(saved)}
+                          aria-label={`Run saved search ${saved.name}`}
                           className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-signal-text"
                         >
                           Run
@@ -1685,6 +1618,7 @@ export default function UnifiedSearch() {
                               togglePinSavedSearch(prev, saved.id, now)
                             );
                           }}
+                          aria-label={`${saved.pinned ? "Unpin" : "Pin"} saved search ${saved.name}`}
                           className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                         >
                           {saved.pinned ? "Unpin" : "Pin"}
@@ -1694,6 +1628,7 @@ export default function UnifiedSearch() {
                             setEditingSavedId(saved.id);
                             setEditingSavedName(saved.name);
                           }}
+                          aria-label={`Rename saved search ${saved.name}`}
                           className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                         >
                           Rename
@@ -1709,6 +1644,7 @@ export default function UnifiedSearch() {
                             }
                             setToast({ message: "Deleted saved search." });
                           }}
+                          aria-label={`Delete saved search ${saved.name}`}
                           className="rounded-full border border-white/10 px-3 py-1 text-[11px] text-rose-200 hover:bg-rose-500/10"
                         >
                           Delete
@@ -1900,6 +1836,7 @@ export default function UnifiedSearch() {
                           <input
                             type="checkbox"
                             checked={allShownSelected}
+                            aria-label="Select all visible thread results"
                             onChange={(event) =>
                               setAllShownThreadSelection(event.target.checked)
                             }
@@ -1922,6 +1859,7 @@ export default function UnifiedSearch() {
                                 message: `Pruned ${staleSelectedCount} stale selection(s).`,
                               });
                             }}
+                            aria-label={`Prune ${staleSelectedCount} stale thread selections`}
                             className="rounded-full border border-amber-400/50 px-2 py-1 text-amber-100 hover:bg-amber-500/10"
                           >
                             Prune stale ({staleSelectedCount})
@@ -1937,6 +1875,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Pin selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -1952,6 +1891,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Favorite selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -1967,6 +1907,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Unpin selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -1982,6 +1923,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Unfavorite selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -1997,6 +1939,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Archive selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -2012,6 +1955,7 @@ export default function UnifiedSearch() {
                                 }`
                             )
                           }
+                          aria-label="Unarchive selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >
@@ -2020,6 +1964,7 @@ export default function UnifiedSearch() {
                         <select
                           value={bulkSpaceId}
                           onChange={(event) => setBulkSpaceId(event.target.value)}
+                          aria-label="Bulk space target for selected threads"
                           className="rounded-full border border-white/10 bg-transparent px-2 py-1 text-[11px] text-signal-text"
                         >
                           <option value="">No space</option>
@@ -2031,6 +1976,7 @@ export default function UnifiedSearch() {
                         </select>
                         <button
                           onClick={applyBulkSpaceAssignment}
+                          aria-label="Apply selected space to selected threads"
                           disabled={!selectedCount}
                           className="rounded-full border border-white/10 px-2 py-1 disabled:opacity-40"
                         >

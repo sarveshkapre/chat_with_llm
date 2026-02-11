@@ -7,6 +7,23 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Cycle 6 (2026-02-11) Plan
+- [ ] P1 (Selected): Extract Unified Search export builders into pure helpers (`buildUnifiedSearchMarkdownExport`, `buildUnifiedSearchSavedSearchesMarkdownExport`, `buildUnifiedSearchCsvExport`) to reduce `unified-search.tsx` complexity and make export behavior easier to regression test. (Score: impact=high effort=med strategic=high differentiation=low risk=low confidence=high)
+- [ ] P1 (Selected): Harden Unified Search CSV export with a shared `escapeCsvCell` helper that safely handles commas/newlines/quotes across thread/space/collection/file/task records, with deterministic regression tests. (Score: impact=high effort=low-med strategic=high differentiation=low risk=low confidence=high)
+- [ ] P1 (Selected): Add accessibility pass for Unified Search action controls: explicit `aria-label`s for bulk/saved-search actions and `aria-live` status announcements for toast feedback. (Score: impact=med-high effort=low-med strategic=high differentiation=med risk=low confidence=high)
+- [ ] P2 (Selected): Extend workflow-policy tests to enforce `smoke.yml` includes an `npm run smoke:mock` step so smoke coverage cannot silently drift in CI workflow edits. (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
+- [ ] P2: Add localStorage schema guards for malformed Unified Search preload payloads (threads/spaces/tasks) to prevent runtime crashes from invalid cached data.
+- [ ] P2: Add fixture-backed smoke mode for `/search` that preloads deterministic localStorage data and asserts non-empty filtered sections.
+- [ ] P2: Add timeline-window edge-case tests around daylight-saving transitions and mixed invalid timestamps.
+- [ ] P2: Add benchmark harness (`scripts/search-perf.mjs`) for 1k/5k/10k mixed entries and document baseline timings.
+- [ ] P2: Extract keyboard handling into `useUnifiedSearchKeyboard` hook to lower maintenance risk in `unified-search.tsx`.
+- [ ] P2: Add compact debug diagnostics on `/search` (type counts + filtered-out reasons) behind a query-param flag.
+- [ ] P3: Add explicit empty-state copy for operator-filtered zero-results with one-click clear actions.
+- [ ] P3: Add docs section for export semantics (all-results vs UI-limit, deterministic timestamps, environment metadata).
+- [ ] P3: Add docs for keyboard precedence (operator suggestions vs result navigation) and escape behavior matrix.
+- [ ] P3: Add explicit `aria-describedby` guidance text for operator syntax examples to improve screen-reader discoverability.
+- [ ] P3: Add unit tests for `resolveThreadSpaceMeta` when selected space ids are missing/archived to preserve safe fallback semantics.
+
 ### Cycle 5 (2026-02-11) Plan
 - [x] P1 (Selected): Add Unified Search export metadata block with explicit locale/timezone/UTC offset for markdown exports (results + saved searches) so exported artifacts are reproducible across machines and review workflows. (Delivered in Cycle 5, commit `3b7d78e`) (Score: impact=high effort=low strategic=high differentiation=low risk=low confidence=high)
 - [x] P1 (Selected): Add a visible `Prune stale selection` recovery action in Unified Search bulk toolbar when selected thread ids no longer exist (cross-tab deletes/updates), with precise stale-count feedback. (Delivered in Cycle 5, commit `3b7d78e`) (Score: impact=high effort=low-med strategic=high differentiation=med risk=low confidence=high)

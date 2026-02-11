@@ -78,6 +78,17 @@ export function checkWorkflowText({ filePath, text }) {
     });
   }
 
+  if (
+    path.basename(filePath).toLowerCase() === "smoke.yml" &&
+    !text.includes("npm run smoke:mock")
+  ) {
+    violations.push({
+      filePath,
+      line: 1,
+      message: "smoke.yml must execute `npm run smoke:mock`.",
+    });
+  }
+
   return violations;
 }
 

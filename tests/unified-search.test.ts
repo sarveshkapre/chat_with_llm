@@ -3,6 +3,10 @@ import {
   applyOperatorAutocomplete,
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  buildUnifiedSearchCsvExport,
+  buildUnifiedSearchMarkdownExport,
+  buildUnifiedSearchSavedSearchesMarkdownExport,
+  escapeCsvCell,
   formatTimestampForDisplay,
   formatTimestampForExport,
   formatUtcOffset,
@@ -89,6 +93,101 @@ describe("timestamp helpers", () => {
       timeZone: "America/Los_Angeles",
       utcOffset: formatUtcOffset(-now.getTimezoneOffset()),
     });
+  });
+});
+
+describe("export builders", () => {
+  it("escapes CSV cells with quotes, commas, and newlines", () => {
+    expect(escapeCsvCell('alpha, "beta"\nline')).toBe('"alpha, ""beta""\nline"');
+  });
+
+  it("builds CSV export with deterministic quoting for every field", () => {
+    const csv = buildUnifiedSearchCsvExport([
+      {
+        type: "thread",
+        title: 'Roadmap, "Q1"\nPlanning',
+        space: "Research, Team",
+        mode: "quick",
+        createdAt: "2026-02-08T10:00:00.000Z",
+      },
+      {
+        type: "task",
+        title: "Weekly digest",
+        space: null,
+        mode: "learn",
+        createdAt: null,
+      },
+    ]);
+
+    expect(csv).toBe(
+      [
+        '"type","title","space","mode","created_at"',
+        '"thread","Roadmap, ""Q1""\nPlanning","Research, Team","quick","2026-02-08T10:00:00.000Z"',
+        '"task","Weekly digest","","learn",""',
+      ].join("\n")
+    );
+  });
+
+  it("builds unified markdown export with environment metadata and saved-search fallback", () => {
+    const markdown = buildUnifiedSearchMarkdownExport({
+      exportedAt: "2026-02-08T10:00:00.000Z",
+      environment: {
+        locale: "en-US",
+        timeZone: "America/Los_Angeles",
+        utcOffset: "-08:00",
+      },
+      query: "incident",
+      filter: "all",
+      sortBy: "relevance",
+      resultLimit: 20,
+      threads: [
+        {
+          title: "Incident review",
+          spaceName: "Ops",
+          mode: "research",
+          createdAt: "2026-02-08T09:00:00.000Z",
+        },
+      ],
+      spaces: [],
+      collections: [],
+      files: [],
+      tasks: [],
+      savedSearches: [],
+    });
+
+    expect(markdown).toContain(
+      "Environment: locale=en-US timeZone=America/Los_Angeles utcOffset=-08:00"
+    );
+    expect(markdown).toContain("## Saved Searches\n(none)");
+  });
+
+  it("builds saved-search markdown export with created/updated timestamps", () => {
+    const markdown = buildUnifiedSearchSavedSearchesMarkdownExport({
+      exportedAt: "2026-02-08T10:00:00.000Z",
+      environment: {
+        locale: "en-US",
+        timeZone: "America/Los_Angeles",
+        utcOffset: "-08:00",
+      },
+      savedSearches: [
+        {
+          name: "Pinned incidents",
+          pinned: true,
+          query: "incident",
+          filter: "threads",
+          sortBy: "newest",
+          timelineWindow: "7d",
+          resultLimit: 20,
+          verbatim: false,
+          createdAt: "2026-02-08T08:00:00.000Z",
+          updatedAt: "2026-02-08T09:00:00.000Z",
+        },
+      ],
+    });
+
+    expect(markdown).toContain("1. Pinned: Pinned incidents");
+    expect(markdown).toContain("   - Created: 2026-02-08T08:00:00.000Z");
+    expect(markdown).toContain("   - Updated: 2026-02-08T09:00:00.000Z");
   });
 });
 

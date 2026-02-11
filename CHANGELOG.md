@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Unified Search export builders now run through shared pure helpers for markdown/saved-search/CSV generation.
+- Unified Search CSV exports now use deterministic full-cell escaping for commas/newlines/quotes.
+- Unified Search accessibility pass: action controls now expose explicit labels and toast updates are announced via polite live regions.
+- Workflow policy now enforces that `.github/workflows/smoke.yml` executes `npm run smoke:mock`.
 - Unified Search now supports timeline windows (all, 24h, 7d, 30d).
 - Unified Search now supports direct and bulk thread actions (favorite, pin, archive, and space assignment).
 - Unified Search relevance improved: multi-word queries match across fields (phrase or tokenized all-term match), with field-weighted ranking and precomputed scores.
