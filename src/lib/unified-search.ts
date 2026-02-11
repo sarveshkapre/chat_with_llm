@@ -498,6 +498,29 @@ export function formatTimestampForExport(
   return `${date.toISOString()} (${date.toLocaleString()})`;
 }
 
+export function formatUtcOffset(totalMinutes: number): string {
+  const sign = totalMinutes >= 0 ? "+" : "-";
+  const absoluteMinutes = Math.abs(totalMinutes);
+  const hours = Math.floor(absoluteMinutes / 60)
+    .toString()
+    .padStart(2, "0");
+  const minutes = (absoluteMinutes % 60).toString().padStart(2, "0");
+  return `${sign}${hours}:${minutes}`;
+}
+
+export function getExportEnvironmentMeta(
+  now = new Date(),
+  localeInput?: string | null,
+  timeZoneInput?: string | null
+): { locale: string; timeZone: string; utcOffset: string } {
+  const resolved = Intl.DateTimeFormat().resolvedOptions();
+  const locale = (localeInput ?? resolved.locale ?? "").trim() || "unknown";
+  const timeZone = (timeZoneInput ?? resolved.timeZone ?? "").trim() || "unknown";
+  // `getTimezoneOffset()` returns minutes west of UTC. We invert for UTC+/- format.
+  const utcOffset = formatUtcOffset(-now.getTimezoneOffset());
+  return { locale, timeZone, utcOffset };
+}
+
 export function applyTimelineWindow(
   value: string | null | undefined,
   window: TimelineWindow,

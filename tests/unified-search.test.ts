@@ -5,6 +5,8 @@ import {
   applyTimelineWindow,
   formatTimestampForDisplay,
   formatTimestampForExport,
+  formatUtcOffset,
+  getExportEnvironmentMeta,
   computeRelevanceScore,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
@@ -68,6 +70,25 @@ describe("timestamp helpers", () => {
   it("returns fallback text for invalid export/display timestamps", () => {
     expect(formatTimestampForExport("bad", "Unknown")).toBe("Unknown");
     expect(formatTimestampForDisplay("bad", "Unknown")).toBe("Unknown");
+  });
+
+  it("formats UTC offsets for both positive and negative minute values", () => {
+    expect(formatUtcOffset(330)).toBe("+05:30");
+    expect(formatUtcOffset(-480)).toBe("-08:00");
+  });
+
+  it("returns export environment metadata with locale, timezone, and UTC offset", () => {
+    const now = new Date("2026-02-08T10:00:00.000Z");
+    const meta = getExportEnvironmentMeta(
+      now,
+      "en-US",
+      "America/Los_Angeles"
+    );
+    expect(meta).toEqual({
+      locale: "en-US",
+      timeZone: "America/Los_Angeles",
+      utcOffset: formatUtcOffset(-now.getTimezoneOffset()),
+    });
   });
 });
 
@@ -373,6 +394,56 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.type).toBe("tasks");
     expect(parsed.operators.states).toEqual(["pinned"]);
     expect(parsed.operators.notHasNote).toBe(true);
+  });
+
+  it("keeps parser behavior stable for long duplicate operator-heavy inputs", () => {
+    const raw = [
+      "type:threads",
+      "type:spaces",
+      "tag:alpha",
+      "tag:alpha",
+      "-tag:beta",
+      "is:pinned",
+      "is:favorite",
+      "-is:archived",
+      "has:note",
+      "-has:citation",
+      'space:"Roadmap Team"',
+      "spaceId:space-42",
+      "verbatim:false",
+      "incident",
+      "postmortem",
+    ].join(" ");
+    const parsed = parseUnifiedSearchQuery(raw);
+    expect(parsed.text).toBe("incident postmortem");
+    expect(parsed.operators.type).toBe("spaces");
+    expect(parsed.operators.tags).toEqual(["alpha", "alpha"]);
+    expect(parsed.operators.notTags).toEqual(["beta"]);
+    expect(parsed.operators.states).toEqual(["pinned", "favorite"]);
+    expect(parsed.operators.notStates).toEqual(["archived"]);
+    expect(parsed.operators.hasNote).toBe(true);
+    expect(parsed.operators.notHasCitation).toBe(true);
+    expect(parsed.operators.space).toBe("Roadmap Team");
+    expect(parsed.operators.spaceId).toBe("space-42");
+    expect(parsed.operators.verbatim).toBe(false);
+  });
+
+  it("handles quoted operator values with colons and escaped quotes", () => {
+    const parsed = parseUnifiedSearchQuery(
+      'tag:"release:v1" space:"Ops \\"Incident\\" Team" roadmap'
+    );
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.tags).toEqual(["release:v1"]);
+    expect(parsed.operators.space).toBe('Ops "Incident" Team');
+  });
+
+  it("continues parsing valid operators after malformed operator tokens", () => {
+    const parsed = parseUnifiedSearchQuery(
+      'type:threads space:"Deep Work tag:alpha tag:beta -has:note follow up'
+    );
+    expect(parsed.operators.tags).toEqual(["alpha", "beta"]);
+    expect(parsed.operators.notHasNote).toBe(true);
+    expect(parsed.text).toContain("follow up");
   });
 });
 

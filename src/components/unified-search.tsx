@@ -27,6 +27,7 @@ import {
   filterTaskEntries,
   formatTimestampForDisplay,
   formatTimestampForExport,
+  getExportEnvironmentMeta,
   filterThreadEntries,
   getOperatorAutocomplete,
   parseTimestampMs,
@@ -621,6 +622,10 @@ export default function UnifiedSearch() {
     [selectedThreadIds, threadIdSet]
   );
   const selectedCount = activeSelectedThreadIds.length;
+  const staleSelectedCount = useMemo(
+    () => selectedThreadIds.length - selectedCount,
+    [selectedThreadIds, selectedCount]
+  );
 
   const applyBulkAction = useCallback(
     (
@@ -929,6 +934,7 @@ export default function UnifiedSearch() {
   }
 
   function exportResults() {
+    const exportEnvironment = getExportEnvironmentMeta();
     const exportedSavedSearches = sortSavedSearches(savedSearches);
     const exportedThreads = sortSearchResults(
       filteredThreads,
@@ -949,6 +955,7 @@ export default function UnifiedSearch() {
       "# Signal Search Unified Export",
       "",
       `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
+      `Environment: locale=${exportEnvironment.locale} timeZone=${exportEnvironment.timeZone} utcOffset=${exportEnvironment.utcOffset}`,
       "",
       `Query: ${query || "None"}`,
       `Filter: ${effectiveFilter}`,
@@ -1039,11 +1046,13 @@ export default function UnifiedSearch() {
   }
 
   function exportSavedSearches() {
+    const exportEnvironment = getExportEnvironmentMeta();
     const exportedSavedSearches = sortSavedSearches(savedSearches);
     const lines: string[] = [
       "# Signal Search Saved Searches",
       "",
       `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
+      `Environment: locale=${exportEnvironment.locale} timeZone=${exportEnvironment.timeZone} utcOffset=${exportEnvironment.utcOffset}`,
       "",
       ...(exportedSavedSearches.length
         ? exportedSavedSearches.map((saved, index) => {
@@ -1903,6 +1912,21 @@ export default function UnifiedSearch() {
                             ? ` (${hiddenSelectedCount} hidden)`
                             : ""}
                         </span>
+                        {staleSelectedCount ? (
+                          <button
+                            onClick={() => {
+                              setSelectedThreadIds((previous) =>
+                                pruneSelectedIds(previous, threadIdSet)
+                              );
+                              setToast({
+                                message: `Pruned ${staleSelectedCount} stale selection(s).`,
+                              });
+                            }}
+                            className="rounded-full border border-amber-400/50 px-2 py-1 text-amber-100 hover:bg-amber-500/10"
+                          >
+                            Prune stale ({staleSelectedCount})
+                          </button>
+                        ) : null}
                         <button
                           onClick={() =>
                             applyBulkAction(
