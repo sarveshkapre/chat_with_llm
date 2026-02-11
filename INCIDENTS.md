@@ -13,6 +13,24 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `npm run perf:search` failed after refactoring perf data prep to consume shared deterministic fixtures.
+  Impact: Verification temporarily failed (`tests/search-perf.bench.ts` checksum assertion); no production runtime incident.
+  Root Cause: Shared fixture records did not initially include all default benchmark query tokens (`incident research workflow citation keyboard`), so filter passes returned zero visible matches and checksum stayed `0`.
+  Fix: Added a shared baseline phrase across generated fixture text fields in `createDeterministicUnifiedSearchDataset()` and reran perf/full verification.
+  Prevention Rule: When changing synthetic fixture generators, validate benchmark query-token coverage explicitly before relying on checksum-based perf assertions.
+  Evidence: Failed then passing `npm run perf:search`.
+  Commit: a8f09d4
+  Confidence: high
+- Date: 2026-02-11
+  Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/smoke-search/archive-only did not enforce expected is:archived filtering`.
+  Impact: Verification temporarily failed; no production runtime incident.
+  Root Cause: Smoke assertion checked raw HTML and matched non-visible thread names embedded in RSC payload `<script>` data, creating a false negative.
+  Fix: Added `stripScriptsFromHtml()` in smoke assertions before include/exclude checks for archive-operator routes, then reran full verification.
+  Prevention Rule: For SSR route smoke assertions, strip script payloads or scope checks to visible markup to avoid false positives from serialized bootstrap data.
+  Evidence: Failed then passing `node scripts/smoke.mjs --provider mock --skip-build`.
+  Commit: a8f09d4
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `npm test -- tests/unified-search.test.ts` failed after adding a new `stripUnifiedSearchOperators` regression assertion.
   Impact: Verification temporarily failed; no production runtime incident.
   Root Cause: The new assertion expected quote-character preservation, but operator-token normalization intentionally strips wrapping quotes while preserving token text semantics.
