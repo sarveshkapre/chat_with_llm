@@ -13,6 +13,15 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/smoke-search/stale-selection did not expose expected stale-selection recovery control`.
+  Impact: Verification temporarily failed; no production runtime incident.
+  Root Cause: Smoke assertion required contiguous text `Prune stale (1)`, but SSR output split the number with React comment separators (`Prune stale (<!-- -->1<!-- -->)`).
+  Fix: Updated stale-selection matcher to SSR-safe regex (`Prune stale\\s*\\((?:<!-- -->)?1(?:<!-- -->)?\\)`), then reran build+smoke checks.
+  Prevention Rule: For SSR smoke text assertions, assume React may inject comment separators between adjacent text nodes and validate against captured HTML.
+  Evidence: Failed then passing `npm run build && node scripts/smoke.mjs --provider mock --skip-build`.
+  Commit: b935bf5
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/smoke-search/saved-roundtrip controls did not preserve saved-search filter/sort/timeline/limit/verbatim state`.
   Impact: Verification temporarily failed; no production runtime incident.
   Root Cause: Smoke assertion expected `<select>`-style filter markup and contiguous `verbatim:true` text, but the UI renders filter state as pill buttons and SSR output inserts React comment separators around adjacent text nodes.
