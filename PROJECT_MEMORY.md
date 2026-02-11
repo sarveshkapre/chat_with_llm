@@ -9,6 +9,8 @@
 
 ## Recent Decisions
 - Template: YYYY-MM-DD | Decision | Why | Evidence (tests/logs) | Commit | Confidence (high/medium/low) | Trust (trusted/untrusted)
+- 2026-02-11 | Prioritize Cycle 5 Unified Search reproducibility + selection resilience work (export environment metadata, stale-selection recovery, parser stress coverage) | Bounded market scan still shows baseline expectation for explicit search controls and reproducible search artifacts; this work improves trust without adding risky architecture surface area | OpenAI Help web/history search docs + Perplexity threads/spaces docs + Kagi filtering docs (`https://help.openai.com/en/articles/11186788-search-the-web-using-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 3b7d78e | medium | untrusted
+- 2026-02-11 | Add export environment metadata and explicit stale-selection prune control in Unified Search, with parser stress regression coverage | Makes markdown exports auditable across locales/timezones, gives users an explicit repair action for cross-tab stale selections, and hardens operator parsing behavior as grammar grows | `npm test -- tests/unified-search.test.ts` (73 tests), `npm run lint -- --max-warnings=0`, `npm test` (112 tests), `npm run build`, `node scripts/smoke.mjs --provider mock --skip-build`, CI + Scorecard success for `3b7d78e` | 3b7d78e | high | trusted
 - 2026-02-11 | Prioritize Cycle 4 reliability work on Unified Search timestamp/export correctness before new surface-area features | Bounded market scan still shows trust/verification expectations around searchable history and operator-driven narrowing; export evidence quality is currently higher leverage than adding net-new controls | OpenAI Help search docs + Perplexity thread capabilities + Kagi filtering docs (`https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 72c24d7 | medium | untrusted
 - 2026-02-11 | Add shared timestamp parse/format helpers and switch Unified Search export/render paths to deterministic formatting with invalid-date fallback | Prevents `Invalid Date` leakage in markdown exports/UI and makes exported timestamps comparable across locales by emitting `ISO + locale` strings | `npm test -- tests/unified-search.test.ts` (68 tests), `npm test` (107 tests), `npm run build`, `node scripts/smoke.mjs --provider mock --skip-build` | 72c24d7 | high | trusted
 - 2026-02-11 | Extend smoke verification with an operator-heavy `/search` request path assertion | Keeps a route-level regression guard in the runnable smoke path for operator-focused search flows | `node scripts/smoke.mjs --provider mock --skip-build` (`Smoke OK ...`) + green CI/Scorecard for commit `72c24d7` | 72c24d7 | high | trusted
@@ -61,11 +63,20 @@
 
 ## Next Prioritized Tasks
 - P2: Add a search performance harness (`scripts/search-perf.mjs`) for 1k/5k/10k local dataset baselines.
-- P2: Add timezone + locale metadata header for Unified Search markdown exports to improve reproducibility across machines.
+- P2: Add deterministic CSV export escaping tests (quotes/newlines/commas) and extract a shared CSV escaping helper for Unified Search export paths.
 - P3: Extend smoke with fixture-backed localStorage preload so `/search` operator assertions validate non-empty filtered results.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,status,conclusion,workflowName,url,createdAt` | latest `CI` + `Scorecard supply-chain security` successful before Cycle 5 changes; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (73 tests)` | pass
+- 2026-02-11 | `npm run lint -- --max-warnings=0` | (no warnings/errors) | pass
+- 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 112 passed (112)` | pass
+- 2026-02-11 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=49580 deltaEvents=15` | pass
+- 2026-02-11 | `gh run watch 21902321293 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21902321288 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | Latest non-Release runs were successful before Cycle 4 code changes | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (68 tests)` | pass
