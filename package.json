@@ -15,6 +15,7 @@
     "check:smoke-fixtures": "node scripts/check-smoke-fixtures.mjs",
     "check:clone-features": "node scripts/check-clone-features.mjs",
     "check:project-memory": "node scripts/check-project-memory.mjs",
+    "docs:ops": "node scripts/docs-ops.mjs",
     "smoke:mock": "node scripts/smoke.mjs --provider mock",
     "perf:search": "node scripts/search-perf.mjs"
   },

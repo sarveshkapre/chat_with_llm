@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { Collection } from "@/lib/types/collection";
 import type { AnswerResponse } from "@/lib/types/answer";
@@ -9,7 +9,7 @@ import {
   SIGNAL_COLLECTIONS_KEY as COLLECTIONS_KEY,
   SIGNAL_HISTORY_KEY as THREADS_KEY,
 } from "@/lib/storage-keys";
-import { readStoredJson } from "@/lib/storage";
+import { readStoredJson, writeStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -33,14 +33,37 @@ export default function CollectionsView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [exportingId, setExportingId] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const storageNoticeGuardRef = useRef(new Set<string>());
+
+  const persistStorageValue = useCallback(
+    (key: string, value: unknown, label: string) => {
+      const status = writeStoredJson(key, value);
+      if (status === "ok" || status === "unavailable") {
+        storageNoticeGuardRef.current.delete(`${key}:quota`);
+        storageNoticeGuardRef.current.delete(`${key}:failed`);
+        return;
+      }
+      const dedupeKey = `${key}:${status}`;
+      if (storageNoticeGuardRef.current.has(dedupeKey)) return;
+      storageNoticeGuardRef.current.add(dedupeKey);
+      window.setTimeout(() => {
+        setNotice(
+          status === "quota"
+            ? `Local storage is full. Could not save ${label}.`
+            : `Could not save ${label} to local storage.`
+        );
+      }, 0);
+    },
+    []
+  );
 
   useEffect(() => {
-    localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
-  }, [collections]);
+    persistStorageValue(COLLECTIONS_KEY, collections, "collections");
+  }, [collections, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(THREADS_KEY, JSON.stringify(threads));
-  }, [threads]);
+    persistStorageValue(THREADS_KEY, threads, "thread updates");
+  }, [threads, persistStorageValue]);
 
   useEffect(() => {
     if (!notice) return;

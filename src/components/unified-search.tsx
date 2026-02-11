@@ -72,6 +72,7 @@ import {
   deleteSavedSearch,
   findDuplicateSavedSearch,
   renameSavedSearch,
+  resolveSavedSearchStorageCandidates,
   sortSavedSearches,
   togglePinSavedSearch,
   type UnifiedSavedSearch,
@@ -85,11 +86,12 @@ import {
   SIGNAL_SPACES_KEY as SPACES_KEY,
   SIGNAL_TASKS_KEY as TASKS_KEY,
   SIGNAL_UNIFIED_RECENT_SEARCH_KEY as RECENT_SEARCH_KEY,
+  SIGNAL_UNIFIED_SAVED_SEARCH_LEGACY_KEYS as SAVED_SEARCH_LEGACY_KEYS,
   SIGNAL_UNIFIED_SAVED_SEARCH_KEY as SAVED_SEARCH_KEY,
   SIGNAL_UNIFIED_VERBATIM_KEY as VERBATIM_KEY,
   UNIFIED_SEARCH_STORAGE_EVENT_KEYS,
 } from "@/lib/storage-keys";
-import { writeStoredJson } from "@/lib/storage";
+import { readStoredJsonWithExistence, writeStoredJson } from "@/lib/storage";
 import { useUnifiedSearchKeyboard } from "@/lib/unified-search-keyboard";
 
 type Thread = AnswerResponse & {
@@ -229,20 +231,47 @@ export default function UnifiedSearch({
 }: UnifiedSearchProps = {}) {
   const router = useRouter();
   const disableStorageSync = initialBootstrap?.disableStorageSync === true;
+  const readSavedSearchStorageState = useCallback(() => {
+    const nowIso = new Date().toISOString();
+    const candidates = [
+      {
+        key: SAVED_SEARCH_KEY,
+        ...readStoredJsonWithExistence<unknown>(SAVED_SEARCH_KEY, []),
+      },
+      ...SAVED_SEARCH_LEGACY_KEYS.map((legacyKey) => ({
+        key: legacyKey,
+        ...readStoredJsonWithExistence<unknown>(legacyKey, []),
+      })),
+    ];
+    return resolveSavedSearchStorageCandidates(candidates, nowIso);
+  }, []);
   const bootstrapSavedSearchState = useMemo(() => {
-    const decodedSavedSearches = decodeSavedSearchStorage(
-      initialBootstrap?.savedSearches ??
-        parseStored<unknown>(SAVED_SEARCH_KEY, [])
-    );
+    const resolvedSavedSearches =
+      typeof initialBootstrap?.savedSearches !== "undefined"
+        ? {
+            searches: decodeSavedSearchStorage(initialBootstrap.savedSearches),
+            sourceKey: null,
+            migratedFromLegacy: false,
+          }
+        : readSavedSearchStorageState();
+    const decodedSavedSearches = resolvedSavedSearches.searches;
     if (typeof initialBootstrap?.activeSavedSearchId !== "string") {
-      return { decodedSavedSearches, activeSavedSearch: null as UnifiedSavedSearch | null };
+      return {
+        decodedSavedSearches,
+        activeSavedSearch: null as UnifiedSavedSearch | null,
+        migratedFromLegacy: resolvedSavedSearches.migratedFromLegacy,
+      };
     }
     const activeSavedSearch =
       decodedSavedSearches.find(
         (saved) => saved.id === initialBootstrap.activeSavedSearchId
       ) ?? null;
-    return { decodedSavedSearches, activeSavedSearch };
-  }, [initialBootstrap]);
+    return {
+      decodedSavedSearches,
+      activeSavedSearch,
+      migratedFromLegacy: resolvedSavedSearches.migratedFromLegacy,
+    };
+  }, [initialBootstrap, readSavedSearchStorageState]);
   const [query, setQuery] = useState(
     bootstrapSavedSearchState.activeSavedSearch?.query ?? initialBootstrap?.query ?? ""
   );
@@ -423,9 +452,7 @@ export default function UnifiedSearch({
           parseStored<unknown>(RECENT_SEARCH_KEY, [])
         )
       );
-      setSavedSearches(
-        decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
-      );
+      setSavedSearches(readSavedSearchStorageState().searches);
       setVerbatim(parseStored<boolean>(VERBATIM_KEY, false));
 
       // Cross-tab or focus reloads can remove threads; keep selection consistent with reality.
@@ -449,7 +476,7 @@ export default function UnifiedSearch({
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", readAll);
     };
-  }, [disableStorageSync]);
+  }, [disableStorageSync, readSavedSearchStorageState]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

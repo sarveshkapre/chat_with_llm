@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { nanoid } from "nanoid";
 import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
@@ -12,7 +12,7 @@ import {
   SIGNAL_SPACE_TAGS_KEY as SPACE_TAGS_KEY,
   SIGNAL_SPACES_KEY as SPACES_KEY,
 } from "@/lib/storage-keys";
-import { readStoredJson } from "@/lib/storage";
+import { readStoredJson, removeStoredValue, writeStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -123,29 +123,68 @@ export default function SpacesView() {
   const [tagQuery, setTagQuery] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const storageNoticeGuardRef = useRef(new Set<string>());
+
+  const persistStorageValue = useCallback(
+    (key: string, value: unknown, label: string) => {
+      const status = writeStoredJson(key, value);
+      if (status === "ok" || status === "unavailable") {
+        storageNoticeGuardRef.current.delete(`${key}:quota`);
+        storageNoticeGuardRef.current.delete(`${key}:failed`);
+        return;
+      }
+      const dedupeKey = `${key}:${status}`;
+      if (storageNoticeGuardRef.current.has(dedupeKey)) return;
+      storageNoticeGuardRef.current.add(dedupeKey);
+      window.setTimeout(() => {
+        setNotice(
+          status === "quota"
+            ? `Local storage is full. Could not save ${label}.`
+            : `Could not save ${label} to local storage.`
+        );
+      }, 0);
+    },
+    []
+  );
+
+  const clearPersistedValue = useCallback((key: string, label: string) => {
+    const status = removeStoredValue(key);
+    if (status === "ok" || status === "unavailable") {
+      storageNoticeGuardRef.current.delete(`${key}:remove:quota`);
+      storageNoticeGuardRef.current.delete(`${key}:remove:failed`);
+      return;
+    }
+    const dedupeKey = `${key}:remove:${status}`;
+    if (storageNoticeGuardRef.current.has(dedupeKey)) return;
+    storageNoticeGuardRef.current.add(dedupeKey);
+    window.setTimeout(() => {
+      setNotice(
+        status === "quota"
+          ? `Local storage is full. Could not clear ${label}.`
+          : `Could not clear ${label} from local storage.`
+      );
+    }, 0);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
-  }, [spaces]);
+    persistStorageValue(SPACES_KEY, spaces, "spaces");
+  }, [spaces, persistStorageValue]);
 
   useEffect(() => {
     if (activeSpaceId) {
-      localStorage.setItem(ACTIVE_SPACE_KEY, activeSpaceId);
+      persistStorageValue(ACTIVE_SPACE_KEY, activeSpaceId, "active space");
     } else {
-      localStorage.removeItem(ACTIVE_SPACE_KEY);
+      clearPersistedValue(ACTIVE_SPACE_KEY, "active space");
     }
-  }, [activeSpaceId]);
+  }, [activeSpaceId, clearPersistedValue, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(
-      ARCHIVED_SPACES_KEY,
-      JSON.stringify(archivedSpaces)
-    );
-  }, [archivedSpaces]);
+    persistStorageValue(ARCHIVED_SPACES_KEY, archivedSpaces, "archived spaces");
+  }, [archivedSpaces, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(SPACE_TAGS_KEY, JSON.stringify(spaceTags));
-  }, [spaceTags]);
+    persistStorageValue(SPACE_TAGS_KEY, spaceTags, "space tags");
+  }, [spaceTags, persistStorageValue]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

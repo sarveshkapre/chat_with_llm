@@ -67,6 +67,29 @@ describe("readStoredJson", () => {
     ).toBe(false);
   });
 
+  it("reports key existence metadata", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    g.localStorage = localStorage;
+    localStorage.setItem("present", JSON.stringify({ value: 123 }));
+
+    const { readStoredJsonWithExistence } = await import("@/lib/storage");
+    expect(readStoredJsonWithExistence("present", { value: 0 })).toEqual({
+      value: { value: 123 },
+      exists: true,
+    });
+    expect(readStoredJsonWithExistence("missing", { value: 0 })).toEqual({
+      value: { value: 0 },
+      exists: false,
+    });
+  });
+
   it("backs up corrupt JSON blobs before falling back", async () => {
     const g = globalThis as unknown as {
       window?: unknown;
@@ -257,5 +280,69 @@ describe("clearStorageWriteFailures", () => {
     expect(readStorageWriteFailures()).toHaveLength(1);
     expect(clearStorageWriteFailures()).toBe("ok");
     expect(readStorageWriteFailures()).toEqual([]);
+  });
+});
+
+describe("removeStoredValue", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("returns unavailable on the server (no window)", async () => {
+    const g = globalThis as unknown as { window?: unknown; localStorage?: unknown };
+    delete g.window;
+    delete g.localStorage;
+
+    const { removeStoredValue } = await import("@/lib/storage");
+    expect(removeStoredValue("k")).toBe("unavailable");
+  });
+
+  it("removes a key and returns ok", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    g.localStorage = localStorage;
+    localStorage.setItem("k", JSON.stringify({ value: 1 }));
+
+    const { removeStoredValue } = await import("@/lib/storage");
+    expect(removeStoredValue("k")).toBe("ok");
+    expect(localStorage.getItem("k")).toBeNull();
+  });
+
+  it("records failed removals", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    const originalSetItem = localStorage.setItem.bind(localStorage);
+    localStorage.removeItem = () => {
+      throw new Error("blocked");
+    };
+    localStorage.setItem = (key: string, value: string) => {
+      if (key === SIGNAL_STORAGE_WRITE_FAILURES_KEY) {
+        originalSetItem(key, value);
+        return;
+      }
+      originalSetItem(key, value);
+    };
+    g.localStorage = localStorage;
+
+    const { removeStoredValue, readStorageWriteFailures } = await import(
+      "@/lib/storage"
+    );
+    expect(removeStoredValue("signal-history-v2")).toBe("failed");
+    const failures = readStorageWriteFailures();
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.key).toBe("signal-history-v2");
+    expect(failures[0]?.status).toBe("failed");
   });
 });

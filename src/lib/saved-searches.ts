@@ -23,6 +23,18 @@ export type SavedSearchSpec = Pick<
   "query" | "filter" | "sortBy" | "timelineWindow" | "resultLimit" | "verbatim"
 >;
 
+export type SavedSearchStorageCandidate = {
+  key: string;
+  value: unknown;
+  exists: boolean;
+};
+
+export type ResolvedSavedSearchStorage = {
+  searches: UnifiedSavedSearch[];
+  sourceKey: string | null;
+  migratedFromLegacy: boolean;
+};
+
 type SavedSearchStorageEnvelope = {
   version: typeof SAVED_SEARCH_STORAGE_VERSION;
   searches: UnifiedSavedSearch[];
@@ -150,6 +162,36 @@ export function decodeSavedSearchStorage(
   }
 
   return normalized;
+}
+
+export function resolveSavedSearchStorageCandidates(
+  candidates: SavedSearchStorageCandidate[],
+  nowIso = new Date().toISOString()
+): ResolvedSavedSearchStorage {
+  if (candidates.length === 0) {
+    return { searches: [], sourceKey: null, migratedFromLegacy: false };
+  }
+  const [primary, ...legacy] = candidates;
+  if (primary.exists) {
+    return {
+      searches: decodeSavedSearchStorage(primary.value, nowIso),
+      sourceKey: primary.key,
+      migratedFromLegacy: false,
+    };
+  }
+
+  for (const candidate of legacy) {
+    if (!candidate.exists) continue;
+    const decoded = decodeSavedSearchStorage(candidate.value, nowIso);
+    if (decoded.length === 0) continue;
+    return {
+      searches: decoded,
+      sourceKey: candidate.key,
+      migratedFromLegacy: true,
+    };
+  }
+
+  return { searches: [], sourceKey: null, migratedFromLegacy: false };
 }
 
 export function encodeSavedSearchStorage(

@@ -15,7 +15,10 @@ export const SIGNAL_PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
 export const SIGNAL_RECENT_FILTERS_KEY = "signal-recent-filters-v1";
 
 export const SIGNAL_UNIFIED_RECENT_SEARCH_KEY = "signal-unified-recent-v1";
-export const SIGNAL_UNIFIED_SAVED_SEARCH_KEY = "signal-unified-saved-v1";
+export const SIGNAL_UNIFIED_SAVED_SEARCH_KEY = "signal-unified-saved-searches-v1";
+export const SIGNAL_UNIFIED_SAVED_SEARCH_LEGACY_KEYS = [
+  "signal-unified-saved-v1",
+] as const;
 export const SIGNAL_UNIFIED_VERBATIM_KEY = "signal-unified-verbatim-v1";
 
 export const SIGNAL_CORRUPT_BACKUP_PREFIX = "signal-corrupt-backup-v1:";
@@ -33,6 +36,7 @@ export const UNIFIED_SEARCH_STORAGE_EVENT_KEYS = [
   SIGNAL_TASKS_KEY,
   SIGNAL_UNIFIED_RECENT_SEARCH_KEY,
   SIGNAL_UNIFIED_SAVED_SEARCH_KEY,
+  ...SIGNAL_UNIFIED_SAVED_SEARCH_LEGACY_KEYS,
   SIGNAL_UNIFIED_VERBATIM_KEY,
 ] as const;
 
@@ -51,6 +55,7 @@ export const ALL_SIGNAL_STORAGE_KEYS = [
   SIGNAL_RECENT_FILTERS_KEY,
   SIGNAL_UNIFIED_RECENT_SEARCH_KEY,
   SIGNAL_UNIFIED_SAVED_SEARCH_KEY,
+  ...SIGNAL_UNIFIED_SAVED_SEARCH_LEGACY_KEYS,
   SIGNAL_UNIFIED_VERBATIM_KEY,
   SIGNAL_STORAGE_WRITE_FAILURES_KEY,
 ] as const;

@@ -9,6 +9,7 @@ const MAX_STORED_WRITE_FAILURES = 25;
 
 export type StoredWriteStatus = "ok" | "quota" | "failed" | "unavailable";
 type StoredWriteFailureStatus = Exclude<StoredWriteStatus, "ok" | "unavailable">;
+export type StoredJsonReadResult<T> = { value: T; exists: boolean };
 
 export type StoredWriteFailure = {
   key: string;
@@ -107,21 +108,28 @@ function tryBackupCorruptBlob(key: string, raw: string) {
   }
 }
 
-export function readStoredJson<T>(key: string, fallback: T): T {
-  if (!canUseLocalStorage()) return fallback;
+export function readStoredJsonWithExistence<T>(
+  key: string,
+  fallback: T
+): StoredJsonReadResult<T> {
+  if (!canUseLocalStorage()) return { value: fallback, exists: false };
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(key);
   } catch {
-    return fallback;
+    return { value: fallback, exists: false };
   }
-  if (!raw) return fallback;
+  if (!raw) return { value: fallback, exists: false };
   try {
-    return JSON.parse(raw) as T;
+    return { value: JSON.parse(raw) as T, exists: true };
   } catch {
     tryBackupCorruptBlob(key, raw);
-    return fallback;
+    return { value: fallback, exists: true };
   }
+}
+
+export function readStoredJson<T>(key: string, fallback: T): T {
+  return readStoredJsonWithExistence(key, fallback).value;
 }
 
 function isQuotaExceededError(error: unknown): boolean {
@@ -138,6 +146,21 @@ export function writeStoredJson(key: string, value: unknown): StoredWriteStatus 
   if (!canUseLocalStorage()) return "unavailable";
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return "ok";
+  } catch (error) {
+    if (isQuotaExceededError(error)) {
+      recordStorageWriteFailure(key, "quota");
+      return "quota";
+    }
+    recordStorageWriteFailure(key, "failed");
+    return "failed";
+  }
+}
+
+export function removeStoredValue(key: string): StoredWriteStatus {
+  if (!canUseLocalStorage()) return "unavailable";
+  try {
+    localStorage.removeItem(key);
     return "ok";
   } catch (error) {
     if (isQuotaExceededError(error)) {

@@ -17,6 +17,7 @@ npm run check:operator-docs # Ensure parser operators are documented
 npm run check:smoke-fixtures # Ensure every smoke fixture route is asserted by scripts/smoke.mjs
 npm run check:clone-features # Ensure Implemented tracker entries include commit hashes
 npm run check:project-memory # Ensure verification evidence entries end with pass/fail status
+npm run docs:ops # Print canonical local verification commands
 npm run smoke:mock # Build + start + minimal HTTP checks (mock provider)
 ```
 

@@ -7,6 +7,7 @@ import {
   findDuplicateSavedSearch,
   fingerprintSavedSearch,
   renameSavedSearch,
+  resolveSavedSearchStorageCandidates,
   SAVED_SEARCH_STORAGE_VERSION,
   sortSavedSearches,
   togglePinSavedSearch,
@@ -206,5 +207,41 @@ describe("encodeSavedSearchStorage", () => {
     expect(encoded.version).toBe(SAVED_SEARCH_STORAGE_VERSION);
     expect(encoded.searches).toHaveLength(1);
     expect(encoded.searches[0].id).toBe("a");
+  });
+});
+
+describe("resolveSavedSearchStorageCandidates", () => {
+  it("prefers primary key when present", () => {
+    const resolved = resolveSavedSearchStorageCandidates([
+      {
+        key: "signal-unified-saved-searches-v1",
+        exists: true,
+        value: encodeSavedSearchStorage([makeSaved({ id: "primary" })]),
+      },
+      {
+        key: "signal-unified-saved-v1",
+        exists: true,
+        value: encodeSavedSearchStorage([makeSaved({ id: "legacy" })]),
+      },
+    ]);
+    expect(resolved.searches.map((item) => item.id)).toEqual(["primary"]);
+    expect(resolved.migratedFromLegacy).toBe(false);
+  });
+
+  it("falls back to legacy key payloads when primary key is missing", () => {
+    const resolved = resolveSavedSearchStorageCandidates([
+      {
+        key: "signal-unified-saved-searches-v1",
+        exists: false,
+        value: [],
+      },
+      {
+        key: "signal-unified-saved-v1",
+        exists: true,
+        value: encodeSavedSearchStorage([makeSaved({ id: "legacy" })]),
+      },
+    ]);
+    expect(resolved.searches.map((item) => item.id)).toEqual(["legacy"]);
+    expect(resolved.migratedFromLegacy).toBe(true);
   });
 });
