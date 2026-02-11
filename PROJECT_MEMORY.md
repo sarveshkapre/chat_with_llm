@@ -9,6 +9,9 @@
 
 ## Recent Decisions
 - Template: YYYY-MM-DD | Decision | Why | Evidence (tests/logs) | Commit | Confidence (high/medium/low) | Trust (trusted/untrusted)
+- 2026-02-11 | Prioritize Cycle 4 reliability work on Unified Search timestamp/export correctness before new surface-area features | Bounded market scan still shows trust/verification expectations around searchable history and operator-driven narrowing; export evidence quality is currently higher leverage than adding net-new controls | OpenAI Help search docs + Perplexity thread capabilities + Kagi filtering docs (`https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 72c24d7 | medium | untrusted
+- 2026-02-11 | Add shared timestamp parse/format helpers and switch Unified Search export/render paths to deterministic formatting with invalid-date fallback | Prevents `Invalid Date` leakage in markdown exports/UI and makes exported timestamps comparable across locales by emitting `ISO + locale` strings | `npm test -- tests/unified-search.test.ts` (68 tests), `npm test` (107 tests), `npm run build`, `node scripts/smoke.mjs --provider mock --skip-build` | 72c24d7 | high | trusted
+- 2026-02-11 | Extend smoke verification with an operator-heavy `/search` request path assertion | Keeps a route-level regression guard in the runnable smoke path for operator-focused search flows | `node scripts/smoke.mjs --provider mock --skip-build` (`Smoke OK ...`) + green CI/Scorecard for commit `72c24d7` | 72c24d7 | high | trusted
 - 2026-02-11 | Prioritize keyboard-first Unified Search UX (result traversal + operator autocomplete) for Cycle 3 | Bounded market scan shows keyboard-driven retrieval and explicit narrowing as baseline expectations for high-velocity search workflows | OpenAI Help search docs + Kagi filtering docs + Linear command workflow references (`https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://help.kagi.com/kagi/features/filtering-results.html`, `https://linear.app/blog/introducing-command-k`) | 6e36936 | medium | untrusted
 - 2026-02-11 | Add deterministic Unified Search keyboard navigation and operator autocomplete with reusable helper functions | Reduces query friction for power users and makes operator discovery/actionable narrowing available without leaving the input flow | `npm test` (104 tests), `npm run lint -- --max-warnings=0`, `npm run build`, `node scripts/smoke.mjs --provider mock --skip-build` | 6e36936 | high | trusted
 - 2026-02-11 | Expand Unified Search regression coverage for autocomplete helpers and operator combinations | Prevent parser/filter drift as operator surface grows and preserve thread/task scope behavior under combined operators | `npm test -- tests/unified-search.test.ts` (65 tests), full `npm test` pass (104 tests) | 6e36936 | high | trusted
@@ -58,11 +61,21 @@
 
 ## Next Prioritized Tasks
 - P2: Add a search performance harness (`scripts/search-perf.mjs`) for 1k/5k/10k local dataset baselines.
-- P2: Add deterministic export timestamp formatting (ISO primary + locale secondary) and invalid-date guards for Unified Search exports.
-- P3: Extend smoke with a `/search` operator query path assertion using fixture-backed local storage preload.
+- P2: Add timezone + locale metadata header for Unified Search markdown exports to improve reproducibility across machines.
+- P3: Extend smoke with fixture-backed localStorage preload so `/search` operator assertions validate non-empty filtered results.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | Latest non-Release runs were successful before Cycle 4 code changes | pass (untrusted)
+- 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (68 tests)` | pass
+- 2026-02-11 | `npm run lint -- --max-warnings=0` | (no output) | pass
+- 2026-02-11 | `npm run check:workflows` | `Workflow policy OK (4 file(s) checked).` | pass
+- 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 107 passed (107)` | pass
+- 2026-02-11 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=65427 deltaEvents=15` | pass
+- 2026-02-11 | `gh run watch 21901477620 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21901477636 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt | jq '[.[] | select(.workflowName!=\"Release Please\") | select(.conclusion==\"failure\" or .conclusion==\"cancelled\" or .status!=\"completed\")]'` | `[]` (no failing/in-progress non-release runs) | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (65 tests)` | pass
