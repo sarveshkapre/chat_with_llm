@@ -68,6 +68,8 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh run watch 21902389504 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21902389519 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,status,conclusion,workflowName,url,createdAt` | latest `CI` + `Scorecard supply-chain security` successful before Cycle 5 changes; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (73 tests)` | pass
