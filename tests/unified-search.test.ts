@@ -15,6 +15,8 @@ import {
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
   decodeUnifiedSearchRecentQueriesStorage,
+  decodeUnifiedSearchCollectionsStorage,
+  decodeUnifiedSearchFilesStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -241,6 +243,78 @@ describe("Unified Search preload storage decoders", () => {
         monthOfYear: null,
         spaceId: null,
         spaceName: null,
+      },
+    ]);
+  });
+
+  it("sanitizes malformed collection payloads and prunes entries missing ids", () => {
+    const decoded = decodeUnifiedSearchCollectionsStorage([
+      null,
+      { id: "" },
+      {
+        id: "collection-1",
+        name: "Postmortems",
+        createdAt: "2026-02-10T10:00:00.000Z",
+      },
+      {
+        id: "collection-2",
+        name: 42,
+        createdAt: "",
+      },
+    ]);
+
+    expect(decoded).toEqual([
+      {
+        id: "collection-1",
+        name: "Postmortems",
+        createdAt: "2026-02-10T10:00:00.000Z",
+      },
+      {
+        id: "collection-2",
+        name: "Untitled collection",
+        createdAt: new Date(0).toISOString(),
+      },
+    ]);
+  });
+
+  it("sanitizes malformed file payloads and keeps safe defaults", () => {
+    const decoded = decodeUnifiedSearchFilesStorage([
+      "bad",
+      { id: "" },
+      {
+        id: "file-1",
+        name: "incident.md",
+        size: 1024,
+        type: "text/markdown",
+        text: "postmortem notes",
+        addedAt: "2026-02-10T09:00:00.000Z",
+      },
+      {
+        id: "file-2",
+        name: null,
+        size: -20,
+        type: 42,
+        text: 9,
+        addedAt: "",
+      },
+    ]);
+
+    expect(decoded).toEqual([
+      {
+        id: "file-1",
+        name: "incident.md",
+        size: 1024,
+        type: "text/markdown",
+        text: "postmortem notes",
+        addedAt: "2026-02-10T09:00:00.000Z",
+      },
+      {
+        id: "file-2",
+        name: "Untitled file",
+        size: 0,
+        type: "text/plain",
+        text: "",
+        addedAt: new Date(0).toISOString(),
       },
     ]);
   });

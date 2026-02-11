@@ -25,6 +25,8 @@ import {
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
   decodeUnifiedSearchRecentQueriesStorage,
+  decodeUnifiedSearchCollectionsStorage,
+  decodeUnifiedSearchFilesStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -192,10 +194,12 @@ export default function UnifiedSearch() {
     parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {})
   );
   const [collections, setCollections] = useState<Collection[]>(() =>
-    parseStored<Collection[]>(COLLECTIONS_KEY, [])
+    decodeUnifiedSearchCollectionsStorage(
+      parseStored<unknown>(COLLECTIONS_KEY, [])
+    )
   );
   const [files, setFiles] = useState<LibraryFile[]>(() =>
-    parseStored<LibraryFile[]>(FILES_KEY, [])
+    decodeUnifiedSearchFilesStorage(parseStored<unknown>(FILES_KEY, []))
   );
   const [tasks, setTasks] = useState<Task[]>(() =>
     decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
@@ -269,8 +273,14 @@ export default function UnifiedSearch() {
         decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
       );
       setSpaceTags(parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
-      setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
-      setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
+      setCollections(
+        decodeUnifiedSearchCollectionsStorage(
+          parseStored<unknown>(COLLECTIONS_KEY, [])
+        )
+      );
+      setFiles(
+        decodeUnifiedSearchFilesStorage(parseStored<unknown>(FILES_KEY, []))
+      );
       setTasks(
         decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
       );

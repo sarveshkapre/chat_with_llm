@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - Initial scaffold for Signal Search.
 - Added Unified Search benchmark harness (`scripts/search-perf.mjs` + `tests/search-perf.bench.ts`) with reproducible 1k/5k/10k local dataset timings.
 - Unified Search now guards recent query preload (`signal-unified-recent-v1`) with schema validation, normalization, dedupe, and deterministic capping.
+- Unified Search now decodes malformed collections/files preload payloads (`signal-collections-v1`, `signal-files-v1`) with safe defaults and malformed-entry pruning.
 - Unified Search operator docs now include explicit export semantics and keyboard precedence behavior.
 - Unified Search now decodes malformed thread/space/task localStorage payloads through schema guards before preload/focus refresh, preventing `/search` crashes from invalid cached shapes.
 - Unified Search timeline regression coverage now includes DST-offset timestamp cases and invalid mixed timestamp handling for bounded windows.

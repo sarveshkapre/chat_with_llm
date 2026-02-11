@@ -1,6 +1,8 @@
 import type { AnswerResponse, Citation, SourceMode, AnswerMode } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
 import type { Task, TaskCadence } from "@/lib/types/task";
+import type { Collection } from "@/lib/types/collection";
+import type { LibraryFile } from "@/lib/types/file";
 import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
@@ -297,6 +299,43 @@ export function decodeUnifiedSearchTasksStorage(value: unknown): Task[] {
     });
   }
   return tasks;
+}
+
+export function decodeUnifiedSearchCollectionsStorage(value: unknown): Collection[] {
+  if (!Array.isArray(value)) return [];
+  const fallbackTimestamp = new Date(0).toISOString();
+  const collections: Collection[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    if (!id) continue;
+    collections.push({
+      id,
+      name: readString(item.name, "Untitled collection"),
+      createdAt: readNonEmptyString(item.createdAt, fallbackTimestamp),
+    });
+  }
+  return collections;
+}
+
+export function decodeUnifiedSearchFilesStorage(value: unknown): LibraryFile[] {
+  if (!Array.isArray(value)) return [];
+  const fallbackTimestamp = new Date(0).toISOString();
+  const files: LibraryFile[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    if (!id) continue;
+    files.push({
+      id,
+      name: readString(item.name, "Untitled file"),
+      size: Math.max(0, readNumber(item.size, 0)),
+      type: readString(item.type, "text/plain"),
+      text: readString(item.text),
+      addedAt: readNonEmptyString(item.addedAt, fallbackTimestamp),
+    });
+  }
+  return files;
 }
 
 export function normalizeUnifiedSearchRecentQuery(
