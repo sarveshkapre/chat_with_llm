@@ -9,6 +9,8 @@
 
 ## Recent Decisions
 - Template: YYYY-MM-DD | Decision | Why | Evidence (tests/logs) | Commit | Confidence (high/medium/low) | Trust (trusted/untrusted)
+- 2026-02-11 | Enforce per-type Unified Search operator scope and stop unsupported-operator leakage into collections/files/tasks | Operator tokens are stripped from free text; without type-aware filtering, mixed results become broader and less trustworthy | `npm test` (`tests/unified-search.test.ts` 52 tests) + manual operator-scope verification in `/search` | 57bf944 | high | trusted
+- 2026-02-11 | Precompute lowered relevance fields and score from lowered text (`computeRelevanceScoreFromLowered`) | Reduce repeated per-keystroke `toLowerCase()`/array allocation overhead while preserving ranking semantics | `npm run build` + `npm test` parity assertion (`computeRelevanceScore` equals lowered scorer) | 57bf944 | high | trusted
 - 2026-02-09 | Track maintainer contract + memory files in git (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) | Keep autonomous maintenance auditable and repeatable | `git ls-files AGENTS.md PROJECT_MEMORY.md INCIDENTS.md` | 5a36bd8 | high | trusted
 - 2026-02-09 | Add workflow policy guardrail (`npm run check:workflows`) + enforce it in CI | Prevent drift to unpinned actions / missing least-privilege permissions before merge | `npm run check:workflows` + `npm test` | 0a9bbdf | high | trusted
 - 2026-02-09 | Add Undo for Unified Search bulk thread actions | Reduce accidental bulk archive/space edits and make the search surface safer | Manual UI verification during local smoke, plus build/test green | 0a9bbdf | medium | trusted
@@ -40,6 +42,7 @@
 
 ## Mistakes And Fixes
 - Template: YYYY-MM-DD | Issue | Root cause | Fix | Prevention rule | Commit | Confidence
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` failed during parallel verification | Smoke start was launched before `next build` finished, so `.next` was incomplete | Re-ran smoke sequentially after build completion and kept sequential build+smoke command | Never parallelize commands with build/start dependency edges; use `npm run build && node scripts/smoke.mjs --provider mock --skip-build` | 57bf944 | high
 - 2026-02-09 | Workflow policy check initially missed `- uses:` YAML step form | Regex only matched `uses:` when it started the line (ignoring list item form) | Updated matcher to accept `- uses:` and added a unit test | Add regression tests for policy rules so guardrails don't become false-negative | 0a9bbdf | high
 - 2026-02-10 | `readStoredJson()` SSR guard update broke storage unit tests | Tests mocked `window` + `localStorage` but not `document` | Updated tests to define `document` for browser-mode cases | When hardening browser/SSR guards, update unit test environment shims in the same commit | 30a28ca | high
 - 2026-02-10 | `npm run smoke:mock` failed with `.next/lock` | Ran `next build` in parallel with `scripts/smoke.mjs`, which also executes `next build` | Re-ran `npm run smoke:mock` sequentially after the standalone build completed | Avoid parallelizing verification commands when one command internally runs the other (build+smoke); run smoke sequentially or pass `--skip-build` | 8627eef | medium
@@ -48,10 +51,22 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P4: Unified Search performance: reduce relevance scoring overhead for large result sets (avoid repeated `toLowerCase()` and per-field allocations when scoring).
+- P2: Add `is:` / `-is:` thread-state operators (`favorite|pinned|archived`) with tests and operator help updates.
+- P2: Add a search performance harness (`scripts/search-perf.mjs`) for 1k/5k/10k local dataset baselines.
+- P3: Add docs operator matrix (`docs/unified-search-operators.md`) and align `/search` inline help with exact type scope rules.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 15 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | `CI` and `Scorecard supply-chain security` recent runs `success`; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 87 passed (87)` | pass
+- 2026-02-11 | `npm run lint -- --max-warnings=0` | (no output) | pass
+- 2026-02-11 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` (run in parallel with build) | `Could not find a production build in the '.next' directory` | fail
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=63085 deltaEvents=15` | pass
+- 2026-02-11 | `npm run build && node scripts/smoke.mjs --provider mock --skip-build` | `Compiled successfully` + `Smoke OK: provider=mock port=63140 deltaEvents=15` | pass
+- 2026-02-11 | `gh run watch 21898768898 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21898768911 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-09 | `npm run check:workflows` | `Workflow policy OK (3 file(s) checked).` | pass
 - 2026-02-09 | `npm run lint` | (no output) | pass
 - 2026-02-09 | `npm test` | `Test Files 4 passed` | pass

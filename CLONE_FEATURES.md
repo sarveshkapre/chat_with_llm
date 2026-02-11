@@ -7,6 +7,23 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Cycle 1 (2026-02-11) Plan
+- [x] P1 (Selected): Unified Search operator-scope correctness: prevent `has:`/`-has:`/`tag:`/`-tag:`/`space:` operators from leaking unrelated result types in all-mode results (collections/files/tasks), while keeping supported operator behavior per type explicit and consistent. (Score: impact=high effort=med strategic=high differentiation=med risk=low confidence=high)
+- [x] P1 (Selected): Unified Search relevance performance: precompute lowered relevance fields per item and score from pre-lowered text to reduce per-keystroke allocations/lowercasing work on large local libraries. (Score: impact=high effort=med strategic=high differentiation=med risk=low confidence=high)
+- [x] P2 (Selected): Regression tests for operator scope + scorer parity (`computeRelevanceScore` vs lowered scorer) across spaces/tasks/collections/files. (Score: impact=med effort=low strategic=high differentiation=low risk=low confidence=high)
+- [ ] P2: Add `is:` / `-is:` thread-state operators (`favorite|pinned|archived`) with UI help and tests. (Score: impact=med-high effort=med strategic=high differentiation=med risk=low confidence=med-high)
+- [ ] P2: Add keyboard navigation for Unified Search results (`ArrowUp/ArrowDown/Enter`) for faster operator-heavy workflows. (Score: impact=med effort=med strategic=med-high differentiation=med risk=low-med confidence=med)
+- [ ] P2: Add inline operator autocomplete suggestions in the search box (`type:`, `has:`, `tag:`, `space:`). (Score: impact=med effort=med-high strategic=med-high differentiation=med risk=med confidence=med)
+- [ ] P2: Add a lightweight performance harness (`scripts/search-perf.mjs`) to benchmark filter/sort/scoring on 1k/5k/10k local items. (Score: impact=med effort=med strategic=high differentiation=low risk=low confidence=med-high)
+- [ ] P2: Add schema-versioned migration for Unified Search saved searches (`signal-unified-saved-v1`) to harden against malformed/legacy entries. (Score: impact=med effort=med strategic=high differentiation=low risk=low confidence=med-high)
+- [ ] P2: Refactor `src/components/unified-search.tsx` into focused hooks/modules (data prep, filtering, exports, bulk actions) to reduce maintenance risk. (Score: impact=med effort=high strategic=high differentiation=low risk=med confidence=med)
+- [ ] P3: Add docs page `docs/unified-search-operators.md` with an operator-by-result-type matrix and examples. (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
+- [ ] P3: Extend smoke coverage with a `/search` operator query path assertion (non-empty filtered result counts for mock fixture). (Score: impact=med effort=low-med strategic=high differentiation=low risk=low confidence=med-high)
+- [ ] P3: Add accessibility pass for Unified Search controls (explicit labels/aria for bulk actions, scope note, and save-search actions). (Score: impact=med effort=med strategic=med differentiation=low risk=low confidence=med)
+- [ ] P3: Improve stale-selection UX by showing a one-click “prune stale selection” action when cross-tab updates drop selected threads. (Score: impact=low-med effort=low-med strategic=med differentiation=med risk=low confidence=med)
+- [ ] P3: Add optional scheduled `smoke.yml` nightly run on `main` with fail-fast notifications for runtime regressions. (Score: impact=med effort=low-med strategic=med-high differentiation=low risk=low confidence=med)
+- [ ] P3: Add focused unit tests for operator combinations (`space` + `tag`, `spaceId` + `-has:*`, `type:*` interactions) to prevent future parser/filter drift. (Score: impact=med effort=low strategic=high differentiation=low risk=low confidence=high)
+
 ### Cycle 10 (2026-02-10) Plan
 - [x] P2: Unified Search UI performance: avoid full sorting of large result sets on every keystroke by selecting top `max(resultLimit, 3)` items per section (heap top-k), and compute full ordering only on explicit export actions. (Score: impact=med-high effort=med risk=low-med confidence=high)
 - [x] P3: Tests: add unit coverage that top-k selection matches `sortSearchResults(...).slice(0,k)` across sort modes (relevance/newest/oldest), including tie-break semantics. (Score: impact=med effort=low risk=low confidence=high)
@@ -19,6 +36,7 @@
 - [x] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Delivered in Cycle 10) (Score: impact=med effort=med risk=med confidence=med)
 
 ## Implemented
+- 2026-02-11: Unified Search operator-scope hardening + relevance optimization: added type-specific operator filtering for spaces/tasks/collections/files (prevents unsupported-operator leakage in mixed results), introduced `computeRelevanceScoreFromLowered()` with per-entry pre-lowered relevance fields, updated inline operator scope guidance, and expanded regression coverage (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `57bf944`)
 - 2026-02-10: Unified Search UI perf: select top-k results per section (heap) for display instead of sorting full result sets on each query update; compute full ordering only on export. Added unit tests for parity with full sort slice and extended smoke to assert `/search` renders (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`, `scripts/smoke.mjs`). (commit `ff0e16d`)
 - 2026-02-10: Unified Search cleanup: extracted pure filtering/sorting helpers into `src/lib/unified-search.ts`, used them in the UI, and added unit tests for cross-type operator behavior plus relevance/newest sort fallback semantics (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `tests/unified-search.test.ts`). (commit `793f3e5`)
 - 2026-02-10: Unified Search cross-tab consistency: reload saved searches on focus/storage refresh and include `signal-unified-saved-v1` in the storage-event key allowlist; updated inline operator help to document `space:` and `verbatim:false` (`src/components/unified-search.tsx`). (commit `5f82826`)
@@ -55,6 +73,8 @@
 - 2026-02-10: Removed Next build warning from Node WebStorage by lazy-loading `docx` and tightening browser guards in localStorage helpers (`src/components/chat-app.tsx`, `src/lib/storage.ts`, `src/lib/signal-storage.ts`, `src/lib/local-data.ts`, `tests/storage.test.ts`) (commit `30a28ca`).
 
 ## Insights
+- 2026-02-11 market scan (untrusted): Perplexity and ChatGPT both set baseline expectations around searchable history/workspaces and mode/source controls; Kagi highlights explicit query filtering controls (including verbatim/time constraints). This reinforces that operator semantics must be deterministic and transparent, especially in mixed-result surfaces. Sources: Perplexity thread capabilities (https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads), Perplexity spaces (https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces), OpenAI help on history/search (https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt, https://help.openai.com/en/articles/11487644-search-in-chatgpt), Kagi filtering docs (https://help.kagi.com/kagi/features/filtering-results.html).
+- Operator parsing that strips tokens from free text must be paired with per-type operator enforcement; otherwise unsupported operators silently widen results and degrade trust.
 - Scorecard failures were not from scan results; they were caused by workflow policy validation when `publish_results: true` was combined with write-level permissions.
 - Release automation can hard-fail in repos where GitHub Actions cannot open PRs; explicit gating keeps `main` green while preserving manual release capability.
 - Signal Search usability improves when actions happen in the search surface itself; forcing users back into Library for pin/archive/space edits adds unnecessary friction.
