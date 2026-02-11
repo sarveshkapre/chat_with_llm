@@ -31,6 +31,7 @@ import {
   decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchCollectionsStorage,
   decodeUnifiedSearchFilesStorage,
+  decodeUnifiedSearchNotesStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -291,7 +292,9 @@ export default function UnifiedSearch({
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
   const [editingSavedName, setEditingSavedName] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>(() =>
-    initialBootstrap?.notes ?? parseStored<Record<string, string>>(NOTES_KEY, {})
+    decodeUnifiedSearchNotesStorage(
+      initialBootstrap?.notes ?? parseStored<unknown>(NOTES_KEY, {})
+    )
   );
   const [threads, setThreads] = useState<Thread[]>(() =>
     decodeUnifiedSearchThreadsStorage(
@@ -388,7 +391,9 @@ export default function UnifiedSearch({
     if (typeof window === "undefined") return;
 
     const readAll = () => {
-      setNotes(parseStored<Record<string, string>>(NOTES_KEY, {}));
+      setNotes(
+        decodeUnifiedSearchNotesStorage(parseStored<unknown>(NOTES_KEY, {}))
+      );
       const nextThreads = decodeUnifiedSearchThreadsStorage(
         parseStored<unknown>(THREADS_KEY, [])
       );

@@ -20,6 +20,7 @@ import {
   decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchCollectionsStorage,
   decodeUnifiedSearchFilesStorage,
+  decodeUnifiedSearchNotesStorage,
   decodeUnifiedSearchSpaceTagsStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
@@ -339,6 +340,22 @@ describe("Unified Search preload storage decoders", () => {
       "space-4": ["release", "ops"],
     });
   });
+
+  it("sanitizes malformed notes payloads and trims thread ids", () => {
+    const decoded = decodeUnifiedSearchNotesStorage({
+      " thread-1 ": "Keep exact spacing  ",
+      "": "skip",
+      "thread-2": 42,
+      "thread-3": "",
+      "thread-4": "ops handoff",
+    });
+
+    expect(decoded).toEqual({
+      "thread-1": "Keep exact spacing  ",
+      "thread-3": "",
+      "thread-4": "ops handoff",
+    });
+  });
 });
 
 describe("Unified Search recent-query storage guards", () => {
@@ -529,6 +546,13 @@ describe("stripUnifiedSearchOperators", () => {
       { drop: ["verbatim"] }
     );
     expect(stripped).toBe("type:threads incident postmortem");
+  });
+
+  it("preserves unknown operators and quoted colon tokens while stripping known ones", () => {
+    const stripped = stripUnifiedSearchOperators(
+      'foo:bar type:threads "literal type:threads" tag:"alpha team" -has:note'
+    );
+    expect(stripped).toBe("foo:bar literal type:threads");
   });
 });
 

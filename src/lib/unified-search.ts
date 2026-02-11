@@ -524,6 +524,20 @@ export function decodeUnifiedSearchFilesStorage(value: unknown): LibraryFile[] {
   return files;
 }
 
+export function decodeUnifiedSearchNotesStorage(
+  value: unknown
+): Record<string, string> {
+  if (!isRecord(value)) return {};
+  const notes: Record<string, string> = {};
+  for (const [threadIdRaw, noteRaw] of Object.entries(value)) {
+    const threadId = threadIdRaw.trim();
+    if (!threadId) continue;
+    if (typeof noteRaw !== "string") continue;
+    notes[threadId] = noteRaw;
+  }
+  return notes;
+}
+
 export function decodeUnifiedSearchSpaceTagsStorage(
   value: unknown
 ): Record<string, string[]> {

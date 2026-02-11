@@ -20,7 +20,7 @@ export type UnifiedSearchBootstrap = {
   selectedThreadIds?: unknown;
   activeSavedSearchId?: string;
   disableStorageSync?: boolean;
-  notes?: Record<string, string>;
+  notes?: unknown;
   threads?: unknown;
   spaces?: unknown;
   spaceTags?: unknown;
