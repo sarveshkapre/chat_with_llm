@@ -14,6 +14,9 @@ import {
   computeRelevanceScore,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  decodeUnifiedSearchSpacesStorage,
+  decodeUnifiedSearchTasksStorage,
+  decodeUnifiedSearchThreadsStorage,
   filterCollectionEntries,
   filterFileEntries,
   filterSpaceEntries,
@@ -54,6 +57,190 @@ describe("applyTimelineWindow", () => {
 
   it("rejects invalid timestamps for bounded windows", () => {
     expect(applyTimelineWindow("", "30d", now)).toBe(false);
+  });
+
+  it("uses absolute elapsed time across DST offset boundaries", () => {
+    const nowAcrossDst = Date.parse("2026-03-09T01:15:00-07:00");
+    expect(
+      applyTimelineWindow("2026-03-08T01:30:00-08:00", "24h", nowAcrossDst)
+    ).toBe(true);
+    expect(
+      applyTimelineWindow("2026-03-08T00:00:00-08:00", "24h", nowAcrossDst)
+    ).toBe(false);
+    expect(applyTimelineWindow("not-a-date", "24h", nowAcrossDst)).toBe(false);
+  });
+});
+
+describe("Unified Search preload storage decoders", () => {
+  it("sanitizes malformed thread payloads and preserves valid entries", () => {
+    const decoded = decodeUnifiedSearchThreadsStorage([
+      null,
+      { id: "" },
+      {
+        id: "thread-1",
+        title: "Q1 notes",
+        question: "What changed?",
+        answer: "Shipped.",
+        mode: "invalid-mode",
+        sources: "invalid-source",
+        createdAt: "2026-02-08T10:00:00.000Z",
+        provider: "mock",
+        latencyMs: 42,
+        model: "gpt-4.1",
+        citations: [
+          { title: "Spec", url: "https://example.com/spec" },
+          { title: "Missing URL" },
+        ],
+        attachments: [
+          { id: "a1", name: "notes.txt", type: "text/plain", size: 10 },
+          { id: "a2", name: "bad" },
+        ],
+        tags: ["ops", 1, "ship"],
+        spaceId: "space-1",
+        spaceName: "Ops",
+        pinned: true,
+        favorite: "yes",
+        archived: false,
+      },
+      {
+        id: "thread-2",
+        question: 99,
+        answer: null,
+        createdAt: null,
+      },
+    ]);
+
+    expect(decoded).toHaveLength(2);
+    expect(decoded[0]).toEqual({
+      id: "thread-1",
+      title: "Q1 notes",
+      question: "What changed?",
+      answer: "Shipped.",
+      mode: "quick",
+      sources: "none",
+      model: "gpt-4.1",
+      provider: "mock",
+      latencyMs: 42,
+      createdAt: "2026-02-08T10:00:00.000Z",
+      citations: [{ title: "Spec", url: "https://example.com/spec" }],
+      attachments: [
+        { id: "a1", name: "notes.txt", type: "text/plain", size: 10, text: null, error: null },
+      ],
+      spaceId: "space-1",
+      spaceName: "Ops",
+      tags: ["ops", "ship"],
+      pinned: true,
+      favorite: undefined,
+      archived: false,
+    });
+    expect(decoded[1]).toMatchObject({
+      id: "thread-2",
+      question: "",
+      answer: "",
+      mode: "quick",
+      sources: "none",
+      provider: "unknown",
+      latencyMs: 0,
+      citations: [],
+      attachments: [],
+      tags: [],
+    });
+    expect(decoded[1].createdAt).toBe(new Date(0).toISOString());
+  });
+
+  it("sanitizes malformed space payloads and prunes entries missing ids", () => {
+    const decoded = decodeUnifiedSearchSpacesStorage([
+      "bad",
+      { id: "", name: "skip" },
+      {
+        id: "space-1",
+        name: "Research",
+        instructions: "Look up docs",
+        preferredModel: "gpt-4.1",
+        sourcePolicy: "invalid",
+        createdAt: "2026-02-08T10:00:00.000Z",
+      },
+      { id: "space-2", name: 99, instructions: null, sourcePolicy: "web" },
+    ]);
+
+    expect(decoded).toEqual([
+      {
+        id: "space-1",
+        name: "Research",
+        instructions: "Look up docs",
+        preferredModel: "gpt-4.1",
+        sourcePolicy: undefined,
+        createdAt: "2026-02-08T10:00:00.000Z",
+      },
+      {
+        id: "space-2",
+        name: "Untitled space",
+        instructions: "",
+        preferredModel: null,
+        sourcePolicy: "web",
+        createdAt: new Date(0).toISOString(),
+      },
+    ]);
+  });
+
+  it("sanitizes malformed task payloads and normalizes unsupported enums", () => {
+    const decoded = decodeUnifiedSearchTasksStorage([
+      { id: "" },
+      {
+        id: "task-1",
+        name: "Weekly summary",
+        prompt: "Summarize",
+        cadence: "invalid",
+        time: 99,
+        mode: "invalid",
+        sources: "invalid",
+        createdAt: "2026-02-08T10:00:00.000Z",
+        nextRun: "",
+        dayOfWeek: "2",
+        dayOfMonth: 10,
+        monthOfYear: 6,
+      },
+      { id: "task-2", name: 42, prompt: null, cadence: "daily", sources: "web" },
+    ]);
+
+    expect(decoded).toEqual([
+      {
+        id: "task-1",
+        name: "Weekly summary",
+        prompt: "Summarize",
+        cadence: "once",
+        time: "09:00",
+        mode: "quick",
+        sources: "none",
+        createdAt: "2026-02-08T10:00:00.000Z",
+        nextRun: "2026-02-08T10:00:00.000Z",
+        lastRun: null,
+        lastThreadId: null,
+        dayOfWeek: null,
+        dayOfMonth: 10,
+        monthOfYear: 6,
+        spaceId: null,
+        spaceName: null,
+      },
+      {
+        id: "task-2",
+        name: "Untitled task",
+        prompt: "",
+        cadence: "daily",
+        time: "09:00",
+        mode: "quick",
+        sources: "web",
+        createdAt: new Date(0).toISOString(),
+        nextRun: new Date(0).toISOString(),
+        lastRun: null,
+        lastThreadId: null,
+        dayOfWeek: null,
+        dayOfMonth: null,
+        monthOfYear: null,
+        spaceId: null,
+        spaceName: null,
+      },
+    ]);
   });
 });
 

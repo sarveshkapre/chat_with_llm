@@ -24,6 +24,9 @@ import {
   buildUnifiedSearchSavedSearchesMarkdownExport,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  decodeUnifiedSearchSpacesStorage,
+  decodeUnifiedSearchTasksStorage,
+  decodeUnifiedSearchThreadsStorage,
   filterCollectionEntries,
   filterFileEntries,
   filterSpaceEntries,
@@ -176,10 +179,10 @@ export default function UnifiedSearch() {
     parseStored<Record<string, string>>(NOTES_KEY, {})
   );
   const [threads, setThreads] = useState<Thread[]>(() =>
-    parseStored<Thread[]>(THREADS_KEY, [])
+    decodeUnifiedSearchThreadsStorage(parseStored<unknown>(THREADS_KEY, []))
   );
   const [spaces, setSpaces] = useState<Space[]>(() =>
-    parseStored<Space[]>(SPACES_KEY, [])
+    decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
   );
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() =>
     parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {})
@@ -191,7 +194,7 @@ export default function UnifiedSearch() {
     parseStored<LibraryFile[]>(FILES_KEY, [])
   );
   const [tasks, setTasks] = useState<Task[]>(() =>
-    parseStored<Task[]>(TASKS_KEY, [])
+    decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
   );
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
@@ -253,14 +256,20 @@ export default function UnifiedSearch() {
 
     const readAll = () => {
       setNotes(parseStored<Record<string, string>>(NOTES_KEY, {}));
-      const nextThreads = parseStored<Thread[]>(THREADS_KEY, []);
+      const nextThreads = decodeUnifiedSearchThreadsStorage(
+        parseStored<unknown>(THREADS_KEY, [])
+      );
       threadsRef.current = nextThreads;
       setThreads(nextThreads);
-      setSpaces(parseStored<Space[]>(SPACES_KEY, []));
+      setSpaces(
+        decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
+      );
       setSpaceTags(parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
       setCollections(parseStored<Collection[]>(COLLECTIONS_KEY, []));
       setFiles(parseStored<LibraryFile[]>(FILES_KEY, []));
-      setTasks(parseStored<Task[]>(TASKS_KEY, []));
+      setTasks(
+        decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
+      );
       setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
       setSavedSearches(
         decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))

@@ -1,4 +1,6 @@
+import type { AnswerResponse, Citation, SourceMode, AnswerMode } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
+import type { Task, TaskCadence } from "@/lib/types/task";
 import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
@@ -66,6 +68,14 @@ export type ThreadMatchInputs = {
   citationsText?: string | null;
 };
 
+export type UnifiedSearchStoredThread = AnswerResponse & {
+  title?: string | null;
+  tags?: string[];
+  pinned?: boolean;
+  favorite?: boolean;
+  archived?: boolean;
+};
+
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -87,6 +97,204 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
 
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readOptionalString(value: unknown): string | null {
+  if (value == null) return null;
+  return typeof value === "string" ? value : null;
+}
+
+function readString(value: unknown, fallback = ""): string {
+  return typeof value === "string" ? value : fallback;
+}
+
+function readNonEmptyString(value: unknown, fallback = ""): string {
+  if (typeof value !== "string") return fallback;
+  return value.trim() ? value : fallback;
+}
+
+function readBoolean(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
+function readNumber(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === "string");
+}
+
+function normalizeAnswerMode(value: unknown): AnswerMode {
+  if (value === "quick" || value === "research" || value === "learn") {
+    return value;
+  }
+  return "quick";
+}
+
+function normalizeSourceMode(value: unknown): SourceMode {
+  if (value === "web" || value === "none") return value;
+  return "none";
+}
+
+function normalizeTaskCadence(value: unknown): TaskCadence {
+  if (
+    value === "once" ||
+    value === "daily" ||
+    value === "weekday" ||
+    value === "weekly" ||
+    value === "monthly" ||
+    value === "yearly"
+  ) {
+    return value;
+  }
+  return "once";
+}
+
+function normalizeSpaceSourcePolicy(
+  value: unknown
+): Space["sourcePolicy"] {
+  if (value === "flex" || value === "web" || value === "offline") return value;
+  return undefined;
+}
+
+function readCitationArray(value: unknown): Citation[] {
+  if (!Array.isArray(value)) return [];
+  const citations: Citation[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const title = readString(item.title).trim();
+    const url = readString(item.url).trim();
+    if (!title || !url) continue;
+    citations.push({ title, url });
+  }
+  return citations;
+}
+
+function readAttachmentArray(value: unknown): AnswerResponse["attachments"] {
+  if (!Array.isArray(value)) return [];
+  const attachments: AnswerResponse["attachments"] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    const name = readString(item.name).trim();
+    const type = readString(item.type).trim();
+    if (!id || !name || !type) continue;
+    attachments.push({
+      id,
+      name,
+      type,
+      size: readNumber(item.size, 0),
+      text: readOptionalString(item.text),
+      error: readOptionalString(item.error),
+    });
+  }
+  return attachments;
+}
+
+export function decodeUnifiedSearchThreadsStorage(
+  value: unknown
+): UnifiedSearchStoredThread[] {
+  if (!Array.isArray(value)) return [];
+  const fallbackTimestamp = new Date(0).toISOString();
+  const threads: UnifiedSearchStoredThread[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    if (!id) continue;
+    const question = readString(item.question);
+    const answer = readString(item.answer);
+    const title = readOptionalString(item.title);
+    const createdAt = readNonEmptyString(item.createdAt, fallbackTimestamp);
+    threads.push({
+      id,
+      title,
+      question,
+      answer,
+      mode: normalizeAnswerMode(item.mode),
+      sources: normalizeSourceMode(item.sources),
+      model: readOptionalString(item.model) ?? undefined,
+      provider: readString(item.provider, "unknown"),
+      latencyMs: readNumber(item.latencyMs, 0),
+      createdAt,
+      citations: readCitationArray(item.citations),
+      attachments: readAttachmentArray(item.attachments),
+      spaceId: readOptionalString(item.spaceId),
+      spaceName: readOptionalString(item.spaceName),
+      tags: readStringArray(item.tags),
+      pinned: readBoolean(item.pinned),
+      favorite: readBoolean(item.favorite),
+      archived: readBoolean(item.archived),
+    });
+  }
+  return threads;
+}
+
+export function decodeUnifiedSearchSpacesStorage(value: unknown): Space[] {
+  if (!Array.isArray(value)) return [];
+  const fallbackTimestamp = new Date(0).toISOString();
+  const spaces: Space[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    if (!id) continue;
+    spaces.push({
+      id,
+      name: readString(item.name, "Untitled space"),
+      instructions: readString(item.instructions),
+      preferredModel: readOptionalString(item.preferredModel),
+      sourcePolicy: normalizeSpaceSourcePolicy(item.sourcePolicy),
+      createdAt: readNonEmptyString(item.createdAt, fallbackTimestamp),
+    });
+  }
+  return spaces;
+}
+
+export function decodeUnifiedSearchTasksStorage(value: unknown): Task[] {
+  if (!Array.isArray(value)) return [];
+  const fallbackTimestamp = new Date(0).toISOString();
+  const tasks: Task[] = [];
+  for (const item of value) {
+    if (!isRecord(item)) continue;
+    const id = readString(item.id).trim();
+    if (!id) continue;
+    const createdAt = readNonEmptyString(item.createdAt, fallbackTimestamp);
+    tasks.push({
+      id,
+      name: readString(item.name, "Untitled task"),
+      prompt: readString(item.prompt),
+      cadence: normalizeTaskCadence(item.cadence),
+      time: readString(item.time, "09:00"),
+      mode: normalizeAnswerMode(item.mode),
+      sources: normalizeSourceMode(item.sources),
+      createdAt,
+      nextRun: readNonEmptyString(item.nextRun, createdAt),
+      lastRun: readOptionalString(item.lastRun),
+      lastThreadId: readOptionalString(item.lastThreadId),
+      dayOfWeek:
+        typeof item.dayOfWeek === "number" && Number.isFinite(item.dayOfWeek)
+          ? item.dayOfWeek
+          : null,
+      dayOfMonth:
+        typeof item.dayOfMonth === "number" && Number.isFinite(item.dayOfMonth)
+          ? item.dayOfMonth
+          : null,
+      monthOfYear:
+        typeof item.monthOfYear === "number" && Number.isFinite(item.monthOfYear)
+          ? item.monthOfYear
+          : null,
+      spaceId: readOptionalString(item.spaceId),
+      spaceName: readOptionalString(item.spaceName),
+    });
+  }
+  return tasks;
 }
 
 export function getOperatorAutocomplete(raw: string): OperatorAutocompleteMatch | null {
