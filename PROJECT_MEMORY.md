@@ -99,6 +99,10 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `git push origin main` | pushed commit `4343b40` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 10 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | commit `4343b40` triggered `CI` (`21913189375`) + `Scorecard supply-chain security` (`21913189306`); `Release Please` skipped (`21913189374`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21913189375 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21913189306 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 200 --json number,title,author,labels,url,createdAt` | `[]` (no open issues authored by `sarveshkapre`/trusted bots) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest non-release runs before Cycle 16 changes were green; for commit `63829c1`, queued runs were `CI` (`21913089826`) and `Scorecard supply-chain security` (`21913089724`), with `Release Please` skipped (`21913089797`) | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | failed once in `stripUnifiedSearchOperators` new assertion (`expected quoted token retention`) | fail
