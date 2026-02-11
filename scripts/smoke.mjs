@@ -135,6 +135,7 @@ async function main() {
     ...process.env,
     PROVIDER: provider,
     PORT: String(port),
+    SMOKE_ENABLE_SEARCH_FIXTURE: "1",
   };
   if (provider === "mock" && !env.MOCK_STREAM_DELAY_MS) {
     env.MOCK_STREAM_DELAY_MS = "0";
@@ -193,6 +194,24 @@ async function main() {
     ) {
       throw new Error(
         "/search operator query path did not contain expected operator help content"
+      );
+    }
+
+    const smokeSearchResponse = await fetch(`${baseUrl}/smoke-search`, {
+      redirect: "manual",
+    });
+    if (!smokeSearchResponse.ok) {
+      throw new Error(
+        `/smoke-search fixture path returned ${smokeSearchResponse.status}`
+      );
+    }
+    const smokeSearchHtml = await smokeSearchResponse.text();
+    if (
+      !smokeSearchHtml.includes("Smoke Incident Thread") ||
+      smokeSearchHtml.includes("No matching threads.")
+    ) {
+      throw new Error(
+        "/smoke-search did not render expected operator-filtered fixture results"
       );
     }
 

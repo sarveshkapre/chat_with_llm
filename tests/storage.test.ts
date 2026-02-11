@@ -109,3 +109,72 @@ describe("readStoredJson", () => {
     expect(backupKeys).toEqual(["signal-corrupt-backup-v1:k:1"]);
   });
 });
+
+describe("writeStoredJson", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("returns unavailable on the server (no window)", async () => {
+    const g = globalThis as unknown as { window?: unknown; localStorage?: unknown };
+    delete g.window;
+    delete g.localStorage;
+
+    const { writeStoredJson } = await import("@/lib/storage");
+    expect(writeStoredJson("k", { ok: true })).toBe("unavailable");
+  });
+
+  it("writes JSON and returns ok", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    g.localStorage = localStorage;
+
+    const { writeStoredJson } = await import("@/lib/storage");
+    expect(writeStoredJson("k", { value: 7 })).toBe("ok");
+    expect(localStorage.getItem("k")).toBe(JSON.stringify({ value: 7 }));
+  });
+
+  it("returns quota when storage throws quota-style errors", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    localStorage.setItem = () => {
+      const error = new Error("quota");
+      (error as Error & { name: string }).name = "QuotaExceededError";
+      throw error;
+    };
+    g.localStorage = localStorage;
+
+    const { writeStoredJson } = await import("@/lib/storage");
+    expect(writeStoredJson("k", { value: 7 })).toBe("quota");
+  });
+
+  it("returns failed for non-quota write errors", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    localStorage.setItem = () => {
+      throw new Error("permission denied");
+    };
+    g.localStorage = localStorage;
+
+    const { writeStoredJson } = await import("@/lib/storage");
+    expect(writeStoredJson("k", { value: 7 })).toBe("failed");
+  });
+});

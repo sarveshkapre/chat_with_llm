@@ -56,6 +56,7 @@ import {
   type UnifiedSearchType,
   type WeightedLoweredField,
 } from "@/lib/unified-search";
+import type { UnifiedSearchBootstrap } from "@/lib/unified-search-bootstrap";
 import {
   decodeSavedSearchStorage,
   encodeSavedSearchStorage,
@@ -67,6 +68,7 @@ import {
   togglePinSavedSearch,
   type UnifiedSavedSearch,
 } from "@/lib/saved-searches";
+import { writeStoredJson } from "@/lib/storage";
 import { useUnifiedSearchKeyboard } from "@/lib/unified-search-keyboard";
 
 type Thread = AnswerResponse & {
@@ -139,6 +141,7 @@ const NOTES_KEY = "signal-notes-v1";
 const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
 const SAVED_SEARCH_KEY = "signal-unified-saved-v1";
 const VERBATIM_KEY = "signal-unified-verbatim-v1";
+const OPERATOR_HELP_ID = "unified-search-operator-help";
 
 const THREAD_BADGE_LABELS: Record<string, string> = {
   title: "Title",
@@ -156,13 +159,20 @@ type NavigableResult = {
   domId: string;
 };
 
+type UnifiedSearchProps = {
+  initialBootstrap?: UnifiedSearchBootstrap;
+};
+
 function toNavigableDomId(key: string): string {
   return `search-nav-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 }
 
-export default function UnifiedSearch() {
+export default function UnifiedSearch({
+  initialBootstrap,
+}: UnifiedSearchProps = {}) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
+  const disableStorageSync = initialBootstrap?.disableStorageSync === true;
+  const [query, setQuery] = useState(initialBootstrap?.query ?? "");
   const [debugMode, setDebugMode] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<
@@ -173,40 +183,58 @@ export default function UnifiedSearch() {
   const [timelineNowMs, setTimelineNowMs] = useState(0);
   const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
   const [verbatim, setVerbatim] = useState<boolean>(() =>
-    parseStored<boolean>(VERBATIM_KEY, false)
+    typeof initialBootstrap?.verbatim === "boolean"
+      ? initialBootstrap.verbatim
+      : parseStored<boolean>(VERBATIM_KEY, false)
   );
   const [recentQueries, setRecentQueries] = useState<string[]>(() =>
     decodeUnifiedSearchRecentQueriesStorage(
-      parseStored<unknown>(RECENT_SEARCH_KEY, [])
+      initialBootstrap?.recentQueries ??
+        parseStored<unknown>(RECENT_SEARCH_KEY, [])
     )
   );
   const [savedSearches, setSavedSearches] = useState<UnifiedSavedSearch[]>(() =>
-    decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
+    decodeSavedSearchStorage(
+      initialBootstrap?.savedSearches ??
+        parseStored<unknown>(SAVED_SEARCH_KEY, [])
+    )
   );
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
   const [editingSavedName, setEditingSavedName] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>(() =>
-    parseStored<Record<string, string>>(NOTES_KEY, {})
+    initialBootstrap?.notes ?? parseStored<Record<string, string>>(NOTES_KEY, {})
   );
   const [threads, setThreads] = useState<Thread[]>(() =>
-    decodeUnifiedSearchThreadsStorage(parseStored<unknown>(THREADS_KEY, []))
+    decodeUnifiedSearchThreadsStorage(
+      initialBootstrap?.threads ?? parseStored<unknown>(THREADS_KEY, [])
+    )
   );
   const [spaces, setSpaces] = useState<Space[]>(() =>
-    decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
+    decodeUnifiedSearchSpacesStorage(
+      initialBootstrap?.spaces ?? parseStored<unknown>(SPACES_KEY, [])
+    )
   );
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() =>
-    decodeUnifiedSearchSpaceTagsStorage(parseStored<unknown>(SPACE_TAGS_KEY, {}))
+    decodeUnifiedSearchSpaceTagsStorage(
+      initialBootstrap?.spaceTags ??
+        parseStored<unknown>(SPACE_TAGS_KEY, {})
+    )
   );
   const [collections, setCollections] = useState<Collection[]>(() =>
     decodeUnifiedSearchCollectionsStorage(
-      parseStored<unknown>(COLLECTIONS_KEY, [])
+      initialBootstrap?.collections ??
+        parseStored<unknown>(COLLECTIONS_KEY, [])
     )
   );
   const [files, setFiles] = useState<LibraryFile[]>(() =>
-    decodeUnifiedSearchFilesStorage(parseStored<unknown>(FILES_KEY, []))
+    decodeUnifiedSearchFilesStorage(
+      initialBootstrap?.files ?? parseStored<unknown>(FILES_KEY, [])
+    )
   );
   const [tasks, setTasks] = useState<Task[]>(() =>
-    decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
+    decodeUnifiedSearchTasksStorage(
+      initialBootstrap?.tasks ?? parseStored<unknown>(TASKS_KEY, [])
+    )
   );
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
@@ -227,6 +255,7 @@ export default function UnifiedSearch() {
   const threadsRef = useRef<Thread[]>(threads);
   const selectedThreadIdsRef = useRef<string[]>(selectedThreadIds);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const storageWriteToastGuardRef = useRef(new Set<string>());
 
   const parsedQuery = useMemo(
     () => parseUnifiedSearchQuery(deferredQuery),
@@ -264,6 +293,7 @@ export default function UnifiedSearch() {
   }, [activeOperatorSuggestionIndex, operatorSuggestions]);
 
   useEffect(() => {
+    if (disableStorageSync) return;
     if (typeof window === "undefined") return;
 
     const readAll = () => {
@@ -337,7 +367,7 @@ export default function UnifiedSearch() {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("focus", readAll);
     };
-  }, []);
+  }, [disableStorageSync]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -377,28 +407,50 @@ export default function UnifiedSearch() {
     return buildUnifiedSearchOperatorSummary(operators);
   }, [operators]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recentQueries));
-  }, [recentQueries]);
+  const persistStorageValue = useCallback(
+    (key: string, value: unknown, label: string) => {
+      if (disableStorageSync) return;
+      const status = writeStoredJson(key, value);
+      if (status === "ok" || status === "unavailable") {
+        storageWriteToastGuardRef.current.delete(`${key}:quota`);
+        storageWriteToastGuardRef.current.delete(`${key}:failed`);
+        return;
+      }
+
+      const dedupeKey = `${key}:${status}`;
+      if (storageWriteToastGuardRef.current.has(dedupeKey)) return;
+      storageWriteToastGuardRef.current.add(dedupeKey);
+      window.setTimeout(() => {
+        setToast({
+          message:
+            status === "quota"
+              ? `Local storage is full. Could not save ${label}.`
+              : `Could not persist ${label} to local storage.`,
+        });
+      }, 0);
+    },
+    [disableStorageSync]
+  );
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(
+    persistStorageValue(RECENT_SEARCH_KEY, recentQueries, "recent queries");
+  }, [recentQueries, persistStorageValue]);
+
+  useEffect(() => {
+    persistStorageValue(
       SAVED_SEARCH_KEY,
-      JSON.stringify(encodeSavedSearchStorage(savedSearches))
+      encodeSavedSearchStorage(savedSearches),
+      "saved searches"
     );
-  }, [savedSearches]);
+  }, [savedSearches, persistStorageValue]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(VERBATIM_KEY, JSON.stringify(verbatim));
-  }, [verbatim]);
+    persistStorageValue(VERBATIM_KEY, verbatim, "verbatim preference");
+  }, [verbatim, persistStorageValue]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(THREADS_KEY, JSON.stringify(threads));
-  }, [threads]);
+    persistStorageValue(THREADS_KEY, threads, "thread updates");
+  }, [threads, persistStorageValue]);
 
   useEffect(() => {
     threadsRef.current = threads;
@@ -1320,6 +1372,7 @@ export default function UnifiedSearch() {
             }}
             onBlur={() => pushRecentQuery(query)}
             onKeyDown={onInputKeyDown}
+            aria-describedby={OPERATOR_HELP_ID}
             placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads is:pinned has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
@@ -1357,7 +1410,10 @@ export default function UnifiedSearch() {
               </div>
             </div>
           ) : null}
-          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
+          <div
+            id={OPERATOR_HELP_ID}
+            className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted"
+          >
             <div className="space-y-1">
               <div>
                 Operators:{" "}

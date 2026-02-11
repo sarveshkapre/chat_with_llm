@@ -3,6 +3,8 @@ const CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
 
 const backedUpKeys = new Set<string>();
 
+export type StoredWriteStatus = "ok" | "quota" | "failed" | "unavailable";
+
 function tryBackupCorruptBlob(key: string, raw: string) {
   if (typeof document === "undefined") return;
   if (backedUpKeys.has(key)) return;
@@ -35,5 +37,28 @@ export function readStoredJson<T>(key: string, fallback: T): T {
   } catch {
     tryBackupCorruptBlob(key, raw);
     return fallback;
+  }
+}
+
+function isQuotaExceededError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+
+  const maybeError = error as { name?: unknown; code?: unknown };
+  if (maybeError.name === "QuotaExceededError") return true;
+  if (maybeError.name === "NS_ERROR_DOM_QUOTA_REACHED") return true;
+  if (maybeError.code === 22 || maybeError.code === 1014) return true;
+  return false;
+}
+
+export function writeStoredJson(key: string, value: unknown): StoredWriteStatus {
+  if (typeof window === "undefined" || typeof document === "undefined") {
+    return "unavailable";
+  }
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+    return "ok";
+  } catch (error) {
+    if (isQuotaExceededError(error)) return "quota";
+    return "failed";
   }
 }
