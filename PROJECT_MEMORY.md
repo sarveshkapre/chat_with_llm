@@ -103,6 +103,10 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `git push origin main` | pushed commit `738d5c3` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,workflowName,headSha,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha==\"738d5c3ea882b3fc85bc5abbf39037770f5ce1d0\")]'` | commit `738d5c3` triggered `CI` (`21914487548`) + `Scorecard supply-chain security` (`21914487598`); `Release Please` skipped (`21914487617`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21914487548 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21914487598 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `npm run check:clone-features && npm run check:workflows` | `CLONE_FEATURES policy OK.` + `Workflow policy OK (4 file(s) checked).` | pass
 - 2026-02-11 | `gh issue list --state open --limit 50 --json number,title,author,url` | `[]` (no open issues authored by `sarveshkapre`/trusted bots) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 10 --json databaseId,displayTitle,headBranch,headSha,status,conclusion,event,url` | latest non-release runs before Cycle 17 were successful; only `Release Please` runs were skipped | pass (untrusted)
