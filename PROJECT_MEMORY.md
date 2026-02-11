@@ -89,6 +89,9 @@
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha=="d3f7396d698a4100fa96ea1227cc6f12899e5c62")]'` | commit `d3f7396` triggered `CI` + `Scorecard supply-chain security`; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `gh run watch 21906839176 --exit-status` | `main CI ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21906839125 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha=="ef1e5a88dfa3a0ed2f1e94672d4662f26e70c769")]'` | commit `ef1e5a8` triggered `CI` + `Scorecard supply-chain security`; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `gh run watch 21906932730 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21906932721 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url,createdAt` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest runs: `CI` + `Scorecard supply-chain security` success; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (88 tests)` | pass
