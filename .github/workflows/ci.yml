@@ -23,6 +23,8 @@ jobs:
         run: npm ci
       - name: Workflow policy
         run: npm run check:workflows
+      - name: Operator docs consistency
+        run: npm run check:operator-docs
       - name: Lint
         run: npm run lint
       - name: Test

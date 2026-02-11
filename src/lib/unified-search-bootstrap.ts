@@ -31,3 +31,17 @@ export type UnifiedSearchBootstrap = {
   savedSearches?: unknown;
   verbatim?: boolean;
 };
+
+export function decodeBootstrapSelectedThreadIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  value.forEach((item) => {
+    if (typeof item !== "string") return;
+    const normalized = item.trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    ids.push(normalized);
+  });
+  return ids;
+}

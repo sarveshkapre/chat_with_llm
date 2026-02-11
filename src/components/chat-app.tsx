@@ -44,6 +44,7 @@ import {
   stripAttachmentText,
 } from "@/lib/attachments";
 import { searchLibraryFiles } from "@/lib/file-search";
+import { decodeNdjsonChunk, hasNdjsonTrailingData } from "@/lib/ndjson";
 import {
   captureDeletedAnchors,
   restoreDeletedAnchors,
@@ -1013,17 +1014,22 @@ export default function ChatApp() {
       const decoder = new TextDecoder();
       let buffer = "";
       let doneReceived = false;
+      let malformedLineCount = 0;
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
+        const decoded = decodeNdjsonChunk<StreamMessage>(
+          decoder.decode(value, { stream: true }),
+          buffer
+        );
+        buffer = decoded.trailingBuffer;
+        malformedLineCount += decoded.malformedLineCount;
+        if (malformedLineCount > 3) {
+          throw new Error("Stream returned too many malformed updates.");
+        }
 
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const message = JSON.parse(line) as StreamMessage;
+        for (const message of decoded.events) {
           if (message.type === "delta") {
             setLiveAnswer((prev) => prev + message.text);
           }
@@ -1037,6 +1043,9 @@ export default function ChatApp() {
         }
       }
 
+      if (hasNdjsonTrailingData(buffer)) {
+        throw new Error("Stream ended with partial data.");
+      }
       if (!doneReceived) {
         throw new Error("Stream ended unexpectedly.");
       }

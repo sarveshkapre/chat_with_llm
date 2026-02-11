@@ -60,7 +60,10 @@ import {
   type UnifiedSearchType,
   type WeightedLoweredField,
 } from "@/lib/unified-search";
-import type { UnifiedSearchBootstrap } from "@/lib/unified-search-bootstrap";
+import {
+  decodeBootstrapSelectedThreadIds,
+  type UnifiedSearchBootstrap,
+} from "@/lib/unified-search-bootstrap";
 import {
   decodeSavedSearchStorage,
   encodeSavedSearchStorage,
@@ -194,20 +197,6 @@ function normalizeBootstrapTimelineWindow(value: unknown): TimelineWindow {
 function normalizeBootstrapResultLimit(value: unknown): UnifiedSearchResultLimit {
   if (value === 10 || value === 20 || value === 50) return value;
   return 20;
-}
-
-function decodeBootstrapSelectedThreadIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  const seen = new Set<string>();
-  const ids: string[] = [];
-  value.forEach((item) => {
-    if (typeof item !== "string") return;
-    const normalized = item.trim();
-    if (!normalized || seen.has(normalized)) return;
-    seen.add(normalized);
-    ids.push(normalized);
-  });
-  return ids;
 }
 
 const THREAD_BADGE_LABELS: Record<string, string> = {

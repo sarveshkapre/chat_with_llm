@@ -12,6 +12,8 @@ npm run build    # Production build
 npm run start    # Run production server
 npm run lint     # Lint
 npm test         # Run unit tests
+npm run check:workflows # Validate workflow policy constraints
+npm run check:operator-docs # Ensure parser operators are documented
 npm run smoke:mock # Build + start + minimal HTTP checks (mock provider)
 ```
 

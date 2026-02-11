@@ -70,6 +70,7 @@ export async function POST(request: Request) {
     spaceInstructions?: string;
     spaceId?: string;
     spaceName?: string;
+    debugInjectMalformedChunk?: boolean;
   };
 
   const question = body.question?.trim() ?? "";
@@ -92,11 +93,18 @@ export async function POST(request: Request) {
   const provider = process.env.PROVIDER ?? "auto";
   const openaiKey = process.env.OPENAI_API_KEY;
   const mockDelayMs = Number(process.env.MOCK_STREAM_DELAY_MS ?? "15") || 0;
+  const injectMalformedChunk =
+    provider === "mock" &&
+    process.env.SMOKE_ENABLE_MALFORMED_NDJSON_FIXTURE === "1" &&
+    body.debugInjectMalformedChunk === true;
 
   const stream = new ReadableStream({
     start: async (controller) => {
       const write = (payload: Record<string, unknown>) => {
         controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
+      };
+      const writeRawLine = (line: string) => {
+        controller.enqueue(encoder.encode(`${line}\n`));
       };
 
       try {
@@ -113,8 +121,14 @@ export async function POST(request: Request) {
           );
 
           const words = response.answer.split(" ");
+          let malformedChunkInjected = false;
           for (const word of words) {
             write({ type: "delta", text: `${word} ` });
+            if (injectMalformedChunk && !malformedChunkInjected) {
+              // Smoke-only fixture: emit one intentionally malformed NDJSON line.
+              writeRawLine('{"type":"delta","text":"corrupt"');
+              malformedChunkInjected = true;
+            }
             if (mockDelayMs > 0) {
               await new Promise((resolve) => setTimeout(resolve, mockDelayMs));
             }

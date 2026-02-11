@@ -83,12 +83,13 @@ async function postJson(url, payload) {
   return { response, text };
 }
 
-async function readNdjsonUntilDone(response) {
+async function readNdjsonUntilDone(response, options = {}) {
   if (!response.body) throw new Error("Missing response body");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   const events = [];
+  let malformedLineCount = 0;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -104,13 +105,17 @@ async function readNdjsonUntilDone(response) {
       try {
         event = JSON.parse(trimmed);
       } catch (error) {
+        if (options.allowMalformedLines) {
+          malformedLineCount += 1;
+          continue;
+        }
         const message =
           error instanceof Error ? error.message : "Unknown JSON parse error";
         throw new Error(`Failed to parse NDJSON event (${message}): ${trimmed}`);
       }
       events.push(event);
       if (event.type === "done") {
-        return events;
+        return { events, malformedLineCount };
       }
       if (event.type === "error") {
         throw new Error(`Stream returned error: ${event.message ?? "unknown"}`);
@@ -122,7 +127,7 @@ async function readNdjsonUntilDone(response) {
     throw new Error(`Stream ended with trailing partial line: ${buffer.trim()}`);
   }
 
-  return events;
+  return { events, malformedLineCount };
 }
 
 function parseNumericAttr(tag, attrName) {
@@ -188,6 +193,7 @@ async function main() {
     PROVIDER: provider,
     PORT: String(port),
     SMOKE_ENABLE_SEARCH_FIXTURE: "1",
+    SMOKE_ENABLE_MALFORMED_NDJSON_FIXTURE: "1",
   };
   if (provider === "mock" && !env.MOCK_STREAM_DELAY_MS) {
     env.MOCK_STREAM_DELAY_MS = "0";
@@ -405,10 +411,38 @@ async function main() {
         `/api/answer/stream returned ${streamResponse.status}: ${await streamResponse.text()}`
       );
     }
-    const events = await readNdjsonUntilDone(streamResponse);
+    const { events } = await readNdjsonUntilDone(streamResponse);
     const done = events.find((event) => event.type === "done");
     if (!done?.payload?.answer) {
       throw new Error("Streaming API did not produce a done payload with answer");
+    }
+
+    const malformedFixtureResponse = await fetch(`${baseUrl}/api/answer/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...answerBody,
+        debugInjectMalformedChunk: true,
+      }),
+    });
+    if (!malformedFixtureResponse.ok) {
+      throw new Error(
+        `/api/answer/stream malformed fixture returned ${malformedFixtureResponse.status}: ${await malformedFixtureResponse.text()}`
+      );
+    }
+    const malformedFixture = await readNdjsonUntilDone(malformedFixtureResponse, {
+      allowMalformedLines: true,
+    });
+    if (malformedFixture.malformedLineCount < 1) {
+      throw new Error(
+        "Streaming malformed NDJSON fixture did not emit the expected corrupt line"
+      );
+    }
+    const malformedDone = malformedFixture.events.find((event) => event.type === "done");
+    if (!malformedDone?.payload?.answer) {
+      throw new Error(
+        "Streaming malformed NDJSON fixture did not complete with done payload"
+      );
     }
 
     console.log(

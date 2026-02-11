@@ -17,12 +17,16 @@ function restoreEnv(snapshot: Record<string, string | undefined>) {
   }
 }
 
-async function readNdjsonUntilDone(response: Response) {
+async function readNdjsonUntilDone(
+  response: Response,
+  options?: { allowMalformedLines?: boolean }
+) {
   if (!response.body) throw new Error("Missing response body");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   const events: Array<{ type?: string; [key: string]: unknown }> = [];
+  let malformedLineCount = 0;
 
   while (true) {
     const { done, value } = await reader.read();
@@ -34,9 +38,22 @@ async function readNdjsonUntilDone(response: Response) {
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
-      const parsed = JSON.parse(trimmed) as { type?: string; [key: string]: unknown };
+      let parsed: { type?: string; [key: string]: unknown };
+      try {
+        parsed = JSON.parse(trimmed) as { type?: string; [key: string]: unknown };
+      } catch (error) {
+        if (options?.allowMalformedLines) {
+          malformedLineCount += 1;
+          continue;
+        }
+        const message =
+          error instanceof Error ? error.message : "unknown parse error";
+        throw new Error(`Failed to parse NDJSON line (${message}): ${trimmed}`);
+      }
       events.push(parsed);
-      if (parsed.type === "done") return { events, trailing: buffer };
+      if (parsed.type === "done") {
+        return { events, trailing: buffer, malformedLineCount };
+      }
       if (parsed.type === "error") {
         throw new Error(
           `Stream returned error: ${(parsed as { message?: unknown }).message ?? "unknown"}`
@@ -45,7 +62,7 @@ async function readNdjsonUntilDone(response: Response) {
     }
   }
 
-  return { events, trailing: buffer };
+  return { events, trailing: buffer, malformedLineCount };
 }
 
 describe("/api/answer/stream (route handler)", () => {
@@ -55,6 +72,7 @@ describe("/api/answer/stream (route handler)", () => {
     process.env.PROVIDER = "mock";
     process.env.MOCK_STREAM_DELAY_MS = "0";
     delete process.env.OPENAI_API_KEY;
+    delete process.env.SMOKE_ENABLE_MALFORMED_NDJSON_FIXTURE;
   });
 
   afterEach(() => {
@@ -116,5 +134,30 @@ describe("/api/answer/stream (route handler)", () => {
     const attachments = payloadObj.attachments as unknown[];
     const first = attachments[0] as Record<string, unknown> | undefined;
     expect(first?.text).toBeNull();
+  });
+
+  it("continues to done when a smoke-only malformed NDJSON line is injected", async () => {
+    process.env.SMOKE_ENABLE_MALFORMED_NDJSON_FIXTURE = "1";
+    const request = new Request("http://localhost/api/answer/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        question: "Inject malformed line",
+        mode: "quick",
+        sources: "web",
+        debugInjectMalformedChunk: true,
+      }),
+    });
+
+    const response = await postAnswerStream(request);
+    expect(response.status).toBe(200);
+    const { events, trailing, malformedLineCount } = await readNdjsonUntilDone(
+      response,
+      { allowMalformedLines: true }
+    );
+
+    expect(trailing.trim()).toBe("");
+    expect(malformedLineCount).toBeGreaterThan(0);
+    expect(events.some((event) => event.type === "done")).toBe(true);
   });
 });
