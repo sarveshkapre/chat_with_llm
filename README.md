@@ -66,6 +66,8 @@ npm install && npm run dev
 - Unified search operator autocomplete (`type:`, `space:`, `tag:`, `has:`, `is:`, `verbatim:`) with Enter/Tab accept and Esc dismiss
 - Unified search operator summary chips dedupe repeated `tag:`/`is:` operators into canonical order
 - Unified search diagnostics mode (`/search?debug=1`) with loaded/matched/visible counts and filtered-out reason buckets
+- Unified search shareable URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with back/forward sync
+- Unified search zero-results recovery card with one-click resets (operators, type, timeline, verbatim)
 - Spaces with custom instructions and preferred model routing (local-only)
 - Space-level source policy enforcement (flexible, web-only, offline-only)
 - Space templates gallery for one-click workspace setup

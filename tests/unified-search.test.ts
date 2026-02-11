@@ -3,6 +3,7 @@ import {
   applyOperatorAutocomplete,
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  buildUnifiedSearchUrlParams,
   buildUnifiedSearchDiagnosticsRows,
   buildUnifiedSearchCsvExport,
   buildUnifiedSearchMarkdownExport,
@@ -33,11 +34,13 @@ import {
   matchesQuery,
   normalizeUnifiedSearchRecentQuery,
   normalizeQuery,
+  parseUnifiedSearchUrlState,
   parseUnifiedSearchQuery,
   parseTimestampMs,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
+  stripUnifiedSearchOperators,
   sortSearchResults,
   stepCircularIndex,
   topKSearchResults,
@@ -440,6 +443,92 @@ describe("Unified Search diagnostics rows", () => {
       filteredByQueryOperatorTime: 4,
       filteredByResultLimit: 0,
     });
+  });
+
+  it("enforces loaded>=matched>=visible invariants across rows", () => {
+    const rows = buildUnifiedSearchDiagnosticsRows(
+      {
+        threads: { loaded: 1, matched: 4, visible: 9 },
+        spaces: { loaded: 5, matched: 2, visible: 7 },
+        collections: { loaded: 0, matched: 3, visible: 1 },
+        files: { loaded: 3, matched: 3, visible: 6 },
+        tasks: { loaded: 8, matched: 1, visible: 0 },
+      },
+      "all"
+    );
+
+    rows.forEach((row) => {
+      expect(row.loaded).toBeGreaterThanOrEqual(row.matched);
+      expect(row.matched).toBeGreaterThanOrEqual(row.visible);
+      expect(row.filteredByTypeScope).toBeGreaterThanOrEqual(0);
+      expect(row.filteredByQueryOperatorTime).toBeGreaterThanOrEqual(0);
+      expect(row.filteredByResultLimit).toBeGreaterThanOrEqual(0);
+    });
+  });
+});
+
+describe("Unified Search URL state helpers", () => {
+  it("parses valid URL state keys and ignores invalid values", () => {
+    const patch = parseUnifiedSearchUrlState(
+      new URLSearchParams(
+        "q=incident+digest&type=threads&sort=newest&time=7d&limit=50&verbatim=true&ignored=1&bad=2"
+      )
+    );
+
+    expect(patch).toEqual({
+      query: "incident digest",
+      filter: "threads",
+      sortBy: "newest",
+      timelineWindow: "7d",
+      resultLimit: 50,
+      verbatim: true,
+    });
+
+    const invalid = parseUnifiedSearchUrlState(
+      new URLSearchParams("type=invalid&sort=bad&time=2h&limit=77&verbatim=maybe")
+    );
+    expect(invalid).toEqual({});
+  });
+
+  it("builds canonical URL params and omits default state", () => {
+    const defaults = buildUnifiedSearchUrlParams({
+      query: " ",
+      filter: "all",
+      sortBy: "relevance",
+      timelineWindow: "all",
+      resultLimit: 20,
+      verbatim: false,
+    });
+    expect(defaults.toString()).toBe("");
+
+    const nonDefault = buildUnifiedSearchUrlParams({
+      query: "  incident report ",
+      filter: "tasks",
+      sortBy: "oldest",
+      timelineWindow: "30d",
+      resultLimit: 10,
+      verbatim: true,
+    });
+    expect(nonDefault.toString()).toBe(
+      "q=incident+report&type=tasks&sort=oldest&time=30d&limit=10&verbatim=true"
+    );
+  });
+});
+
+describe("stripUnifiedSearchOperators", () => {
+  it("removes recognized operators while preserving free-text and unknown tokens", () => {
+    const stripped = stripUnifiedSearchOperators(
+      'type:threads has:note status:open space:"Research" outage triage'
+    );
+    expect(stripped).toBe("status:open outage triage");
+  });
+
+  it("can strip only verbatim operators while preserving other filters", () => {
+    const stripped = stripUnifiedSearchOperators(
+      "type:threads verbatim:true exact:false incident postmortem",
+      { drop: ["verbatim"] }
+    );
+    expect(stripped).toBe("type:threads incident postmortem");
   });
 });
 

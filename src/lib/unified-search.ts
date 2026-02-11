@@ -7,6 +7,7 @@ import { readStoredJson } from "@/lib/storage";
 
 export type TimelineWindow = "all" | "24h" | "7d" | "30d";
 export type SortBy = "relevance" | "newest" | "oldest";
+export type UnifiedSearchResultLimit = 10 | 20 | 50;
 
 export type NormalizedQuery = {
   normalized: string;
@@ -93,6 +94,25 @@ export type UnifiedSearchDiagnosticsRow = UnifiedSearchDiagnosticsCounts & {
   filteredByResultLimit: number;
 };
 
+export type UnifiedSearchUrlState = {
+  query: string;
+  filter: UnifiedSearchType;
+  sortBy: SortBy;
+  timelineWindow: TimelineWindow;
+  resultLimit: UnifiedSearchResultLimit;
+  verbatim: boolean;
+};
+
+export type UnifiedSearchUrlStatePatch = Partial<UnifiedSearchUrlState>;
+export type UnifiedSearchStripOperatorKey =
+  | "type"
+  | "space"
+  | "spaceid"
+  | "tag"
+  | "is"
+  | "has"
+  | "verbatim";
+
 const MAX_RECENT_QUERY_LENGTH = 200;
 const THREAD_STATE_ORDER: ThreadStateOperator[] = [
   "favorite",
@@ -119,8 +139,154 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "verbatim:",
 ] as const;
 
+const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKey> =
+  new Set(["type", "space", "spaceid", "tag", "is", "has", "verbatim"]);
+
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
+}
+
+function normalizeUnifiedSearchTypeValue(
+  value: unknown
+): UnifiedSearchType | undefined {
+  if (
+    value === "all" ||
+    value === "threads" ||
+    value === "spaces" ||
+    value === "collections" ||
+    value === "files" ||
+    value === "tasks"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeSortByValue(value: unknown): SortBy | undefined {
+  if (value === "relevance" || value === "newest" || value === "oldest") {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeTimelineWindowValue(value: unknown): TimelineWindow | undefined {
+  if (value === "all" || value === "24h" || value === "7d" || value === "30d") {
+    return value;
+  }
+  return undefined;
+}
+
+function normalizeUnifiedSearchResultLimitValue(
+  value: unknown
+): UnifiedSearchResultLimit | undefined {
+  const numberValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : Number.NaN;
+  if (numberValue === 10 || numberValue === 20 || numberValue === 50) {
+    return numberValue;
+  }
+  return undefined;
+}
+
+function normalizeStrippableOperatorKey(
+  value: string
+): UnifiedSearchStripOperatorKey | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  const aliasNormalized =
+    normalized === "space_id"
+      ? "spaceid"
+      : normalized === "in"
+        ? "type"
+      : normalized === "exact"
+        ? "verbatim"
+        : normalized;
+  if (
+    UNIFIED_STRIPPABLE_OPERATOR_KEYS.has(
+      aliasNormalized as UnifiedSearchStripOperatorKey
+    )
+  ) {
+    return aliasNormalized as UnifiedSearchStripOperatorKey;
+  }
+  return null;
+}
+
+export function parseUnifiedSearchUrlState(
+  searchParams: URLSearchParams
+): UnifiedSearchUrlStatePatch {
+  const patch: UnifiedSearchUrlStatePatch = {};
+  if (searchParams.has("q")) {
+    patch.query = (searchParams.get("q") ?? "").slice(0, MAX_RECENT_QUERY_LENGTH);
+  }
+  if (searchParams.has("type")) {
+    const normalized = normalizeUnifiedSearchTypeValue(searchParams.get("type"));
+    if (normalized) patch.filter = normalized;
+  }
+  if (searchParams.has("sort")) {
+    const normalized = normalizeSortByValue(searchParams.get("sort"));
+    if (normalized) patch.sortBy = normalized;
+  }
+  if (searchParams.has("time")) {
+    const normalized = normalizeTimelineWindowValue(searchParams.get("time"));
+    if (normalized) patch.timelineWindow = normalized;
+  }
+  if (searchParams.has("limit")) {
+    const normalized = normalizeUnifiedSearchResultLimitValue(
+      searchParams.get("limit")
+    );
+    if (normalized) patch.resultLimit = normalized;
+  }
+  if (searchParams.has("verbatim")) {
+    const normalized = normalizeBooleanToken(searchParams.get("verbatim") ?? "");
+    if (normalized !== null) patch.verbatim = normalized;
+  }
+  return patch;
+}
+
+export function buildUnifiedSearchUrlParams(
+  state: UnifiedSearchUrlState
+): URLSearchParams {
+  const params = new URLSearchParams();
+  const trimmedQuery = state.query.trim();
+  if (trimmedQuery) params.set("q", trimmedQuery);
+  if (state.filter !== "all") params.set("type", state.filter);
+  if (state.sortBy !== "relevance") params.set("sort", state.sortBy);
+  if (state.timelineWindow !== "all") params.set("time", state.timelineWindow);
+  if (state.resultLimit !== 20) params.set("limit", String(state.resultLimit));
+  if (state.verbatim) params.set("verbatim", "true");
+  return params;
+}
+
+export function stripUnifiedSearchOperators(
+  raw: string,
+  options?: { drop?: UnifiedSearchStripOperatorKey[] }
+): string {
+  const dropKeys = options?.drop?.length
+    ? options.drop
+    : Array.from(UNIFIED_STRIPPABLE_OPERATOR_KEYS);
+  const dropSet = new Set<UnifiedSearchStripOperatorKey>(dropKeys);
+  const tokens = tokenizeOperatorQuery(raw);
+  const keptTokens: string[] = [];
+
+  for (const token of tokens) {
+    const separatorIndex = token.indexOf(":");
+    if (separatorIndex <= 0) {
+      keptTokens.push(token);
+      continue;
+    }
+
+    const key = token.slice(0, separatorIndex).trim().replace(/^-/, "");
+    const normalizedKey = normalizeStrippableOperatorKey(key);
+    if (!normalizedKey || !dropSet.has(normalizedKey)) {
+      keptTokens.push(token);
+      continue;
+    }
+  }
+
+  return keptTokens.join(" ").trim();
 }
 
 type UnknownRecord = Record<string, unknown>;

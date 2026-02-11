@@ -24,6 +24,7 @@ import {
   buildUnifiedSearchMarkdownExport,
   buildUnifiedSearchOperatorSummary,
   buildUnifiedSearchSavedSearchesMarkdownExport,
+  buildUnifiedSearchUrlParams,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
   decodeUnifiedSearchSpaceTagsStorage,
@@ -43,14 +44,17 @@ import {
   getOperatorAutocomplete,
   parseTimestampMs,
   parseUnifiedSearchQuery,
+  parseUnifiedSearchUrlState,
   parseStored,
   normalizeUnifiedSearchRecentQuery,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
+  stripUnifiedSearchOperators,
   topKSearchResults,
   toggleVisibleSelection,
+  type UnifiedSearchResultLimit,
   type TimelineWindow,
   type SortBy,
   type UnifiedSearchType,
@@ -148,6 +152,14 @@ const OPERATOR_HELP_ID = "unified-search-operator-help";
 const UNIFIED_SEARCH_STORAGE_EVENT_KEY_SET = new Set<string>(
   UNIFIED_SEARCH_STORAGE_EVENT_KEYS
 );
+const UNIFIED_SEARCH_URL_STATE_KEYS = [
+  "q",
+  "type",
+  "sort",
+  "time",
+  "limit",
+  "verbatim",
+] as const;
 
 type SearchFilter = "all" | "threads" | "spaces" | "collections" | "files" | "tasks";
 
@@ -179,7 +191,7 @@ function normalizeBootstrapTimelineWindow(value: unknown): TimelineWindow {
   return "all";
 }
 
-function normalizeBootstrapResultLimit(value: unknown): 10 | 20 | 50 {
+function normalizeBootstrapResultLimit(value: unknown): UnifiedSearchResultLimit {
   if (value === 10 || value === 20 || value === 50) return value;
   return 20;
 }
@@ -251,7 +263,7 @@ export default function UnifiedSearch({
     )
   );
   const [timelineNowMs, setTimelineNowMs] = useState(0);
-  const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(
+  const [resultLimit, setResultLimit] = useState<UnifiedSearchResultLimit>(
     normalizeBootstrapResultLimit(
       bootstrapSavedSearchState.activeSavedSearch?.resultLimit ??
         initialBootstrap?.resultLimit
@@ -438,6 +450,50 @@ export default function UnifiedSearch({
     window.addEventListener("popstate", syncDebugMode);
     return () => window.removeEventListener("popstate", syncDebugMode);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const syncUrlState = () => {
+      const patch = parseUnifiedSearchUrlState(
+        new URLSearchParams(window.location.search)
+      );
+      if (Object.prototype.hasOwnProperty.call(patch, "query")) {
+        setQuery(patch.query ?? "");
+      }
+      if (patch.filter) setFilter(patch.filter as SearchFilter);
+      if (patch.sortBy) setSortBy(patch.sortBy);
+      if (patch.timelineWindow) setTimelineWindow(patch.timelineWindow);
+      if (patch.resultLimit) setResultLimit(patch.resultLimit);
+      if (typeof patch.verbatim === "boolean") setVerbatim(patch.verbatim);
+    };
+    syncUrlState();
+    window.addEventListener("popstate", syncUrlState);
+    return () => window.removeEventListener("popstate", syncUrlState);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const currentUrl = new URL(window.location.href);
+    const mergedParams = new URLSearchParams(currentUrl.search);
+    UNIFIED_SEARCH_URL_STATE_KEYS.forEach((key) => mergedParams.delete(key));
+    const nextStateParams = buildUnifiedSearchUrlParams({
+      query,
+      filter,
+      sortBy,
+      timelineWindow,
+      resultLimit,
+      verbatim,
+    });
+    nextStateParams.forEach((value, key) => mergedParams.set(key, value));
+
+    const nextSearch = mergedParams.toString();
+    const nextPath = `${currentUrl.pathname}${
+      nextSearch ? `?${nextSearch}` : ""
+    }${currentUrl.hash}`;
+    const currentPath = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
+    if (nextPath === currentPath) return;
+    window.history.replaceState(window.history.state, "", nextPath);
+  }, [query, filter, sortBy, timelineWindow, resultLimit, verbatim]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1166,6 +1222,30 @@ export default function UnifiedSearch({
     openResult: (href) => router.push(href),
   });
 
+  const clearOperatorsFromQuery = useCallback(() => {
+    const nextQuery = stripUnifiedSearchOperators(query);
+    if (nextQuery === query.trim()) return;
+    setQuery(nextQuery);
+  }, [query]);
+
+  const resetTypeFilter = useCallback(() => {
+    setFilter("all");
+    const nextQuery = stripUnifiedSearchOperators(query, { drop: ["type"] });
+    if (nextQuery !== query.trim()) {
+      setQuery(nextQuery);
+    }
+  }, [query]);
+
+  const resetVerbatimFilter = useCallback(() => {
+    setVerbatim(false);
+    const nextQuery = stripUnifiedSearchOperators(query, {
+      drop: ["verbatim"],
+    });
+    if (nextQuery !== query.trim()) {
+      setQuery(nextQuery);
+    }
+  }, [query]);
+
   function exportResults() {
     const exportEnvironment = getExportEnvironmentMeta();
     const exportedSavedSearches = sortSavedSearches(savedSearches);
@@ -1315,6 +1395,36 @@ export default function UnifiedSearch({
     () => sortSavedSearches(savedSearches),
     [savedSearches]
   );
+
+  const activeMatchCount = useMemo(() => {
+    if (effectiveFilter === "threads") return filteredThreads.length;
+    if (effectiveFilter === "spaces") return filteredSpaces.length;
+    if (effectiveFilter === "collections") return filteredCollections.length;
+    if (effectiveFilter === "files") return filteredFiles.length;
+    if (effectiveFilter === "tasks") return filteredTasks.length;
+    return (
+      filteredThreads.length +
+      filteredSpaces.length +
+      filteredCollections.length +
+      filteredFiles.length +
+      filteredTasks.length
+    );
+  }, [
+    effectiveFilter,
+    filteredCollections.length,
+    filteredFiles.length,
+    filteredSpaces.length,
+    filteredTasks.length,
+    filteredThreads.length,
+  ]);
+
+  const showZeroResultsGuidance =
+    activeMatchCount === 0 &&
+    (Boolean(queryInfo.normalized) ||
+      operatorSummary.length > 0 ||
+      filter !== "all" ||
+      timelineWindow !== "all" ||
+      effectiveVerbatim);
 
   function createSavedSearchId(): string {
     if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
@@ -1536,10 +1646,7 @@ export default function UnifiedSearch({
               </button>
               {operatorSummary.length ? (
                 <button
-                  onClick={() => {
-                    const parsed = parseUnifiedSearchQuery(query);
-                    setQuery(parsed.text);
-                  }}
+                  onClick={clearOperatorsFromQuery}
                   aria-label="Clear search operators from query"
                   className="rounded-full border border-white/10 px-3 py-1 text-[11px]"
                 >
@@ -1646,7 +1753,9 @@ export default function UnifiedSearch({
               <select
                 value={resultLimit}
                 onChange={(event) =>
-                  setResultLimit(Number(event.target.value) as 10 | 20 | 50)
+                  setResultLimit(
+                    Number(event.target.value) as UnifiedSearchResultLimit
+                  )
                 }
                 className="rounded-full border border-white/10 bg-transparent px-3 py-1 text-xs text-signal-text"
               >
@@ -1656,6 +1765,48 @@ export default function UnifiedSearch({
               </select>
             </label>
           </div>
+          {showZeroResultsGuidance ? (
+            <div className="space-y-2 rounded-2xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-xs">
+              <p className="font-medium text-amber-100">No results found.</p>
+              <p className="text-[11px] text-amber-200/90">
+                Reset strict operators or filters to widen this search.
+              </p>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                {operatorSummary.length ? (
+                  <button
+                    onClick={clearOperatorsFromQuery}
+                    className="rounded-full border border-amber-300/50 px-3 py-1 text-amber-100 hover:bg-amber-500/10"
+                  >
+                    Clear operators
+                  </button>
+                ) : null}
+                {filter !== "all" || operators.type ? (
+                  <button
+                    onClick={resetTypeFilter}
+                    className="rounded-full border border-amber-300/50 px-3 py-1 text-amber-100 hover:bg-amber-500/10"
+                  >
+                    Reset type
+                  </button>
+                ) : null}
+                {timelineWindow !== "all" ? (
+                  <button
+                    onClick={() => setTimelineWindow("all")}
+                    className="rounded-full border border-amber-300/50 px-3 py-1 text-amber-100 hover:bg-amber-500/10"
+                  >
+                    Reset timeline
+                  </button>
+                ) : null}
+                {effectiveVerbatim ? (
+                  <button
+                    onClick={resetVerbatimFilter}
+                    className="rounded-full border border-amber-300/50 px-3 py-1 text-amber-100 hover:bg-amber-500/10"
+                  >
+                    Reset verbatim
+                  </button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {debugMode ? (
             <div className="space-y-3 rounded-2xl border border-amber-400/30 bg-amber-500/5 px-4 py-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">

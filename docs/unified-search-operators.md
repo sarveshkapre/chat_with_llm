@@ -51,6 +51,18 @@ When an operator is outside a result type's scope, that result type is excluded 
 | `Esc` | Dismisses suggestions | Clears active result highlight | Clears query (if non-empty) |
 | `/` | N/A | N/A | Focuses search input (outside editable fields) |
 
+## Shareable URL state
+
+- `/search` supports query-param state for shareable/reloadable filters:
+- `q=<query>` (free text)
+- `type=all|threads|spaces|collections|files|tasks`
+- `sort=relevance|newest|oldest`
+- `time=all|24h|7d|30d`
+- `limit=10|20|50`
+- `verbatim=true|false`
+- Defaults are omitted from generated URLs (`type=all`, `sort=relevance`, `time=all`, `limit=20`, `verbatim=false`).
+- Unknown params are preserved when search state updates, so `?debug=1` and other route params are not dropped.
+
 ## Diagnostics mode
 
 - Append `?debug=1` to `/search` to show diagnostics cards.
