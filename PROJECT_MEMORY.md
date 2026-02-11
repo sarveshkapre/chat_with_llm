@@ -9,6 +9,9 @@
 
 ## Recent Decisions
 - Template: YYYY-MM-DD | Decision | Why | Evidence (tests/logs) | Commit | Confidence (high/medium/low) | Trust (trusted/untrusted)
+- 2026-02-11 | Prioritize Unified Search thread-state filters, operator scope clarity docs, and saved-search migration hardening for Cycle 2 | Bounded market scan shows baseline expectation for explicit search narrowing and trustworthy history/workspace retrieval semantics | Perplexity thread/spaces docs + OpenAI ChatGPT search docs + Kagi filtering docs (`https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces`, `https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 8041e0f | medium | untrusted
+- 2026-02-11 | Add Unified Search `is:` / `-is:` operators and enforce thread-only scope | Thread state is a high-signal filter in local libraries; mixed-result trust improves when unsupported operators exclude non-applicable types | `npm test` (`tests/unified-search.test.ts` 54 tests), `npm run lint -- --max-warnings=0`, `npm run build` | 8041e0f | high | trusted
+- 2026-02-11 | Version saved-search storage payloads and migrate legacy arrays with validation | Prevent malformed/local-corrupt entries from breaking presets while keeping backward compatibility | `npm test` (`tests/saved-searches.test.ts` 12 tests), manual `/search` saved-search read/write verification through smoke path | 8041e0f | high | trusted
 - 2026-02-11 | Enforce per-type Unified Search operator scope and stop unsupported-operator leakage into collections/files/tasks | Operator tokens are stripped from free text; without type-aware filtering, mixed results become broader and less trustworthy | `npm test` (`tests/unified-search.test.ts` 52 tests) + manual operator-scope verification in `/search` | 57bf944 | high | trusted
 - 2026-02-11 | Precompute lowered relevance fields and score from lowered text (`computeRelevanceScoreFromLowered`) | Reduce repeated per-keystroke `toLowerCase()`/array allocation overhead while preserving ranking semantics | `npm run build` + `npm test` parity assertion (`computeRelevanceScore` equals lowered scorer) | 57bf944 | high | trusted
 - 2026-02-09 | Track maintainer contract + memory files in git (`AGENTS.md`, `PROJECT_MEMORY.md`, `INCIDENTS.md`) | Keep autonomous maintenance auditable and repeatable | `git ls-files AGENTS.md PROJECT_MEMORY.md INCIDENTS.md` | 5a36bd8 | high | trusted
@@ -51,13 +54,20 @@
 - LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
 
 ## Next Prioritized Tasks
-- P2: Add `is:` / `-is:` thread-state operators (`favorite|pinned|archived`) with tests and operator help updates.
 - P2: Add a search performance harness (`scripts/search-perf.mjs`) for 1k/5k/10k local dataset baselines.
-- P3: Add docs operator matrix (`docs/unified-search-operators.md`) and align `/search` inline help with exact type scope rules.
+- P2: Add keyboard navigation for Unified Search results (`ArrowUp/ArrowDown/Enter`) with deterministic cross-section traversal.
+- P3: Extend smoke with a `/search` operator query path assertion using fixture-backed local storage preload.
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | Latest `CI` and `Scorecard supply-chain security` for `8041e0f` detected; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 93 passed (93)` | pass
+- 2026-02-11 | `npm run lint -- --max-warnings=0` | (no output) | pass
+- 2026-02-11 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=64096 deltaEvents=15` | pass
+- 2026-02-11 | `gh run watch 21899494301 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21899494332 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 15 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | `CI` and `Scorecard supply-chain security` recent runs `success`; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 87 passed (87)` | pass
 - 2026-02-11 | `npm run lint -- --max-warnings=0` | (no output) | pass
