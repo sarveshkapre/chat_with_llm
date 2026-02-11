@@ -86,6 +86,12 @@
 - 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 129 passed (129)` | pass
 - 2026-02-11 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=51830 deltaEvents=15` | pass
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha=="0b692a3609191b4de94eb159808004512be09e99")]'` | commit `0b692a3` triggered `CI` + `Scorecard supply-chain security`; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `gh run watch 21905779390 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21905779372 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha=="a49c0d546ef1d4fb0915b438a125b2397b6d7ae9")]'` | commit `a49c0d5` triggered `CI` + `Scorecard supply-chain security`; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `gh run watch 21905811946 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21905811958 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url,createdAt` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt` | latest pre-change runs: CI + Scorecard success; Release Please skipped | pass (untrusted)
 - 2026-02-11 | `npm run perf:search` | `Unified Search perf summary` with 1k/5k/10k medians `0.16ms / 0.52ms / 0.95ms` | pass
