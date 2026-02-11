@@ -105,6 +105,11 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `npm run check:clone-features && npm run check:project-memory && npm run check:workflows` | all policy checks passed (`CLONE_FEATURES policy OK`, `PROJECT_MEMORY policy OK`, `Workflow policy OK`) | pass
+- 2026-02-11 | `git push origin main` | pushed commit `fb00689` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 12 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | commit `fb00689` triggered `CI` (`21915278025`) + `Scorecard supply-chain security` (`21915278027`); `Release Please` skipped (`21915278013`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21915278025 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21915278027 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url,createdAt` | `[]` (no open issues authored by `sarveshkapre`/trusted bots) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest non-release runs were successful before Cycle 18 changes; only `Release Please` remained skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search-smoke-fixture.test.ts tests/unified-search-keyboard.test.ts tests/check-project-memory.test.ts` | targeted regression/policy tests passed (`Test Files 3 passed`, `Tests 15 passed`) | pass
