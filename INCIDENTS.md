@@ -13,6 +13,15 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `npm test -- tests/storage.test.ts tests/check-smoke-fixtures.test.ts` failed after adding write-failure diagnostics assertions.
+  Impact: Verification temporarily failed (`2` unit-test failures); no production runtime incident.
+  Root Cause: Test doubles overrode `localStorage.setItem` for all keys, which inadvertently blocked writes to the diagnostics key (`signal-storage-write-failures-v1`) and invalidated expected assertions.
+  Fix: Updated tests to permit-and-store diagnostics-key writes while still throwing for target keys under quota/failure scenarios.
+  Prevention Rule: When validating fallback telemetry paths, keep telemetry storage writable in mocks unless the test explicitly targets telemetry write failures.
+  Evidence: Failed then passing `npm test -- tests/storage.test.ts tests/check-smoke-fixtures.test.ts`.
+  Commit: 5f28dd8
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `npm run perf:search` failed after refactoring perf data prep to consume shared deterministic fixtures.
   Impact: Verification temporarily failed (`tests/search-perf.bench.ts` checksum assertion); no production runtime incident.
   Root Cause: Shared fixture records did not initially include all default benchmark query tokens (`incident research workflow citation keyboard`), so filter passes returned zero visible matches and checksum stayed `0`.

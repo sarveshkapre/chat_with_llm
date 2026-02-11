@@ -7,17 +7,39 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Global Cycle 19 (2026-02-11) Session Plan
+- [x] P1 (Selected): Guard all `chat-app` localStorage persistence writes with shared status-aware storage helpers, add user-visible failure messaging, and prevent unhandled quota/storage exceptions from destabilizing core thread/workspace flows. (Delivered in Global Cycle 19, commit `5f28dd8`) (Score: impact=high effort=med strategic=high differentiation=med risk=low confidence=high)
+- [x] P1 (Selected): Add durable, bounded storage-write failure diagnostics (`signal-*` key/status/timestamp) surfaced in Library Data tools with clear/reset controls for faster local incident triage. (Delivered in Global Cycle 19, commit `5f28dd8`) (Score: impact=high effort=med strategic=high differentiation=med risk=low-med confidence=med-high)
+- [x] P2 (Selected): Add policy checks ensuring every `src/app/smoke-search/*` fixture route is asserted by `scripts/smoke.mjs`, with tests and CI wiring to prevent fixture drift. (Delivered in Global Cycle 19, commit `5f28dd8`) (Score: impact=med-high effort=low-med strategic=high differentiation=low risk=low confidence=high)
+- [ ] P2: Add compact browser smoke flow for `/search` keyboard row navigation (`ArrowDown` + `Enter`) to protect keyboard-first retrieval UX.
+- [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
+- [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
+- [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are very large.
+- [ ] P2: Add a small `docs:ops` command that prints canonical local verification commands for smoke/perf/policy triage.
+- [ ] P2: Add bounded integration smoke for OpenAI mode (env-gated) to verify non-mock `/api/answer/stream` call path when API key is present.
+- [ ] P2: Add stricter decode guards for pinned/recent Library filters to harden against malformed local payloads.
+- [ ] P3: Add explicit CSV export regressions for multiline citation URLs and whitespace-only cells.
+- [ ] P3: Add docs examples mapping `type:` and `verbatim:` operators to shareable URL params.
+- [ ] P3: Add docs note clarifying smoke diagnostics are bootstrap-driven SSR output for fixture routes.
+- [ ] P3: Add inline diagnostics tooltip copy for debug filtered-out buckets (`type scope`, `query/operator/time`, `result limit`).
+- [ ] P3: Add optional perf flag for deterministic dataset ordering when custom dataset sizes are supplied.
+- [ ] P3: Add operator docs lint utility to detect unsupported operator combinations by result type in examples.
+- [ ] P3: Add smoke assertion helper utilities to reduce brittle regex duplication and improve failure messages.
+- [ ] P3: Add a seeded smoke fixture for mixed-type sorting ties to keep deterministic tie-break UX verifiable.
+- [ ] P3: Add a diagnostics command that summarizes recent `PROJECT_MEMORY` verification failures for retrospectives.
+- [ ] P3: Add unit coverage for active-space persistence edge cases (`null`/remove path and storage failure behavior).
+
 ### Global Cycle 18 (2026-02-11) Session Plan
 - [x] P1 (Selected): Add a dedicated zero-results smoke fixture route that deterministically renders all Unified Search recovery actions (`Clear operators`, `Reset type`, `Reset timeline`, `Reset verbatim`) and assert it in `scripts/smoke.mjs` to protect no-results recovery UX from regressions. (Delivered in Global Cycle 18, commit `a6ef423`) (Score: impact=high effort=low-med strategic=high differentiation=med risk=low confidence=high)
 - [x] P2 (Selected): Add a `PROJECT_MEMORY` verification policy script/test pair that enforces explicit terminal status tokens (`pass`/`fail`) per verification entry, wire it into package scripts and CI, and keep evidence hygiene auditable across autonomous cycles. (Delivered in Global Cycle 18, commit `a6ef423`) (Score: impact=med-high effort=low-med strategic=high differentiation=low risk=low confidence=high)
 - [x] P2 (Selected): Add focused keyboard regression coverage for operator-to-result crossover when suggestions are no longer available, locking Arrow/Enter precedence behavior during dynamic suggestion state changes. (Delivered in Global Cycle 18, commit `a6ef423`) (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
 - [ ] P2: Add compact smoke path for `/search` keyboard result navigation (`ArrowDown` + `Enter`) using Playwright.
 - [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
-- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
 - [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are huge.
 - [ ] P2: Add optional fallback docs command (`npm run docs:ops`) that prints smoke/perf/check commands for operators.
-- [ ] P2: Add CI policy check that smoke script assertions cover every smoke fixture route under `src/app/smoke-search/*`.
+- [x] P2: Add CI policy check that smoke script assertions cover every smoke fixture route under `src/app/smoke-search/*`. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P3: Add explicit CSV export regression cases for multiline citation URLs and leading/trailing whitespace cells.
 - [ ] P3: Add docs example showing how `type:` and `verbatim:` state maps to shareable URL params.
 - [ ] P3: Add mini docs note clarifying that debug diagnostics in smoke fixtures are bootstrap-driven SSR output.
@@ -35,7 +57,7 @@
 - [x] P2 (Selected): Add a changelog/tracker guard script that validates new `CLONE_FEATURES.md` `Implemented` entries include commit hash tokens and wire it into CI scripts/tests. (Delivered in Global Cycle 17, commit `a8f09d4`) (Score: impact=med-high effort=low strategic=high differentiation=low risk=low confidence=high)
 - [ ] P2: Add compact smoke path for `/search` keyboard result navigation (`ArrowDown` + `Enter`) using Playwright.
 - [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
-- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
 - [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are huge.
 - [x] P2: Add CI policy check that enforces `PROJECT_MEMORY.md` verification entries include explicit pass/fail status tokens. (Delivered in Global Cycle 18, commit `a6ef423`)
@@ -56,7 +78,7 @@
 - [ ] P2: Add compact smoke path for `/search` keyboard result navigation (`ArrowDown` + `Enter`) using Playwright.
 - [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
 - [ ] P2: Add smoke fixture coverage for archive-only thread filtering using `is:archived` and `-is:archived`.
-- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
 - [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are huge.
 - [ ] P3: Add explicit CSV export regression cases for multiline citation URLs and leading/trailing whitespace cells.
@@ -89,7 +111,7 @@
 - [ ] P3: Add mini docs note clarifying that debug diagnostics in smoke fixtures are bootstrap-driven SSR output.
 - [ ] P3: Add changelog guard script validating that new `Implemented` entries include commit hash tokens.
 - [ ] P3: Add inline diagnostics tooltip explaining each filtered-out bucket in debug mode.
-- [ ] P3: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P3: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P3: Add small query-operator lint utility to detect unsupported operator combinations by result type in docs/examples.
 - [ ] P3: Add keyboard regression tests for cross-over behavior when suggestion list empties during Arrow navigation.
 
@@ -128,7 +150,7 @@
 - [ ] P2: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
 - [ ] P3: Add keyboard regression tests for cross-over behavior when suggestion list empties during Arrow navigation.
 - [ ] P3: Add explicit CSV export parity tests for multiline citation URLs and escaped whitespace edge cases.
-- [ ] P3: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P3: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [ ] P3: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
 - [ ] P3: Add URL-state docs section in `docs/unified-search-operators.md` with shareable query examples and fallback rules.
 - [ ] P3: Add changelog automation check that verifies every `Implemented` entry has a matching commit hash format.
@@ -153,7 +175,7 @@
 - [ ] P2: Add perf threshold guardrails for 10k Unified Search datasets with variance-tolerant med/p95 limits in CI.
 - [ ] P2: Add Unified Search zero-results guidance card with one-click reset actions for operators/type/timeline/verbatim.
 - [ ] P2: Add shareable Unified Search URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with hydration-safe defaults.
-- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [x] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it. (Delivered in Global Cycle 13, commit `87007fa`)
 - [ ] P3: Add NDJSON malformed-line integration check script for `/api/answer/stream` framing resilience.
 - [ ] P3: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
@@ -174,7 +196,7 @@
 - [ ] P2: Add perf threshold guardrails for 10k Unified Search datasets with variance-tolerant med/p95 limits in CI.
 - [ ] P2: Add Unified Search zero-results guidance card with one-click reset actions for operators/type/timeline/verbatim.
 - [ ] P2: Add shareable Unified Search URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with hydration-safe defaults.
-- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [x] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures. (Delivered in Global Cycle 19, commit `5f28dd8`)
 - [x] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it. (Delivered in Global Cycle 13, commit `87007fa`)
 - [ ] P3: Add NDJSON malformed-line integration check script for `/api/answer/stream` framing resilience.
 - [ ] P3: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
@@ -370,6 +392,7 @@
 - [x] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Delivered in Cycle 10) (Score: impact=med effort=med risk=med confidence=med)
 
 ## Implemented
+- 2026-02-11: Local-storage resilience + smoke coverage policy pass: routed `chat-app` persistence writes through `writeStoredJson` guards, added durable bounded `signal-storage-write-failures-v1` diagnostics surfaced in Library Data tools with clear controls (`src/components/chat-app.tsx`, `src/lib/storage.ts`, `src/lib/storage-keys.ts`, `tests/storage.test.ts`, `docs/data-recovery.md`, `README.md`), and added CI-enforced smoke fixture route coverage policy (`scripts/smoke-fixtures-policy.mjs`, `scripts/check-smoke-fixtures.mjs`, `tests/check-smoke-fixtures.test.ts`, `package.json`, `.github/workflows/ci.yml`, `PROJECT.md`). (commit `5f28dd8`)
 - 2026-02-11: Unified Search zero-results and tracker-policy hardening pass: added a dedicated zero-results smoke fixture route plus SSR-safe smoke assertions that verify all reset controls (`/smoke-search/zero-results`, `scripts/smoke.mjs`, `src/lib/unified-search-smoke-fixture.ts`, `tests/unified-search-smoke-fixture.test.ts`), added `PROJECT_MEMORY` verification-policy enforcement with CLI/test/CI wiring (`scripts/project-memory-policy.mjs`, `scripts/check-project-memory.mjs`, `tests/check-project-memory.test.ts`, `package.json`, `.github/workflows/ci.yml`, `PROJECT.md`), and expanded keyboard precedence regression coverage for suggestion-to-result crossover behavior (`tests/unified-search-keyboard.test.ts`). (commit `a6ef423`)
 - 2026-02-11: Unified Search fixture reliability pass: introduced a shared deterministic fixture generator consumed by smoke + perf harnesses (`src/lib/unified-search-fixtures.ts`, `tests/search-perf.bench.ts`, `tests/unified-search-fixtures.test.ts`), added archive-operator smoke routes/assertions for `is:archived` and `-is:archived` (`src/app/smoke-search/archive-only/page.tsx`, `src/app/smoke-search/archive-exclude/page.tsx`, `src/lib/unified-search-smoke-fixture.ts`, `scripts/smoke.mjs`, `tests/unified-search-smoke-fixture.test.ts`), and added `CLONE_FEATURES` commit-token policy checks wired into CI (`scripts/check-clone-features.mjs`, `scripts/clone-features-policy.mjs`, `tests/check-clone-features.test.ts`, `package.json`, `.github/workflows/ci.yml`, `PROJECT.md`). (commit `a8f09d4`)
 - 2026-02-11: Unified Search notes-decoder hardening pass: added `decodeUnifiedSearchNotesStorage()` so malformed/non-string note payloads are pruned and thread ids are normalized before search preparation, wired notes decoding into preload + focus/storage refresh reads to prevent `note.trim()` crashes from corrupted `signal-notes`, tightened bootstrap typing for untrusted notes payloads, and added regression tests for notes sanitation and mixed unknown-token operator stripping behavior (`src/lib/unified-search.ts`, `src/components/unified-search.tsx`, `src/lib/unified-search-bootstrap.ts`, `tests/unified-search.test.ts`, `CHANGELOG.md`). (commit `63829c1`)
@@ -425,6 +448,9 @@
 - 2026-02-10: Removed Next build warning from Node WebStorage by lazy-loading `docx` and tightening browser guards in localStorage helpers (`src/components/chat-app.tsx`, `src/lib/storage.ts`, `src/lib/signal-storage.ts`, `src/lib/local-data.ts`, `tests/storage.test.ts`) (commit `30a28ca`).
 
 ## Insights
+- 2026-02-11 bounded market scan (untrusted): current baseline in adjacent products still emphasizes searchable history/workspaces, explicit narrowing operators/filters, and transparent recovery paths for saved state; this cycle prioritized storage-write diagnostics and smoke-policy enforcement to keep Signal Search trust signals durable. Sources: https://help.openai.com/en/articles/11487644-search-in-chatgpt, https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt, https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads, https://help.kagi.com/kagi/features/filtering-results.html.
+- 2026-02-11 gap map refresh (untrusted, synthesized): missing = multi-user auth/db/retrieval jobs; weak = chat-surface localStorage persistence resilience and fixture-assertion drift between route files and smoke script (both improved this cycle); parity = operator-rich Unified Search + workspace organization; differentiator = local-first diagnosability with deterministic smoke enforcement.
+- 2026-02-11 code review sweep (trusted): `chat-app` still had unguarded direct localStorage writes despite Unified Search guardrails, leaving quota/permission failures under-handled; consolidating writes on shared helpers plus persistent failure diagnostics materially lowers local-first data-loss risk.
 - 2026-02-11 bounded market scan (untrusted): OpenAI/Perplexity/Kagi guidance still reflects baseline expectations around searchable history/workspaces, explicit query filtering operators, and recoverable search workflows; this cycle prioritized deterministic zero-results recovery coverage and documentation hygiene checks over net-new surface area. Sources: https://help.openai.com/en/articles/11487644-search-in-chatgpt, https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt, https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads, https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces, https://help.kagi.com/kagi/features/filtering-results.html.
 - 2026-02-11 gap map refresh (untrusted, synthesized): missing = multi-user auth/db/retrieval jobs; weak = explicit route-level smoke coverage for zero-results recovery and verification-entry policy drift (both improved this cycle); parity = operators, diagnostics, workspace entities; differentiator = local-first Unified Search with deterministic smoke fixtures and enforceable evidence quality gates.
 - 2026-02-11 code review sweep (trusted): keyboard and zero-results behavior were implemented but partially under-protected by route-level smoke and resolver crossover tests; adding those assertions closes a high-probability regression gap without product-surface risk.
