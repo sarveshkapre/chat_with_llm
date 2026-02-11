@@ -7,6 +7,28 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Global Cycle 18 (2026-02-11) Session Plan
+- [ ] P1 (Selected): Add a dedicated zero-results smoke fixture route that deterministically renders all Unified Search recovery actions (`Clear operators`, `Reset type`, `Reset timeline`, `Reset verbatim`) and assert it in `scripts/smoke.mjs` to protect no-results recovery UX from regressions. (Score: impact=high effort=low-med strategic=high differentiation=med risk=low confidence=high)
+- [ ] P2 (Selected): Add a `PROJECT_MEMORY` verification policy script/test pair that enforces explicit terminal status tokens (`pass`/`fail`) per verification entry, wire it into package scripts and CI, and keep evidence hygiene auditable across autonomous cycles. (Score: impact=med-high effort=low-med strategic=high differentiation=low risk=low confidence=high)
+- [ ] P2 (Selected): Add focused keyboard regression coverage for operator-to-result crossover when suggestions are no longer available, locking Arrow/Enter precedence behavior during dynamic suggestion state changes. (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
+- [ ] P2: Add compact smoke path for `/search` keyboard result navigation (`ArrowDown` + `Enter`) using Playwright.
+- [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
+- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
+- [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are huge.
+- [ ] P2: Add optional fallback docs command (`npm run docs:ops`) that prints smoke/perf/check commands for operators.
+- [ ] P2: Add CI policy check that smoke script assertions cover every smoke fixture route under `src/app/smoke-search/*`.
+- [ ] P3: Add explicit CSV export regression cases for multiline citation URLs and leading/trailing whitespace cells.
+- [ ] P3: Add docs example showing how `type:` and `verbatim:` state maps to shareable URL params.
+- [ ] P3: Add mini docs note clarifying that debug diagnostics in smoke fixtures are bootstrap-driven SSR output.
+- [ ] P3: Add inline diagnostics tooltip explaining each filtered-out bucket in debug mode.
+- [ ] P3: Add optional perf command flag for deterministic output ordering by dataset size when custom datasets are introduced.
+- [ ] P3: Add small query-operator lint utility to detect unsupported operator combinations by result type in docs/examples.
+- [ ] P3: Add lightweight smoke assertion helper to centralize SSR-safe text matching and reduce brittle regex duplication.
+- [ ] P3: Add seeded smoke fixture for mixed-type sorting ties to validate deterministic tie-breaker visibility in cards.
+- [ ] P3: Add docs snippet showing failure triage steps when smoke route checks fail in CI.
+- [ ] P3: Add maintenance script to summarize recent `PROJECT_MEMORY` verification fail entries for faster retrospective reviews.
+
 ### Global Cycle 17 (2026-02-11) Session Plan
 - [x] P1 (Selected): Add a shared deterministic Unified Search fixture generator consumed by both perf benchmarks and smoke fixtures to reduce dataset drift and keep relevance/operator behavior baselines aligned. (Delivered in Global Cycle 17, commit `a8f09d4`) (Score: impact=high effort=med strategic=high differentiation=med risk=low-med confidence=med-high)
 - [x] P1 (Selected): Add smoke fixture coverage for archive-state thread operators (`is:archived` and `-is:archived`) with deterministic SSR assertions in `scripts/smoke.mjs`. (Delivered in Global Cycle 17, commit `a8f09d4`) (Score: impact=high effort=low-med strategic=high differentiation=med risk=low confidence=high)

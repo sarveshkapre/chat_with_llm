@@ -27,6 +27,8 @@ jobs:
         run: npm run check:operator-docs
       - name: Clone features policy
         run: npm run check:clone-features
+      - name: Project memory policy
+        run: npm run check:project-memory
       - name: Lint
         run: npm run lint
       - name: Test

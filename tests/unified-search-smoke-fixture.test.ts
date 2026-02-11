@@ -17,6 +17,8 @@ import {
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY,
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID,
   UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP,
+  UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP,
+  UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_QUERY,
 } from "@/lib/unified-search-smoke-fixture";
 
 describe("unified search smoke fixture", () => {
@@ -132,6 +134,57 @@ describe("unified search smoke fixture", () => {
       "smoke-thread-match",
       "smoke-thread-missing",
     ]);
+  });
+
+  it("defines zero-results fixture state with all recovery controls enabled", () => {
+    expect(UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP.filter).toBe("tasks");
+    expect(UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP.timelineWindow).toBe("24h");
+    expect(UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP.resultLimit).toBe(10);
+
+    const parsed = parseUnifiedSearchQuery(UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_QUERY);
+    expect(parsed.operators.type).toBe("threads");
+    expect(parsed.operators.verbatim).toBe(true);
+    expect(parsed.operators.tags).toEqual(["smoke-zero-miss"]);
+
+    const notes = UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP.notes ?? {};
+    const threads = decodeUnifiedSearchThreadsStorage(
+      UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP.threads ?? []
+    );
+    const prepared = threads.map((thread) => {
+      const tags = thread.tags ?? [];
+      const tagsText = tags.join(" ");
+      const citationsText = (thread.citations ?? [])
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const noteTrimmed = (notes[thread.id] ?? "").trim();
+      return {
+        thread,
+        combinedLower: [
+          thread.title ?? thread.question,
+          thread.question,
+          thread.answer,
+          tagsText,
+          thread.spaceName ?? "",
+          citationsText,
+          noteTrimmed,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase(),
+        spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
+        spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
+        tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+        noteTrimmed,
+        hasCitation: Boolean(thread.citations?.length),
+      };
+    });
+    const filtered = filterThreadEntries(prepared, {
+      query: parsed.query,
+      operators: parsed.operators,
+      timelineWindow: "24h",
+      nowMs: Date.parse("2026-02-11T12:00:00.000Z"),
+    });
+    expect(filtered).toEqual([]);
   });
 
   it("defines archive-operator fixtures for both include and exclude semantics", () => {

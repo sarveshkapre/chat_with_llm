@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Added a zero-results smoke fixture route (`/smoke-search/zero-results`) plus smoke assertions that verify Unified Search recovery controls (`Clear operators`, `Reset type`, `Reset timeline`, `Reset verbatim`) remain rendered under constrained query/filter states.
+- Added `check:project-memory` policy enforcement (`scripts/check-project-memory.mjs`) with tests and CI wiring so `PROJECT_MEMORY.md` verification entries must end with explicit `pass`/`fail` status tokens.
+- Added keyboard regression coverage for operator-to-result precedence crossover when operator suggestions disappear, locking Arrow/Enter fallback behavior.
 - Added malformed-NDJSON resilience coverage for streaming answers: `/api/answer/stream` now supports a smoke-only corrupt-chunk fixture toggle, the chat client tolerates isolated malformed NDJSON lines up to a bounded threshold, and smoke/route tests assert streams still reach a final `done` payload.
 - Added shared bootstrap selected-thread id sanitization helper coverage (`trim`/`dedupe`/non-string drop) to lock deterministic smoke bootstrap behavior.
 - Added `check:operator-docs` guardrail (`scripts/check-operator-docs.mjs`) plus CI wiring and tests to ensure parser operator suggestions remain documented in `docs/unified-search-operators.md`.

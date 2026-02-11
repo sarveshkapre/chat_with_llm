@@ -13,6 +13,8 @@ export const UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY =
   "type:threads is:archived";
 export const UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY =
   "type:threads -is:archived";
+export const UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_QUERY =
+  "type:threads tag:smoke-zero-miss verbatim:true";
 export const UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE = "Smoke Archived Thread";
 export const UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE = "Smoke Active Thread";
 
@@ -200,6 +202,15 @@ export const UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP: UnifiedSearchBootst
   debugMode: true,
   filter: "threads",
   selectedThreadIds: ["smoke-thread-match", "smoke-thread-missing"],
+};
+
+export const UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_BOOTSTRAP: UnifiedSearchBootstrap = {
+  ...UNIFIED_SEARCH_SMOKE_BOOTSTRAP,
+  query: UNIFIED_SEARCH_SMOKE_ZERO_RESULTS_QUERY,
+  filter: "tasks",
+  timelineWindow: "24h",
+  resultLimit: 10,
+  verbatim: false,
 };
 
 const archiveFixture = createDeterministicUnifiedSearchDataset({

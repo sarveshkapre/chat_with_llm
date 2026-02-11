@@ -106,4 +106,43 @@ describe("resolveUnifiedSearchKeyboardAction", () => {
       })
     ).toEqual({ type: "none" });
   });
+
+  it("switches arrow/enter precedence to results when suggestions become unavailable", () => {
+    const withSuggestions = {
+      hasOperatorSuggestions: true,
+      hasNavigableResults: true,
+      hasActiveResult: true,
+      hasQuery: true,
+    };
+    const withoutSuggestions = {
+      ...withSuggestions,
+      hasOperatorSuggestions: false,
+    };
+
+    expect(
+      resolveUnifiedSearchKeyboardAction({
+        key: "ArrowDown",
+        ...withSuggestions,
+      })
+    ).toEqual({ type: "step-operator", direction: 1 });
+    expect(
+      resolveUnifiedSearchKeyboardAction({
+        key: "ArrowDown",
+        ...withoutSuggestions,
+      })
+    ).toEqual({ type: "step-result", direction: 1 });
+
+    expect(
+      resolveUnifiedSearchKeyboardAction({
+        key: "Enter",
+        ...withSuggestions,
+      })
+    ).toEqual({ type: "apply-operator" });
+    expect(
+      resolveUnifiedSearchKeyboardAction({
+        key: "Enter",
+        ...withoutSuggestions,
+      })
+    ).toEqual({ type: "open-result" });
+  });
 });

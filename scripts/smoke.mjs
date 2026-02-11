@@ -310,6 +310,30 @@ async function main() {
       );
     }
 
+    const smokeZeroResultsResponse = await fetch(
+      `${baseUrl}/smoke-search/zero-results`,
+      { redirect: "manual" }
+    );
+    if (!smokeZeroResultsResponse.ok) {
+      throw new Error(
+        `/smoke-search/zero-results fixture path returned ${smokeZeroResultsResponse.status}`
+      );
+    }
+    const smokeZeroResultsHtml = stripScriptsFromHtml(
+      await smokeZeroResultsResponse.text()
+    );
+    if (
+      !smokeZeroResultsHtml.includes("No results found.") ||
+      !smokeZeroResultsHtml.includes("Clear operators") ||
+      !smokeZeroResultsHtml.includes("Reset type") ||
+      !smokeZeroResultsHtml.includes("Reset timeline") ||
+      !smokeZeroResultsHtml.includes("Reset verbatim")
+    ) {
+      throw new Error(
+        "/smoke-search/zero-results did not expose all expected recovery actions"
+      );
+    }
+
     const smokeStaleSelectionResponse = await fetch(
       `${baseUrl}/smoke-search/stale-selection`,
       { redirect: "manual" }
