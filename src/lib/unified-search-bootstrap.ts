@@ -1,5 +1,22 @@
+export type UnifiedSearchBootstrapFilter =
+  | "all"
+  | "threads"
+  | "spaces"
+  | "collections"
+  | "files"
+  | "tasks";
+
+export type UnifiedSearchBootstrapSortBy = "relevance" | "newest" | "oldest";
+export type UnifiedSearchBootstrapTimelineWindow = "all" | "24h" | "7d" | "30d";
+export type UnifiedSearchBootstrapResultLimit = 10 | 20 | 50;
+
 export type UnifiedSearchBootstrap = {
   query?: string;
+  filter?: UnifiedSearchBootstrapFilter;
+  sortBy?: UnifiedSearchBootstrapSortBy;
+  timelineWindow?: UnifiedSearchBootstrapTimelineWindow;
+  resultLimit?: UnifiedSearchBootstrapResultLimit;
+  activeSavedSearchId?: string;
   disableStorageSync?: boolean;
   notes?: Record<string, string>;
   threads?: unknown;

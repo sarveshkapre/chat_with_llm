@@ -13,6 +13,15 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/smoke-search/saved-roundtrip controls did not preserve saved-search filter/sort/timeline/limit/verbatim state`.
+  Impact: Verification temporarily failed; no production runtime incident.
+  Root Cause: Smoke assertion expected `<select>`-style filter markup and contiguous `verbatim:true` text, but the UI renders filter state as pill buttons and SSR output inserts React comment separators around adjacent text nodes.
+  Fix: Updated smoke assertions to detect selected tasks pill styling (`border-signal-accent`) and use SSR-safe regex for verbatim text (`verbatim:(?:<!-- -->)?true`).
+  Prevention Rule: Inspect real SSR HTML snapshots before finalizing selector/text assertions; prefer semantic, resilient patterns over markup-shape assumptions.
+  Evidence: Failed then passing `npm run lint -- --max-warnings=0 && npm run check:workflows && npm test && npm run build && node scripts/smoke.mjs --provider mock --skip-build`.
+  Commit: TBD
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/__smoke/search fixture path returned 404`.
   Impact: Verification temporarily failed; no production runtime incident.
   Root Cause: Initial smoke fixture route used underscore-prefixed App Router segment (`src/app/__smoke/...`), which is private/non-routable in Next.js.

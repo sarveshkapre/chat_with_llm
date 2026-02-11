@@ -143,6 +143,41 @@ const SAVED_SEARCH_KEY = "signal-unified-saved-v1";
 const VERBATIM_KEY = "signal-unified-verbatim-v1";
 const OPERATOR_HELP_ID = "unified-search-operator-help";
 
+type SearchFilter = "all" | "threads" | "spaces" | "collections" | "files" | "tasks";
+
+function normalizeBootstrapFilter(value: unknown): SearchFilter {
+  if (
+    value === "all" ||
+    value === "threads" ||
+    value === "spaces" ||
+    value === "collections" ||
+    value === "files" ||
+    value === "tasks"
+  ) {
+    return value;
+  }
+  return "all";
+}
+
+function normalizeBootstrapSortBy(value: unknown): SortBy {
+  if (value === "newest" || value === "oldest" || value === "relevance") {
+    return value;
+  }
+  return "relevance";
+}
+
+function normalizeBootstrapTimelineWindow(value: unknown): TimelineWindow {
+  if (value === "24h" || value === "7d" || value === "30d" || value === "all") {
+    return value;
+  }
+  return "all";
+}
+
+function normalizeBootstrapResultLimit(value: unknown): 10 | 20 | 50 {
+  if (value === 10 || value === 20 || value === 50) return value;
+  return 20;
+}
+
 const THREAD_BADGE_LABELS: Record<string, string> = {
   title: "Title",
   question: "Question",
@@ -172,19 +207,55 @@ export default function UnifiedSearch({
 }: UnifiedSearchProps = {}) {
   const router = useRouter();
   const disableStorageSync = initialBootstrap?.disableStorageSync === true;
-  const [query, setQuery] = useState(initialBootstrap?.query ?? "");
+  const bootstrapSavedSearchState = useMemo(() => {
+    const decodedSavedSearches = decodeSavedSearchStorage(
+      initialBootstrap?.savedSearches ??
+        parseStored<unknown>(SAVED_SEARCH_KEY, [])
+    );
+    if (typeof initialBootstrap?.activeSavedSearchId !== "string") {
+      return { decodedSavedSearches, activeSavedSearch: null as UnifiedSavedSearch | null };
+    }
+    const activeSavedSearch =
+      decodedSavedSearches.find(
+        (saved) => saved.id === initialBootstrap.activeSavedSearchId
+      ) ?? null;
+    return { decodedSavedSearches, activeSavedSearch };
+  }, [initialBootstrap]);
+  const [query, setQuery] = useState(
+    bootstrapSavedSearchState.activeSavedSearch?.query ?? initialBootstrap?.query ?? ""
+  );
   const [debugMode, setDebugMode] = useState(false);
   const deferredQuery = useDeferredValue(query);
-  const [filter, setFilter] = useState<
-    "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
-  >("all");
-  const [sortBy, setSortBy] = useState<SortBy>("relevance");
-  const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>("all");
+  const [filter, setFilter] = useState<SearchFilter>(
+    normalizeBootstrapFilter(
+      bootstrapSavedSearchState.activeSavedSearch?.filter ??
+        initialBootstrap?.filter
+    )
+  );
+  const [sortBy, setSortBy] = useState<SortBy>(
+    normalizeBootstrapSortBy(
+      bootstrapSavedSearchState.activeSavedSearch?.sortBy ??
+        initialBootstrap?.sortBy
+    )
+  );
+  const [timelineWindow, setTimelineWindow] = useState<TimelineWindow>(
+    normalizeBootstrapTimelineWindow(
+      bootstrapSavedSearchState.activeSavedSearch?.timelineWindow ??
+        initialBootstrap?.timelineWindow
+    )
+  );
   const [timelineNowMs, setTimelineNowMs] = useState(0);
-  const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(20);
+  const [resultLimit, setResultLimit] = useState<10 | 20 | 50>(
+    normalizeBootstrapResultLimit(
+      bootstrapSavedSearchState.activeSavedSearch?.resultLimit ??
+        initialBootstrap?.resultLimit
+    )
+  );
   const [verbatim, setVerbatim] = useState<boolean>(() =>
-    typeof initialBootstrap?.verbatim === "boolean"
-      ? initialBootstrap.verbatim
+    typeof bootstrapSavedSearchState.activeSavedSearch?.verbatim === "boolean"
+      ? bootstrapSavedSearchState.activeSavedSearch.verbatim
+      : typeof initialBootstrap?.verbatim === "boolean"
+        ? initialBootstrap.verbatim
       : parseStored<boolean>(VERBATIM_KEY, false)
   );
   const [recentQueries, setRecentQueries] = useState<string[]>(() =>
@@ -194,10 +265,7 @@ export default function UnifiedSearch({
     )
   );
   const [savedSearches, setSavedSearches] = useState<UnifiedSavedSearch[]>(() =>
-    decodeSavedSearchStorage(
-      initialBootstrap?.savedSearches ??
-        parseStored<unknown>(SAVED_SEARCH_KEY, [])
-    )
+    bootstrapSavedSearchState.decodedSavedSearches
   );
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
   const [editingSavedName, setEditingSavedName] = useState("");
@@ -1743,7 +1811,7 @@ export default function UnifiedSearch({
                             <p className="mt-1 truncate text-[11px] text-signal-muted">
                               {saved.query || "No query"} · {saved.filter} ·{" "}
                               {saved.sortBy} · {saved.timelineWindow} ·{" "}
-                              {saved.resultLimit}
+                              {saved.resultLimit} · verbatim:{saved.verbatim ? "true" : "false"}
                             </p>
                           </>
                         )}

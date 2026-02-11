@@ -4,6 +4,9 @@ const nowIso = new Date("2026-02-11T12:00:00.000Z").toISOString();
 
 export const UNIFIED_SEARCH_SMOKE_QUERY =
   "type:threads is:pinned has:citation tag:incident -has:note";
+export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY =
+  'type:tasks space:"Incident Ops" weekly digest';
+export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID = "smoke-saved-roundtrip";
 
 export const UNIFIED_SEARCH_SMOKE_BOOTSTRAP: UnifiedSearchBootstrap = {
   query: UNIFIED_SEARCH_SMOKE_QUERY,
@@ -153,4 +156,33 @@ export const UNIFIED_SEARCH_SMOKE_BOOTSTRAP: UnifiedSearchBootstrap = {
     },
   ],
   verbatim: false,
+};
+
+export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP: UnifiedSearchBootstrap = {
+  ...UNIFIED_SEARCH_SMOKE_BOOTSTRAP,
+  query: "placeholder query overwritten by active saved search",
+  filter: "all",
+  sortBy: "relevance",
+  timelineWindow: "all",
+  resultLimit: 50,
+  verbatim: false,
+  activeSavedSearchId: UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID,
+  savedSearches: [
+    ...(Array.isArray(UNIFIED_SEARCH_SMOKE_BOOTSTRAP.savedSearches)
+      ? UNIFIED_SEARCH_SMOKE_BOOTSTRAP.savedSearches
+      : []),
+    {
+      id: UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID,
+      name: "Roundtrip task digest",
+      query: UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY,
+      filter: "tasks",
+      sortBy: "oldest",
+      timelineWindow: "7d",
+      resultLimit: 10,
+      verbatim: true,
+      pinned: false,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    },
+  ],
 };

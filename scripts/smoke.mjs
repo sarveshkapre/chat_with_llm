@@ -215,6 +215,39 @@ async function main() {
       );
     }
 
+    const smokeSavedRoundtripResponse = await fetch(
+      `${baseUrl}/smoke-search/saved-roundtrip`,
+      { redirect: "manual" }
+    );
+    if (!smokeSavedRoundtripResponse.ok) {
+      throw new Error(
+        `/smoke-search/saved-roundtrip fixture path returned ${smokeSavedRoundtripResponse.status}`
+      );
+    }
+    const smokeSavedRoundtripHtml = await smokeSavedRoundtripResponse.text();
+    if (
+      !smokeSavedRoundtripHtml.includes("Roundtrip task digest") ||
+      !smokeSavedRoundtripHtml.includes("Weekly incident digest") ||
+      !/verbatim:(?:<!-- -->)?true/.test(smokeSavedRoundtripHtml)
+    ) {
+      throw new Error(
+        "/smoke-search/saved-roundtrip did not render expected saved-search fixture content"
+      );
+    }
+    if (
+      !/<button[^>]*border-signal-accent[^>]*>Tasks only<\/button>/.test(
+        smokeSavedRoundtripHtml
+      ) ||
+      !/<option[^>]*value="oldest"[^>]*selected/.test(smokeSavedRoundtripHtml) ||
+      !/<option[^>]*value="7d"[^>]*selected/.test(smokeSavedRoundtripHtml) ||
+      !/<option[^>]*value="10"[^>]*selected/.test(smokeSavedRoundtripHtml) ||
+      !/type="checkbox"[^>]*checked/.test(smokeSavedRoundtripHtml)
+    ) {
+      throw new Error(
+        "/smoke-search/saved-roundtrip controls did not preserve saved-search filter/sort/timeline/limit/verbatim state"
+      );
+    }
+
     const answerBody = {
       question: "Smoke test: what is Signal Search?",
       mode: "quick",

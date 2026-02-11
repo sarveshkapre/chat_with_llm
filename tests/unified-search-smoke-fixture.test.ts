@@ -7,6 +7,9 @@ import {
 import {
   UNIFIED_SEARCH_SMOKE_BOOTSTRAP,
   UNIFIED_SEARCH_SMOKE_QUERY,
+  UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP,
+  UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY,
+  UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID,
 } from "@/lib/unified-search-smoke-fixture";
 
 describe("unified search smoke fixture", () => {
@@ -69,5 +72,49 @@ describe("unified search smoke fixture", () => {
 
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.thread.title).toBe("Smoke Incident Thread");
+  });
+
+  it("defines a saved-search roundtrip fixture with persisted non-default controls", () => {
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.activeSavedSearchId).toBe(
+      UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID
+    );
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.query).toContain(
+      "placeholder query"
+    );
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.filter).toBe("all");
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.sortBy).toBe("relevance");
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.timelineWindow).toBe("all");
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.resultLimit).toBe(50);
+    expect(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.verbatim).toBe(false);
+
+    const savedSearches = Array.isArray(
+      UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.savedSearches
+    )
+      ? UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP.savedSearches
+      : [];
+    const roundtripSaved = savedSearches.find(
+      (saved) =>
+        typeof saved === "object" &&
+        saved !== null &&
+        "id" in saved &&
+        (saved as { id?: unknown }).id === UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID
+    ) as
+      | {
+          query?: unknown;
+          filter?: unknown;
+          sortBy?: unknown;
+          timelineWindow?: unknown;
+          resultLimit?: unknown;
+          verbatim?: unknown;
+        }
+      | undefined;
+
+    expect(roundtripSaved).toBeDefined();
+    expect(roundtripSaved?.query).toBe(UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY);
+    expect(roundtripSaved?.filter).toBe("tasks");
+    expect(roundtripSaved?.sortBy).toBe("oldest");
+    expect(roundtripSaved?.timelineWindow).toBe("7d");
+    expect(roundtripSaved?.resultLimit).toBe(10);
+    expect(roundtripSaved?.verbatim).toBe(true);
   });
 });

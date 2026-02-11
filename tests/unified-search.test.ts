@@ -1484,6 +1484,17 @@ describe("sortSearchResults", () => {
     const sorted = sortSearchResults(items, "relevance", query, scoreOf);
     expect(sorted.map((item) => item.id)).toEqual(["b", "a", "c"]);
   });
+
+  it("keeps input order stable for exact relevance and timestamp ties", () => {
+    const items = [
+      { id: "first", createdMs: 0 },
+      { id: "second", createdMs: 0 },
+      { id: "third", createdMs: 0 },
+    ];
+    const query = normalizeQuery("incident");
+    const sorted = sortSearchResults(items, "relevance", query, () => 1);
+    expect(sorted.map((item) => item.id)).toEqual(["first", "second", "third"]);
+  });
 });
 
 describe("topKSearchResults", () => {
@@ -1531,6 +1542,24 @@ describe("topKSearchResults", () => {
       return 3;
     };
     const limit = 3;
+    const top = topKSearchResults(items, "relevance", query, limit, scoreOf);
+    const full = sortSearchResults(items, "relevance", query, scoreOf).slice(0, limit);
+    expect(top.map((item) => item.id)).toEqual(full.map((item) => item.id));
+  });
+
+  it("matches full sort slice for relevance ties with invalid-timestamp fallbacks", () => {
+    const items = [
+      { id: "a", createdMs: 0 },
+      { id: "b", createdMs: 0 },
+      { id: "c", createdMs: 200 },
+      { id: "d", createdMs: 0 },
+      { id: "e", createdMs: 200 },
+      { id: "f", createdMs: 0 },
+    ];
+    const query = normalizeQuery("incident");
+    const scoreOf = (item: { id: string }) =>
+      item.id === "c" || item.id === "e" ? 5 : 2;
+    const limit = 4;
     const top = topKSearchResults(items, "relevance", query, limit, scoreOf);
     const full = sortSearchResults(items, "relevance", query, scoreOf).slice(0, limit);
     expect(top.map((item) => item.id)).toEqual(full.map((item) => item.id));

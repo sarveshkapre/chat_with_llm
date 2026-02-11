@@ -1234,27 +1234,40 @@ export function sortSearchResults<T extends { createdMs: number }>(
   query: NormalizedQuery,
   scoreOf: (item: T) => number
 ): T[] {
-  const next = [...items];
+  const indexed = items.map((item, index) => ({ item, index }));
 
   if (sortBy === "newest") {
-    next.sort((a, b) => b.createdMs - a.createdMs);
-    return next;
+    indexed.sort(
+      (a, b) => b.item.createdMs - a.item.createdMs || a.index - b.index
+    );
+    return indexed.map((entry) => entry.item);
   }
   if (sortBy === "oldest") {
-    next.sort((a, b) => a.createdMs - b.createdMs);
-    return next;
+    indexed.sort(
+      (a, b) => a.item.createdMs - b.item.createdMs || a.index - b.index
+    );
+    return indexed.map((entry) => entry.item);
   }
 
   // "Relevance" behaves like newest when there is no query.
   if (!query.normalized) {
-    next.sort((a, b) => b.createdMs - a.createdMs);
-    return next;
+    indexed.sort(
+      (a, b) => b.item.createdMs - a.item.createdMs || a.index - b.index
+    );
+    return indexed.map((entry) => entry.item);
   }
 
-  const scored = next.map((item) => ({ item, score: scoreOf(item) }));
+  const scored = indexed.map(({ item, index }) => ({
+    item,
+    index,
+    score: scoreOf(item),
+  }));
   scored.sort((a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    return b.item.createdMs - a.item.createdMs;
+    if (b.item.createdMs !== a.item.createdMs) {
+      return b.item.createdMs - a.item.createdMs;
+    }
+    return a.index - b.index;
   });
   return scored.map((entry) => entry.item);
 }
@@ -1364,27 +1377,45 @@ export function topKSearchResults<T extends { createdMs: number }>(
     return sortSearchResults(items, sortBy, query, scoreOf);
   }
 
+  const indexed = items.map((item, index) => ({ item, index }));
+
   if (sortBy === "newest") {
-    return topKSorted(items, limit, (a, b) => b.createdMs - a.createdMs);
+    return topKSorted(
+      indexed,
+      limit,
+      (a, b) => b.item.createdMs - a.item.createdMs || a.index - b.index
+    ).map((entry) => entry.item);
   }
   if (sortBy === "oldest") {
-    return topKSorted(items, limit, (a, b) => a.createdMs - b.createdMs);
+    return topKSorted(
+      indexed,
+      limit,
+      (a, b) => a.item.createdMs - b.item.createdMs || a.index - b.index
+    ).map((entry) => entry.item);
   }
 
   // "Relevance" behaves like newest when there is no query.
   if (!query.normalized) {
-    return topKSorted(items, limit, (a, b) => b.createdMs - a.createdMs);
+    return topKSorted(
+      indexed,
+      limit,
+      (a, b) => b.item.createdMs - a.item.createdMs || a.index - b.index
+    ).map((entry) => entry.item);
   }
 
-  type Scored = { item: T; score: number };
+  type Scored = { item: T; score: number; index: number };
   const compareBest: Compare<Scored> = (a, b) => {
     if (b.score !== a.score) return b.score - a.score;
-    return b.item.createdMs - a.item.createdMs;
+    if (b.item.createdMs !== a.item.createdMs) {
+      return b.item.createdMs - a.item.createdMs;
+    }
+    return a.index - b.index;
   };
   const heap = new BinaryHeap<Scored>((a, b) => -compareBest(a, b));
 
-  for (const item of items) {
-    const entry = { item, score: scoreOf(item) };
+  for (let index = 0; index < items.length; index += 1) {
+    const item = items[index];
+    const entry = { item, score: scoreOf(item), index };
     if (heap.size() < limit) {
       heap.push(entry);
       continue;
