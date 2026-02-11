@@ -3,7 +3,10 @@ import {
   applyBulkThreadUpdate,
   applyTimelineWindow,
   computeRelevanceScore,
+  computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  filterCollectionEntries,
+  filterFileEntries,
   filterSpaceEntries,
   filterTaskEntries,
   filterThreadEntries,
@@ -205,6 +208,21 @@ describe("computeRelevanceScore", () => {
     const includes = computeRelevanceScore([{ text: "beta alpha gamma", weight: 1 }], query);
     expect(exact).toBeGreaterThan(prefix);
     expect(prefix).toBeGreaterThan(includes);
+  });
+
+  it("matches the lowered-field scorer for equivalent inputs", () => {
+    const query = normalizeQuery("alpha");
+    const textFields = [
+      { text: "Alpha", weight: 8 },
+      { text: "beta alpha gamma", weight: 2 },
+    ];
+    const loweredFields = textFields.map((field) => ({
+      loweredText: field.text.toLowerCase(),
+      weight: field.weight,
+    }));
+    expect(computeRelevanceScore(textFields, query)).toBe(
+      computeRelevanceScoreFromLowered(loweredFields, query)
+    );
   });
 });
 
@@ -434,14 +452,41 @@ describe("filterThreadEntries", () => {
 describe("filterSpaceEntries", () => {
   const now = Date.parse("2026-02-08T12:00:00.000Z");
 
-  it("supports tag operators but rejects has:note/has:citation filters", () => {
+  it("supports tag and space operators but rejects has:* filters", () => {
     const entries = [
       {
-        space: { createdAt: "2026-02-08T01:00:00.000Z" },
+        space: { id: "space-1", createdAt: "2026-02-08T01:00:00.000Z" },
         combinedLower: "deep work\nalpha",
+        spaceNameLower: "deep work",
+        spaceIdLower: "space-1",
         tagSetLower: new Set(["alpha"]),
       },
+      {
+        space: { id: "space-2", createdAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "planning",
+        spaceNameLower: "planning",
+        spaceIdLower: "space-2",
+        tagSetLower: new Set(["ops"]),
+      },
     ];
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { space: "deep" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { spaceId: "space-2" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
 
     expect(
       filterSpaceEntries(entries, {
@@ -460,13 +505,120 @@ describe("filterSpaceEntries", () => {
         nowMs: now,
       })
     ).toHaveLength(0);
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery("deep"),
+        operators: { notHasCitation: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+  });
+});
+
+describe("filterCollectionEntries", () => {
+  const now = Date.parse("2026-02-08T12:00:00.000Z");
+
+  it("rejects collection results when thread/space-only operators are used", () => {
+    const entries = [
+      {
+        collection: { createdAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "weekly notes",
+      },
+    ];
+
+    expect(
+      filterCollectionEntries(entries, {
+        query: normalizeQuery("weekly"),
+        operators: {},
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterCollectionEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { hasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterCollectionEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notTags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterCollectionEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { space: "research" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+  });
+});
+
+describe("filterFileEntries", () => {
+  const now = Date.parse("2026-02-08T12:00:00.000Z");
+
+  it("rejects file results when thread/space-only operators are used", () => {
+    const entries = [
+      {
+        file: { addedAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "runbook incident response",
+      },
+    ];
+
+    expect(
+      filterFileEntries(entries, {
+        query: normalizeQuery("incident"),
+        operators: {},
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterFileEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notHasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterFileEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { tags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterFileEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { spaceId: "space-1" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
   });
 });
 
 describe("filterTaskEntries", () => {
   const now = Date.parse("2026-02-08T12:00:00.000Z");
 
-  it("rejects tag operators and supports space filters", () => {
+  it("rejects tag/has operators and supports space filters", () => {
     const entries = [
       {
         task: { createdAt: "2026-02-08T01:00:00.000Z" },
@@ -480,6 +632,24 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { tags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notTags: ["alpha"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notHasNote: true },
         timelineWindow: "all",
         nowMs: now,
       })

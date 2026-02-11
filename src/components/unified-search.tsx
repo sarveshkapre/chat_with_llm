@@ -17,13 +17,13 @@ import type { Task } from "@/lib/types/task";
 import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
-  applyTimelineWindow,
-  computeRelevanceScore,
+  computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  filterCollectionEntries,
+  filterFileEntries,
   filterSpaceEntries,
   filterTaskEntries,
   filterThreadEntries,
-  matchesLoweredText,
   parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
@@ -35,6 +35,7 @@ import {
   type TimelineWindow,
   type SortBy,
   type UnifiedSearchType,
+  type WeightedLoweredField,
 } from "@/lib/unified-search";
 import {
   defaultSavedSearchName,
@@ -68,27 +69,33 @@ type PreparedThread = {
   noteTrimmed: string;
   citationsText: string;
   hasCitation: boolean;
+  relevanceFields: WeightedLoweredField[];
 };
 
 type PreparedSpace = {
   space: Space;
   createdMs: number;
   combinedLower: string;
+  spaceNameLower: string;
+  spaceIdLower: string;
   tagSetLower: Set<string>;
   tags: string[];
   tagsText: string;
+  relevanceFields: WeightedLoweredField[];
 };
 
 type PreparedCollection = {
   collection: Collection;
   createdMs: number;
   combinedLower: string;
+  relevanceFields: WeightedLoweredField[];
 };
 
 type PreparedFile = {
   file: LibraryFile;
   createdMs: number;
   combinedLower: string;
+  relevanceFields: WeightedLoweredField[];
 };
 
 type PreparedTask = {
@@ -97,6 +104,7 @@ type PreparedTask = {
   combinedLower: string;
   spaceNameLower: string;
   spaceIdLower: string;
+  relevanceFields: WeightedLoweredField[];
 };
 
 const THREADS_KEY = "signal-history-v2";
@@ -183,7 +191,6 @@ export default function UnifiedSearch() {
     [deferredQuery]
   );
   const queryInfo = parsedQuery.query;
-  const normalized = queryInfo.normalized;
   const operators = parsedQuery.operators;
   const effectiveFilter: UnifiedSearchType =
     operators.type ?? (filter as UnifiedSearchType);
@@ -374,6 +381,18 @@ export default function UnifiedSearch() {
         noteTrimmed,
         citationsText,
         hasCitation: Boolean(thread.citations && thread.citations.length > 0),
+        relevanceFields: [
+          {
+            loweredText: (thread.title ?? thread.question ?? "").toLowerCase(),
+            weight: 8,
+          },
+          { loweredText: (thread.question ?? "").toLowerCase(), weight: 6 },
+          { loweredText: tagsText.toLowerCase(), weight: 4 },
+          { loweredText: (thread.spaceName ?? "").toLowerCase(), weight: 3 },
+          { loweredText: note.toLowerCase(), weight: 3 },
+          { loweredText: citationsText.toLowerCase(), weight: 2 },
+          { loweredText: (thread.answer ?? "").toLowerCase(), weight: 1 },
+        ],
       };
     });
   }, [threads, notes]);
@@ -390,9 +409,16 @@ export default function UnifiedSearch() {
         space,
         createdMs: toTime(space.createdAt),
         combinedLower,
+        spaceNameLower: space.name.toLowerCase(),
+        spaceIdLower: space.id.toLowerCase(),
         tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
         tags,
         tagsText,
+        relevanceFields: [
+          { loweredText: space.name.toLowerCase(), weight: 8 },
+          { loweredText: tagsText.toLowerCase(), weight: 4 },
+          { loweredText: (space.instructions ?? "").toLowerCase(), weight: 2 },
+        ],
       };
     });
   }, [spaces, spaceTags]);
@@ -402,6 +428,7 @@ export default function UnifiedSearch() {
       collection,
       createdMs: toTime(collection.createdAt),
       combinedLower: collection.name.trim().toLowerCase(),
+      relevanceFields: [{ loweredText: collection.name.toLowerCase(), weight: 8 }],
     }));
   }, [collections]);
 
@@ -410,6 +437,10 @@ export default function UnifiedSearch() {
       file,
       createdMs: toTime(file.addedAt),
       combinedLower: [file.name, file.text].filter(Boolean).join("\n").toLowerCase(),
+      relevanceFields: [
+        { loweredText: file.name.toLowerCase(), weight: 8 },
+        { loweredText: (file.text ?? "").toLowerCase(), weight: 1 },
+      ],
     }));
   }, [files]);
 
@@ -429,6 +460,13 @@ export default function UnifiedSearch() {
         .toLowerCase(),
       spaceNameLower: (task.spaceName ?? "").toLowerCase(),
       spaceIdLower: (task.spaceId ?? "").toLowerCase(),
+      relevanceFields: [
+        { loweredText: task.name.toLowerCase(), weight: 8 },
+        { loweredText: task.prompt.toLowerCase(), weight: 2 },
+        { loweredText: (task.spaceName ?? "").toLowerCase(), weight: 3 },
+        { loweredText: task.mode.toLowerCase(), weight: 1 },
+        { loweredText: task.cadence.toLowerCase(), weight: 1 },
+      ],
     }));
   }, [tasks]);
 
@@ -463,26 +501,28 @@ export default function UnifiedSearch() {
   ]);
 
   const filteredCollections = useMemo(() => {
-    const textFiltered = normalized
-      ? preparedCollections.filter((entry) =>
-          matchesLoweredText(entry.combinedLower, matchQueryInfo)
-        )
-      : preparedCollections;
-    return textFiltered.filter((entry) =>
-      applyTimelineWindow(entry.collection.createdAt, timelineWindow, timelineNowMs)
-    );
-  }, [preparedCollections, normalized, timelineWindow, timelineNowMs, matchQueryInfo]);
+    return filterCollectionEntries(preparedCollections, {
+      query: matchQueryInfo,
+      operators,
+      timelineWindow,
+      nowMs: timelineNowMs,
+    });
+  }, [
+    preparedCollections,
+    timelineWindow,
+    timelineNowMs,
+    matchQueryInfo,
+    operators,
+  ]);
 
   const filteredFiles = useMemo(() => {
-    const textFiltered = normalized
-      ? preparedFiles.filter((entry) =>
-          matchesLoweredText(entry.combinedLower, matchQueryInfo)
-        )
-      : preparedFiles;
-    return textFiltered.filter((entry) =>
-      applyTimelineWindow(entry.file.addedAt, timelineWindow, timelineNowMs)
-    );
-  }, [preparedFiles, normalized, timelineWindow, timelineNowMs, matchQueryInfo]);
+    return filterFileEntries(preparedFiles, {
+      query: matchQueryInfo,
+      operators,
+      timelineWindow,
+      nowMs: timelineNowMs,
+    });
+  }, [preparedFiles, timelineWindow, timelineNowMs, matchQueryInfo, operators]);
 
   const filteredTasks = useMemo(() => {
     return filterTaskEntries(preparedTasks, {
@@ -597,67 +637,32 @@ export default function UnifiedSearch() {
   const uiLimit = useMemo(() => Math.max(resultLimit, 3), [resultLimit]);
 
   const scoreThreadEntry = useCallback(
-    (entry: PreparedThread) => {
-      const thread = entry.thread;
-      return computeRelevanceScore(
-        [
-          { text: thread.title ?? thread.question, weight: 8 },
-          { text: thread.question, weight: 6 },
-          { text: entry.tagsText, weight: 4 },
-          { text: thread.spaceName ?? "", weight: 3 },
-          { text: entry.note, weight: 3 },
-          { text: entry.citationsText, weight: 2 },
-          { text: thread.answer, weight: 1 },
-        ],
-        matchQueryInfo
-      );
-    },
+    (entry: PreparedThread) =>
+      computeRelevanceScoreFromLowered(entry.relevanceFields, matchQueryInfo),
     [matchQueryInfo]
   );
 
   const scoreSpaceEntry = useCallback(
     (entry: PreparedSpace) =>
-      computeRelevanceScore(
-        [
-          { text: entry.space.name, weight: 8 },
-          { text: entry.tagsText, weight: 4 },
-          { text: entry.space.instructions ?? "", weight: 2 },
-        ],
-        matchQueryInfo
-      ),
+      computeRelevanceScoreFromLowered(entry.relevanceFields, matchQueryInfo),
     [matchQueryInfo]
   );
 
   const scoreCollectionEntry = useCallback(
     (entry: PreparedCollection) =>
-      computeRelevanceScore([{ text: entry.collection.name, weight: 8 }], matchQueryInfo),
+      computeRelevanceScoreFromLowered(entry.relevanceFields, matchQueryInfo),
     [matchQueryInfo]
   );
 
   const scoreFileEntry = useCallback(
     (entry: PreparedFile) =>
-      computeRelevanceScore(
-        [
-          { text: entry.file.name, weight: 8 },
-          { text: entry.file.text, weight: 1 },
-        ],
-        matchQueryInfo
-      ),
+      computeRelevanceScoreFromLowered(entry.relevanceFields, matchQueryInfo),
     [matchQueryInfo]
   );
 
   const scoreTaskEntry = useCallback(
     (entry: PreparedTask) =>
-      computeRelevanceScore(
-        [
-          { text: entry.task.name, weight: 8 },
-          { text: entry.task.prompt, weight: 2 },
-          { text: entry.task.spaceName ?? "", weight: 3 },
-          { text: entry.task.mode, weight: 1 },
-          { text: entry.task.cadence, weight: 1 },
-        ],
-        matchQueryInfo
-      ),
+      computeRelevanceScoreFromLowered(entry.relevanceFields, matchQueryInfo),
     [matchQueryInfo]
   );
 
@@ -1186,6 +1191,11 @@ export default function UnifiedSearch() {
                 <span className="text-signal-text">has:citation</span>,{" "}
                 <span className="text-signal-text">-has:citation</span>,{" "}
                 <span className="text-signal-text">verbatim:true|false</span>
+              </div>
+              <div>
+                Operator scope: <span className="text-signal-text">tag:</span> applies to threads/spaces;{" "}
+                <span className="text-signal-text">has:</span> applies to threads;{" "}
+                <span className="text-signal-text">space:</span> applies to threads/tasks/spaces.
               </div>
               <div>
                 Examples:{" "}

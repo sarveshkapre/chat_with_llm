@@ -316,6 +316,48 @@ export type WeightedField = {
   weight: number;
 };
 
+export type WeightedLoweredField = {
+  loweredText: string;
+  weight: number;
+};
+
+function scoreLoweredText(
+  loweredText: string,
+  weight: number,
+  query: NormalizedQuery
+): number {
+  if (!loweredText || weight <= 0 || !query.normalized) return 0;
+
+  let score = 0;
+  if (loweredText === query.normalized) score += 20 * weight;
+  else if (loweredText.startsWith(query.normalized)) score += 12 * weight;
+  else if (loweredText.includes(query.normalized)) score += 8 * weight;
+
+  for (const token of query.tokens) {
+    if (loweredText.includes(token)) score += 1 * weight;
+  }
+
+  return score;
+}
+
+export function computeRelevanceScoreFromLowered(
+  fields: WeightedLoweredField[],
+  query: NormalizedQuery
+): number {
+  if (!query.normalized) return 0;
+  let score = 0;
+
+  for (const field of fields) {
+    score += scoreLoweredText(
+      field.loweredText,
+      Math.max(0, field.weight),
+      query
+    );
+  }
+
+  return score;
+}
+
 export function computeRelevanceScore(
   fields: WeightedField[],
   query: NormalizedQuery
@@ -325,17 +367,7 @@ export function computeRelevanceScore(
 
   for (const field of fields) {
     if (!field.text) continue;
-    const text = field.text.toLowerCase();
-    if (!text) continue;
-    const weight = Math.max(0, field.weight);
-
-    if (text === query.normalized) score += 20 * weight;
-    else if (text.startsWith(query.normalized)) score += 12 * weight;
-    else if (text.includes(query.normalized)) score += 8 * weight;
-
-    for (const token of query.tokens) {
-      if (text.includes(token)) score += 1 * weight;
-    }
+    score += scoreLoweredText(field.text.toLowerCase(), Math.max(0, field.weight), query);
   }
 
   return score;
@@ -657,10 +689,29 @@ export function filterThreadEntries<
   });
 }
 
+function hasHasOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(
+    operators.hasNote ||
+      operators.notHasNote ||
+      operators.hasCitation ||
+      operators.notHasCitation
+  );
+}
+
+function hasTagOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.tags?.length || operators.notTags?.length);
+}
+
+function hasSpaceOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.space || operators.spaceId);
+}
+
 export function filterSpaceEntries<
   T extends {
     space: { createdAt?: string | null | undefined };
     combinedLower: string;
+    spaceNameLower: string;
+    spaceIdLower: string;
     tagSetLower: ReadonlySet<string>;
   },
 >(
@@ -680,7 +731,16 @@ export function filterSpaceEntries<
   return textFiltered.filter((entry) => {
     if (!applyTimelineWindow(entry.space.createdAt, timelineWindow, nowMs))
       return false;
-    if (operators.hasNote || operators.hasCitation) return false;
+    if (hasHasOperators(operators)) return false;
+    if (operators.space) {
+      const needle = operators.space.toLowerCase();
+      if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
+        return false;
+    }
+    if (operators.spaceId) {
+      const needle = operators.spaceId.toLowerCase();
+      if (entry.spaceIdLower !== needle) return false;
+    }
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
         if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
@@ -719,8 +779,8 @@ export function filterTaskEntries<
   return textFiltered.filter((entry) => {
     if (!applyTimelineWindow(entry.task.createdAt, timelineWindow, nowMs))
       return false;
-    if (operators.hasNote || operators.hasCitation) return false;
-    if (operators.tags?.length) return false;
+    if (hasHasOperators(operators)) return false;
+    if (hasTagOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -730,6 +790,64 @@ export function filterTaskEntries<
       const needle = operators.spaceId.toLowerCase();
       if (entry.spaceIdLower !== needle) return false;
     }
+    return true;
+  });
+}
+
+export function filterCollectionEntries<
+  T extends {
+    collection: { createdAt?: string | null | undefined };
+    combinedLower: string;
+  },
+>(
+  entries: T[],
+  options: {
+    query: NormalizedQuery;
+    operators: UnifiedSearchOperators;
+    timelineWindow: TimelineWindow;
+    nowMs: number;
+  }
+): T[] {
+  const { query, operators, timelineWindow, nowMs } = options;
+  const textFiltered = query.normalized
+    ? entries.filter((entry) => matchesLoweredText(entry.combinedLower, query))
+    : entries;
+
+  return textFiltered.filter((entry) => {
+    if (!applyTimelineWindow(entry.collection.createdAt, timelineWindow, nowMs))
+      return false;
+    if (hasSpaceOperators(operators)) return false;
+    if (hasTagOperators(operators)) return false;
+    if (hasHasOperators(operators)) return false;
+    return true;
+  });
+}
+
+export function filterFileEntries<
+  T extends {
+    file: { addedAt?: string | null | undefined };
+    combinedLower: string;
+  },
+>(
+  entries: T[],
+  options: {
+    query: NormalizedQuery;
+    operators: UnifiedSearchOperators;
+    timelineWindow: TimelineWindow;
+    nowMs: number;
+  }
+): T[] {
+  const { query, operators, timelineWindow, nowMs } = options;
+  const textFiltered = query.normalized
+    ? entries.filter((entry) => matchesLoweredText(entry.combinedLower, query))
+    : entries;
+
+  return textFiltered.filter((entry) => {
+    if (!applyTimelineWindow(entry.file.addedAt, timelineWindow, nowMs))
+      return false;
+    if (hasSpaceOperators(operators)) return false;
+    if (hasTagOperators(operators)) return false;
+    if (hasHasOperators(operators)) return false;
     return true;
   });
 }
