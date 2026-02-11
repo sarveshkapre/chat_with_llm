@@ -87,6 +87,9 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh run list --limit 10 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | commit `478fc5ee537fb79c676437809d8efaa7f97dc6f6` triggered `CI` (`21908885448`) + `Scorecard supply-chain security` (`21908885418`), `Release Please` skipped (`21908885417`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21908885448 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21908885418 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | commit `94f52ece7f61aa5b02da50f864ac611e2fe8993d` triggered `CI` (`21908833679`) + `Scorecard supply-chain security` (`21908833712`), `Release Please` skipped (`21908833730`) | pass (untrusted)
 - 2026-02-11 | `gh run watch 21908833679 --exit-status` | `main CI ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21908833712 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
