@@ -71,6 +71,9 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh run list --limit 10 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha==\"a88d9f5df543171dc8c92412875076bafaf065ec\")]'` | commit `a88d9f5` triggered `CI` + `Scorecard supply-chain security` in-progress then completed | pass (untrusted)
+- 2026-02-11 | `gh run watch 21903407361 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21903407358 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,headSha,status,conclusion,workflowName,url,createdAt` | commit `3dd910e695eb687daa778615fe76c3bf32abccf0` has `CI` + `Scorecard supply-chain security` success, `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (77 tests)` | pass
