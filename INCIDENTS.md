@@ -13,6 +13,15 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `npm test -- tests/unified-search.test.ts` failed after adding a new `stripUnifiedSearchOperators` regression assertion.
+  Impact: Verification temporarily failed; no production runtime incident.
+  Root Cause: The new assertion expected quote-character preservation, but operator-token normalization intentionally strips wrapping quotes while preserving token text semantics.
+  Fix: Updated the assertion to validate semantic retention (`foo:bar literal type:threads`) and reran targeted + full verification.
+  Prevention Rule: For parser-strip tests, assert semantic inclusion/exclusion behavior rather than literal quote serialization unless quote preservation is an explicit contract.
+  Evidence: Failing then passing `npm test -- tests/unified-search.test.ts`.
+  Commit: 63829c1
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/smoke-search/stale-selection did not expose expected stale-selection recovery control`.
   Impact: Verification temporarily failed; no production runtime incident.
   Root Cause: Smoke assertion required contiguous text `Prune stale (1)`, but SSR output split the number with React comment separators (`Prune stale (<!-- -->1<!-- -->)`).
