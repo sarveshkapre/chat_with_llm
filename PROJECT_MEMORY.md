@@ -108,6 +108,11 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `npm run check:clone-features && npm run check:project-memory` | `CLONE_FEATURES policy OK.` + `PROJECT_MEMORY policy OK.` | pass
+- 2026-02-11 | `git push origin main` | pushed commit `9a5a13e` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 30 --json databaseId,workflowName,headSha,status,conclusion,url,createdAt | jq '[.[] | select(.headSha==\"9a5a13ec5af7754e5e379d13bf12a2c9bae28b4e\")]'` | commit `9a5a13e` triggered `CI` (`21916498926`) + `Scorecard supply-chain security` (`21916498927`); `Release Please` skipped (`21916498939`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21916498926 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21916498927 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `npm run check:workflows && npm run check:smoke-fixtures && npm run check:clone-features && npm run check:project-memory` | `Workflow policy OK` + `Smoke fixture coverage OK` + `CLONE_FEATURES policy OK` + `PROJECT_MEMORY policy OK` | pass
 - 2026-02-11 | `gh issue list --limit 50 --json number,title,author,state,createdAt,updatedAt` | `[]` (no open issues; owner/bot authored issue queue empty) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,workflowName,status,conclusion,headBranch,headSha,createdAt,updatedAt,url` | latest non-release runs on `main` were `CI` + `Scorecard supply-chain security` success; `Release Please` skipped | pass (untrusted)
