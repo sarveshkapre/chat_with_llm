@@ -19,7 +19,7 @@
   Fix: Updated smoke assertions to detect selected tasks pill styling (`border-signal-accent`) and use SSR-safe regex for verbatim text (`verbatim:(?:<!-- -->)?true`).
   Prevention Rule: Inspect real SSR HTML snapshots before finalizing selector/text assertions; prefer semantic, resilient patterns over markup-shape assumptions.
   Evidence: Failed then passing `npm run lint -- --max-warnings=0 && npm run check:workflows && npm test && npm run build && node scripts/smoke.mjs --provider mock --skip-build`.
-  Commit: TBD
+  Commit: a45d4c1
   Confidence: high
 - Date: 2026-02-11
   Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/__smoke/search fixture path returned 404`.
