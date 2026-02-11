@@ -94,6 +94,14 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `git push origin main` | pushed commit `b935bf5` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch | jq '[.[] | select(.headSha=="b935bf585f4b3ba4765cbdce303019bcce03a951")]'` | commit `b935bf5` triggered `CI` (`21910861664`) + `Scorecard supply-chain security` (`21910861736`); `Release Please` skipped (`21910861660`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21910861664 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21910861736 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `git push origin main` | pushed commit `326f0e6` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch | jq '[.[] | select(.headSha=="326f0e6ba842d4d510c75a2812bfdf66884511ef")]'` | commit `326f0e6` triggered `CI` (`21910896509`) + `Scorecard supply-chain security` (`21910896430`); `Release Please` skipped (`21910896459`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21910896509 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21910896430 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url,createdAt` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest runs on `main`: `CI` + `Scorecard supply-chain security` success; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search-smoke-fixture.test.ts` | `tests/unified-search-smoke-fixture.test.ts (4 tests)` | pass
