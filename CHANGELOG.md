@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Added fixture-backed Unified Search smoke coverage via `/smoke-search` (env-gated) and smoke-script assertions for operator-filtered seeded results.
+- Unified Search local persistence writes now use quota/failure-aware storage guards with user-visible feedback instead of silent failures.
+- Unified Search input now links to operator guidance via `aria-describedby` for improved screen-reader discoverability.
 - Unified Search keyboard state handling is extracted to a dedicated helper/hook module with precedence regression tests.
 - Unified Search now supports diagnostics mode (`/search?debug=1`) with per-type loaded/matched/visible counts and filtered-out reason buckets.
 - Unified Search now decodes malformed `signal-space-tags-v1` payloads with trim/dedupe guards before search preload refreshes.

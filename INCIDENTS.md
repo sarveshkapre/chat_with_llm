@@ -13,6 +13,15 @@
 
 ## Entries
 - Date: 2026-02-11
+  Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/__smoke/search fixture path returned 404`.
+  Impact: Verification temporarily failed; no production runtime incident.
+  Root Cause: Initial smoke fixture route used underscore-prefixed App Router segment (`src/app/__smoke/...`), which is private/non-routable in Next.js.
+  Fix: Moved route to `src/app/smoke-search/page.tsx`, kept env gate (`SMOKE_ENABLE_SEARCH_FIXTURE=1`), and updated smoke assertions to hit `/smoke-search`.
+  Prevention Rule: Treat underscore-prefixed app segments as private; for smoke routes, confirm route appears in `next build` output before wiring assertions.
+  Evidence: Failing then passing `npm run check:workflows && npm test && npm run build && node scripts/smoke.mjs --provider mock --skip-build`.
+  Commit: f3e107b
+  Confidence: high
+- Date: 2026-02-11
   Trigger: `node scripts/smoke.mjs --provider mock --skip-build` failed with `/search page did not contain expected Unified Search content`.
   Impact: Verification temporarily failed; no production runtime incident.
   Root Cause: Diagnostics flag detection used `useSearchParams`, which changed prerendered `/search` HTML behavior compared to smoke expectations.
