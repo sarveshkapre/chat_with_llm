@@ -5,6 +5,13 @@ import Link from "next/link";
 import { nanoid } from "nanoid";
 import type { Space, SpaceSourcePolicy } from "@/lib/types/space";
 import type { AnswerResponse } from "@/lib/types/answer";
+import {
+  SIGNAL_ACTIVE_SPACE_KEY as ACTIVE_SPACE_KEY,
+  SIGNAL_ARCHIVED_SPACES_KEY as ARCHIVED_SPACES_KEY,
+  SIGNAL_HISTORY_KEY as THREADS_KEY,
+  SIGNAL_SPACE_TAGS_KEY as SPACE_TAGS_KEY,
+  SIGNAL_SPACES_KEY as SPACES_KEY,
+} from "@/lib/storage-keys";
 import { readStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
@@ -13,11 +20,6 @@ type Thread = AnswerResponse & {
   spaceName?: string | null;
 };
 
-const SPACES_KEY = "signal-spaces-v1";
-const THREADS_KEY = "signal-history-v2";
-const ACTIVE_SPACE_KEY = "signal-space-active";
-const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
-const SPACE_TAGS_KEY = "signal-space-tags-v1";
 const REQUEST_MODELS = ["auto", "gpt-4.1", "gpt-4.1-mini", "gpt-4o-mini"] as const;
 const SOURCE_POLICIES = [
   { id: "flex", label: "Flexible (user choice)" },

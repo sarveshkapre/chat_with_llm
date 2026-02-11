@@ -68,6 +68,19 @@ import {
   togglePinSavedSearch,
   type UnifiedSavedSearch,
 } from "@/lib/saved-searches";
+import {
+  SIGNAL_COLLECTIONS_KEY as COLLECTIONS_KEY,
+  SIGNAL_FILES_KEY as FILES_KEY,
+  SIGNAL_HISTORY_KEY as THREADS_KEY,
+  SIGNAL_NOTES_KEY as NOTES_KEY,
+  SIGNAL_SPACE_TAGS_KEY as SPACE_TAGS_KEY,
+  SIGNAL_SPACES_KEY as SPACES_KEY,
+  SIGNAL_TASKS_KEY as TASKS_KEY,
+  SIGNAL_UNIFIED_RECENT_SEARCH_KEY as RECENT_SEARCH_KEY,
+  SIGNAL_UNIFIED_SAVED_SEARCH_KEY as SAVED_SEARCH_KEY,
+  SIGNAL_UNIFIED_VERBATIM_KEY as VERBATIM_KEY,
+  UNIFIED_SEARCH_STORAGE_EVENT_KEYS,
+} from "@/lib/storage-keys";
 import { writeStoredJson } from "@/lib/storage";
 import { useUnifiedSearchKeyboard } from "@/lib/unified-search-keyboard";
 
@@ -131,17 +144,10 @@ type PreparedTask = {
   relevanceFields: WeightedLoweredField[];
 };
 
-const THREADS_KEY = "signal-history-v2";
-const SPACES_KEY = "signal-spaces-v1";
-const SPACE_TAGS_KEY = "signal-space-tags-v1";
-const COLLECTIONS_KEY = "signal-collections-v1";
-const FILES_KEY = "signal-files-v1";
-const TASKS_KEY = "signal-tasks-v1";
-const NOTES_KEY = "signal-notes-v1";
-const RECENT_SEARCH_KEY = "signal-unified-recent-v1";
-const SAVED_SEARCH_KEY = "signal-unified-saved-v1";
-const VERBATIM_KEY = "signal-unified-verbatim-v1";
 const OPERATOR_HELP_ID = "unified-search-operator-help";
+const UNIFIED_SEARCH_STORAGE_EVENT_KEY_SET = new Set<string>(
+  UNIFIED_SEARCH_STORAGE_EVENT_KEYS
+);
 
 type SearchFilter = "all" | "threads" | "spaces" | "collections" | "files" | "tasks";
 
@@ -408,21 +414,7 @@ export default function UnifiedSearch({
     };
 
     const handleStorage = (event: StorageEvent) => {
-      if (
-        event.key &&
-        ![
-          NOTES_KEY,
-          THREADS_KEY,
-          SPACES_KEY,
-          SPACE_TAGS_KEY,
-          COLLECTIONS_KEY,
-          FILES_KEY,
-          TASKS_KEY,
-          RECENT_SEARCH_KEY,
-          SAVED_SEARCH_KEY,
-          VERBATIM_KEY,
-        ].includes(event.key)
-      ) {
+      if (event.key && !UNIFIED_SEARCH_STORAGE_EVENT_KEY_SET.has(event.key)) {
         return;
       }
       readAll();

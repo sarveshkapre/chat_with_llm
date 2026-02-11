@@ -1,4 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  SIGNAL_CORRUPT_BACKUP_PREFIX,
+  SIGNAL_CORRUPT_LATEST_PREFIX,
+} from "@/lib/storage-keys";
 
 function makeLocalStorage() {
   const store = new Map<string, string>();
@@ -57,9 +61,9 @@ describe("readStoredJson", () => {
     expect(readStoredJson("k", { value: 0 })).toEqual({ value: 123 });
 
     const keys = Array.from(localStorage._dump().keys());
-    expect(keys.some((key) => key.startsWith("signal-corrupt-backup-v1:"))).toBe(
-      false
-    );
+    expect(
+      keys.some((key) => key.startsWith(SIGNAL_CORRUPT_BACKUP_PREFIX))
+    ).toBe(false);
   });
 
   it("backs up corrupt JSON blobs before falling back", async () => {
@@ -79,9 +83,9 @@ describe("readStoredJson", () => {
     const { readStoredJson } = await import("@/lib/storage");
     expect(readStoredJson("k", { value: 0 })).toEqual({ value: 0 });
 
-    const latestKey = "signal-corrupt-latest-v1:k";
+    const latestKey = `${SIGNAL_CORRUPT_LATEST_PREFIX}k`;
     const backupKey = localStorage.getItem(latestKey);
-    expect(backupKey).toBe("signal-corrupt-backup-v1:k:123");
+    expect(backupKey).toBe(`${SIGNAL_CORRUPT_BACKUP_PREFIX}k:123`);
     expect(localStorage.getItem(backupKey!)).toBe("{not-json");
   });
 
@@ -104,9 +108,9 @@ describe("readStoredJson", () => {
     readStoredJson("k", null);
 
     const backupKeys = Array.from(localStorage._dump().keys()).filter((key) =>
-      key.startsWith("signal-corrupt-backup-v1:k:")
+      key.startsWith(`${SIGNAL_CORRUPT_BACKUP_PREFIX}k:`)
     );
-    expect(backupKeys).toEqual(["signal-corrupt-backup-v1:k:1"]);
+    expect(backupKeys).toEqual([`${SIGNAL_CORRUPT_BACKUP_PREFIX}k:1`]);
   });
 });
 

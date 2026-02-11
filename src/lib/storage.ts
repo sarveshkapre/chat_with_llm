@@ -1,5 +1,7 @@
-const CORRUPT_BACKUP_PREFIX = "signal-corrupt-backup-v1:";
-const CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
+import {
+  SIGNAL_CORRUPT_BACKUP_PREFIX,
+  SIGNAL_CORRUPT_LATEST_PREFIX,
+} from "@/lib/storage-keys";
 
 const backedUpKeys = new Set<string>();
 
@@ -10,8 +12,8 @@ function tryBackupCorruptBlob(key: string, raw: string) {
   if (backedUpKeys.has(key)) return;
   backedUpKeys.add(key);
 
-  const backupKey = `${CORRUPT_BACKUP_PREFIX}${key}:${Date.now()}`;
-  const latestKey = `${CORRUPT_LATEST_PREFIX}${key}`;
+  const backupKey = `${SIGNAL_CORRUPT_BACKUP_PREFIX}${key}:${Date.now()}`;
+  const latestKey = `${SIGNAL_CORRUPT_LATEST_PREFIX}${key}`;
 
   try {
     localStorage.setItem(backupKey, raw);

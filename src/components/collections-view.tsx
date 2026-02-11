@@ -5,6 +5,10 @@ import Link from "next/link";
 import type { Collection } from "@/lib/types/collection";
 import type { AnswerResponse } from "@/lib/types/answer";
 import { nanoid } from "nanoid";
+import {
+  SIGNAL_COLLECTIONS_KEY as COLLECTIONS_KEY,
+  SIGNAL_HISTORY_KEY as THREADS_KEY,
+} from "@/lib/storage-keys";
 import { readStoredJson } from "@/lib/storage";
 
 type Thread = AnswerResponse & {
@@ -14,9 +18,6 @@ type Thread = AnswerResponse & {
   collectionId?: string | null;
   tags?: string[];
 };
-
-const COLLECTIONS_KEY = "signal-collections-v1";
-const THREADS_KEY = "signal-history-v2";
 
 export default function CollectionsView() {
   const [collections, setCollections] = useState<Collection[]>(() => {

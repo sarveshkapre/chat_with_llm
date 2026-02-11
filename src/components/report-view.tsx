@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { AnswerResponse } from "@/lib/types/answer";
+import { SIGNAL_HISTORY_KEY as STORAGE_KEY } from "@/lib/storage-keys";
 import { readStoredJson } from "@/lib/storage";
-
-const STORAGE_KEY = "signal-history-v2";
 
 export default function ReportView() {
   const [notice, setNotice] = useState<string | null>(null);

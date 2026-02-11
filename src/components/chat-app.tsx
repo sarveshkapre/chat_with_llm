@@ -22,6 +22,23 @@ import {
   TYPICAL_LOCALSTORAGE_QUOTA_BYTES,
 } from "@/lib/signal-storage";
 import {
+  SIGNAL_ACTIVE_SPACE_KEY as ACTIVE_SPACE_KEY,
+  SIGNAL_ARCHIVED_SPACES_KEY as ARCHIVED_SPACES_KEY,
+  SIGNAL_COLLECTIONS_KEY as COLLECTIONS_KEY,
+  SIGNAL_CORRUPT_BACKUP_PREFIX as CORRUPT_BACKUP_PREFIX,
+  SIGNAL_CORRUPT_LATEST_PREFIX as CORRUPT_LATEST_PREFIX,
+  SIGNAL_FILES_KEY as FILES_KEY,
+  SIGNAL_HISTORY_KEY as STORAGE_KEY,
+  SIGNAL_NOTES_KEY as NOTES_KEY,
+  SIGNAL_PINNED_SEARCHES_KEY as PINNED_SEARCHES_KEY,
+  SIGNAL_RECENT_FILTERS_KEY as RECENT_FILTERS_KEY,
+  SIGNAL_SAVED_SEARCHES_KEY as SEARCHES_KEY,
+  SIGNAL_SPACE_TAGS_KEY as SPACE_TAGS_KEY,
+  SIGNAL_SPACES_KEY as SPACES_KEY,
+  SIGNAL_STORAGE_PREFIX,
+  SIGNAL_TASKS_KEY as TASKS_KEY,
+} from "@/lib/storage-keys";
+import {
   canReadAsText,
   readFileAsText,
   stripAttachmentText,
@@ -158,22 +175,6 @@ const RESEARCH_STEPS = [
   "Cross-checking",
   "Drafting report",
 ];
-
-const STORAGE_KEY = "signal-history-v2";
-const SPACES_KEY = "signal-spaces-v1";
-const ACTIVE_SPACE_KEY = "signal-space-active";
-const TASKS_KEY = "signal-tasks-v1";
-const FILES_KEY = "signal-files-v1";
-const COLLECTIONS_KEY = "signal-collections-v1";
-const NOTES_KEY = "signal-notes-v1";
-const SEARCHES_KEY = "signal-saved-searches-v1";
-const PINNED_SEARCHES_KEY = "signal-saved-searches-pinned-v1";
-const RECENT_FILTERS_KEY = "signal-recent-filters-v1";
-const ARCHIVED_SPACES_KEY = "signal-spaces-archived-v1";
-const SPACE_TAGS_KEY = "signal-space-tags-v1";
-
-const CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
-const CORRUPT_BACKUP_PREFIX = "signal-corrupt-backup-v1:";
 
 const MAX_ATTACHMENTS = 5;
 const MAX_ATTACHMENT_SIZE = 1_000_000;
@@ -557,7 +558,7 @@ export default function ChatApp() {
   }, [activeSpaceId]);
 
   useEffect(() => {
-    setSignalStorageUsage(getStorageUsageByPrefix("signal-"));
+    setSignalStorageUsage(getStorageUsageByPrefix(SIGNAL_STORAGE_PREFIX));
     const latestEntries = getStorageEntriesByPrefix(CORRUPT_LATEST_PREFIX);
     setCorruptLatestKeys(
       latestEntries
@@ -1794,7 +1795,7 @@ ${answer.citations
   }
 
   function exportRawLocalData() {
-    const entries = getStorageEntriesByPrefix("signal-");
+    const entries = getStorageEntriesByPrefix(SIGNAL_STORAGE_PREFIX);
     const payload = {
       exportedAt: new Date().toISOString(),
       keys: entries.length,
@@ -1817,7 +1818,7 @@ ${answer.citations
   }
 
   function exportDiagnosticsBundle(includeRawValues: boolean) {
-    const entries = getStorageEntriesByPrefix("signal-");
+    const entries = getStorageEntriesByPrefix(SIGNAL_STORAGE_PREFIX);
     const exportedAt = new Date().toISOString();
     const appVersion = process.env.NEXT_PUBLIC_APP_VERSION ?? null;
 
@@ -1882,7 +1883,7 @@ ${answer.citations
     );
     if (!ok) return;
 
-    const cleared = clearStorageByPrefix("signal-");
+    const cleared = clearStorageByPrefix(SIGNAL_STORAGE_PREFIX);
     setNotice(`Reset complete. Cleared ${cleared} keys. Reloading...`);
     window.location.reload();
   }
