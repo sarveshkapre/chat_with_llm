@@ -3,6 +3,8 @@ import {
   applyOperatorAutocomplete,
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  formatTimestampForDisplay,
+  formatTimestampForExport,
   computeRelevanceScore,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
@@ -16,6 +18,7 @@ import {
   matchesQuery,
   normalizeQuery,
   parseUnifiedSearchQuery,
+  parseTimestampMs,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
@@ -45,6 +48,26 @@ describe("applyTimelineWindow", () => {
 
   it("rejects invalid timestamps for bounded windows", () => {
     expect(applyTimelineWindow("", "30d", now)).toBe(false);
+  });
+});
+
+describe("timestamp helpers", () => {
+  it("parses valid timestamps and returns fallback for invalid values", () => {
+    expect(parseTimestampMs("2026-02-08T10:00:00.000Z")).toBe(
+      Date.parse("2026-02-08T10:00:00.000Z")
+    );
+    expect(parseTimestampMs("not-a-date", 123)).toBe(123);
+  });
+
+  it("formats export timestamps as ISO with locale secondary text", () => {
+    const formatted = formatTimestampForExport("2026-02-08T10:00:00.000Z");
+    expect(formatted.startsWith("2026-02-08T10:00:00.000Z (")).toBe(true);
+    expect(formatted.endsWith(")")).toBe(true);
+  });
+
+  it("returns fallback text for invalid export/display timestamps", () => {
+    expect(formatTimestampForExport("bad", "Unknown")).toBe("Unknown");
+    expect(formatTimestampForDisplay("bad", "Unknown")).toBe("Unknown");
   });
 });
 

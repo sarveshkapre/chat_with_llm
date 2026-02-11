@@ -470,15 +470,41 @@ export function computeRelevanceScore(
   return score;
 }
 
+export function parseTimestampMs(
+  value: string | null | undefined,
+  fallback = 0
+): number {
+  const parsed = Date.parse(value ?? "");
+  if (Number.isNaN(parsed)) return fallback;
+  return parsed;
+}
+
+export function formatTimestampForDisplay(
+  value: string | null | undefined,
+  fallback = "Unknown"
+): string {
+  const parsed = parseTimestampMs(value, Number.NaN);
+  if (Number.isNaN(parsed)) return fallback;
+  return new Date(parsed).toLocaleString();
+}
+
+export function formatTimestampForExport(
+  value: string | null | undefined,
+  fallback = "Unknown"
+): string {
+  const parsed = parseTimestampMs(value, Number.NaN);
+  if (Number.isNaN(parsed)) return fallback;
+  const date = new Date(parsed);
+  return `${date.toISOString()} (${date.toLocaleString()})`;
+}
+
 export function applyTimelineWindow(
   value: string | null | undefined,
   window: TimelineWindow,
   nowMs = Date.now()
 ): boolean {
   if (window === "all") return true;
-  const parsed = Date.parse(value ?? "");
-  if (Number.isNaN(parsed)) return false;
-  return nowMs - parsed <= WINDOW_TO_MS[window];
+  return nowMs - parseTimestampMs(value, Number.NaN) <= WINDOW_TO_MS[window];
 }
 
 export function applyBulkThreadUpdate<T extends { id: string }>(

@@ -176,6 +176,26 @@ async function main() {
       throw new Error("/search page did not contain expected Unified Search content");
     }
 
+    const operatorQuery = encodeURIComponent(
+      "type:threads is:pinned has:citation tag:incident -has:note"
+    );
+    const searchOperatorResponse = await fetch(
+      `${baseUrl}/search?q=${operatorQuery}`,
+      { redirect: "manual" }
+    );
+    if (!searchOperatorResponse.ok) {
+      throw new Error(`/search operator query path returned ${searchOperatorResponse.status}`);
+    }
+    const searchOperatorHtml = await searchOperatorResponse.text();
+    if (
+      !searchOperatorHtml.includes("Unified Search") ||
+      !searchOperatorHtml.includes("is:favorite|pinned|archived")
+    ) {
+      throw new Error(
+        "/search operator query path did not contain expected operator help content"
+      );
+    }
+
     const answerBody = {
       question: "Smoke test: what is Signal Search?",
       mode: "quick",

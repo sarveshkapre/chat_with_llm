@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - Unified Search supports query operators (`type:`, `space:`, `tag:`, `has:`) with inline help.
 - Unified Search shows “why this matched” badges on thread results (title/tags/space/note/citations/answer).
 - Unified Search performance: UI uses top-k selection per section (avoids sorting full result sets on every keystroke); full ordering is computed only on export.
+- Unified Search exports now use deterministic timestamps (`ISO + locale`) with invalid-date fallback guardrails.
 - Added `/` focus and `Esc` clear shortcuts for Library/Spaces/Collections search inputs.
 - GitHub Actions workflows hardened: pinned action SHAs, Scorecard permission-safe config, and gated Release Please automation.
 - Upgraded `vitest` toolchain to remediate moderate dependency advisories.

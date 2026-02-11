@@ -25,8 +25,11 @@ import {
   filterFileEntries,
   filterSpaceEntries,
   filterTaskEntries,
+  formatTimestampForDisplay,
+  formatTimestampForExport,
   filterThreadEntries,
   getOperatorAutocomplete,
+  parseTimestampMs,
   parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
@@ -348,11 +351,6 @@ export default function UnifiedSearch() {
     return parts;
   }, [operators]);
 
-  function toTime(value?: string) {
-    const parsed = Date.parse(value ?? "");
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-
   useEffect(() => {
     if (typeof window === "undefined") return;
     localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(recentQueries));
@@ -419,7 +417,7 @@ export default function UnifiedSearch() {
 
       return {
         thread,
-        createdMs: toTime(thread.createdAt),
+        createdMs: parseTimestampMs(thread.createdAt),
         combinedLower,
         spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
         spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
@@ -455,7 +453,7 @@ export default function UnifiedSearch() {
         .toLowerCase();
       return {
         space,
-        createdMs: toTime(space.createdAt),
+        createdMs: parseTimestampMs(space.createdAt),
         combinedLower,
         spaceNameLower: space.name.toLowerCase(),
         spaceIdLower: space.id.toLowerCase(),
@@ -474,7 +472,7 @@ export default function UnifiedSearch() {
   const preparedCollections = useMemo<PreparedCollection[]>(() => {
     return collections.map((collection) => ({
       collection,
-      createdMs: toTime(collection.createdAt),
+      createdMs: parseTimestampMs(collection.createdAt),
       combinedLower: collection.name.trim().toLowerCase(),
       relevanceFields: [{ loweredText: collection.name.toLowerCase(), weight: 8 }],
     }));
@@ -483,7 +481,7 @@ export default function UnifiedSearch() {
   const preparedFiles = useMemo<PreparedFile[]>(() => {
     return files.map((file) => ({
       file,
-      createdMs: toTime(file.addedAt),
+      createdMs: parseTimestampMs(file.addedAt),
       combinedLower: [file.name, file.text].filter(Boolean).join("\n").toLowerCase(),
       relevanceFields: [
         { loweredText: file.name.toLowerCase(), weight: 8 },
@@ -495,7 +493,7 @@ export default function UnifiedSearch() {
   const preparedTasks = useMemo<PreparedTask[]>(() => {
     return tasks.map((task) => ({
       task,
-      createdMs: toTime(task.createdAt),
+      createdMs: parseTimestampMs(task.createdAt),
       combinedLower: [
         task.name,
         task.prompt,
@@ -950,6 +948,8 @@ export default function UnifiedSearch() {
     const lines: string[] = [
       "# Signal Search Unified Export",
       "",
+      `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
+      "",
       `Query: ${query || "None"}`,
       `Filter: ${effectiveFilter}`,
       `Sort: ${sortBy}`,
@@ -969,7 +969,7 @@ export default function UnifiedSearch() {
         return [
           `${index + 1}. ${title}`,
           `   - Space: ${thread.spaceName ?? "None"} · Mode: ${thread.mode}`,
-          `   - Created: ${new Date(thread.createdAt).toLocaleString()}`,
+          `   - Created: ${formatTimestampForExport(thread.createdAt)}`,
         ].join("\n");
       }),
       "",
@@ -981,7 +981,7 @@ export default function UnifiedSearch() {
           `${index + 1}. ${space.name}`,
           `   - Instructions: ${space.instructions || "None"}`,
           `   - Tags: ${tags}`,
-          `   - Created: ${new Date(space.createdAt).toLocaleString()}`,
+          `   - Created: ${formatTimestampForExport(space.createdAt)}`,
         ].join("\n");
       }),
       "",
@@ -990,7 +990,7 @@ export default function UnifiedSearch() {
         const collection = entry.collection;
         return [
           `${index + 1}. ${collection.name}`,
-          `   - Created: ${new Date(collection.createdAt).toLocaleString()}`,
+          `   - Created: ${formatTimestampForExport(collection.createdAt)}`,
         ].join("\n");
       }),
       "",
@@ -1000,7 +1000,7 @@ export default function UnifiedSearch() {
         return [
           `${index + 1}. ${file.name}`,
           `   - Size: ${Math.round(file.size / 1024)} KB`,
-          `   - Added: ${new Date(file.addedAt).toLocaleString()}`,
+          `   - Added: ${formatTimestampForExport(file.addedAt)}`,
         ].join("\n");
       }),
       "",
@@ -1012,7 +1012,7 @@ export default function UnifiedSearch() {
           `   - Cadence: ${task.cadence} at ${task.time}`,
           `   - Mode: ${task.mode} · Sources: ${task.sources === "web" ? "Web" : "Offline"}`,
           `   - Space: ${task.spaceName ?? "None"}`,
-          `   - Next run: ${new Date(task.nextRun).toLocaleString()}`,
+          `   - Next run: ${formatTimestampForExport(task.nextRun)}`,
         ].join("\n");
       }),
       "",
@@ -1023,7 +1023,7 @@ export default function UnifiedSearch() {
               `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
               `   - Query: ${saved.query || "None"}`,
               `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
-              `   - Updated: ${new Date(saved.updatedAt).toLocaleString()}`,
+              `   - Updated: ${formatTimestampForExport(saved.updatedAt)}`,
             ].join("\n");
           })
         : ["(none)"]),
@@ -1043,7 +1043,7 @@ export default function UnifiedSearch() {
     const lines: string[] = [
       "# Signal Search Saved Searches",
       "",
-      `Exported: ${new Date().toLocaleString()}`,
+      `Exported: ${formatTimestampForExport(new Date().toISOString())}`,
       "",
       ...(exportedSavedSearches.length
         ? exportedSavedSearches.map((saved, index) => {
@@ -1051,8 +1051,8 @@ export default function UnifiedSearch() {
               `${index + 1}. ${saved.pinned ? "Pinned: " : ""}${saved.name}`,
               `   - Query: ${saved.query || "None"}`,
               `   - Filter: ${saved.filter} · Sort: ${saved.sortBy} · Time: ${saved.timelineWindow} · Limit: ${saved.resultLimit} · Verbatim: ${saved.verbatim ? "true" : "false"}`,
-              `   - Created: ${new Date(saved.createdAt).toLocaleString()}`,
-              `   - Updated: ${new Date(saved.updatedAt).toLocaleString()}`,
+              `   - Created: ${formatTimestampForExport(saved.createdAt)}`,
+              `   - Updated: ${formatTimestampForExport(saved.updatedAt)}`,
             ].join("\n");
           })
         : ["(none)"]),
@@ -2238,7 +2238,7 @@ export default function UnifiedSearch() {
                           {renderHighlighted(collection.name)}
                         </p>
                         <p className="mt-1 text-[11px] text-signal-muted">
-                          {new Date(collection.createdAt).toLocaleString()}
+                          {formatTimestampForDisplay(collection.createdAt)}
                         </p>
                         <Link
                           href={`/?collection=${collection.id}`}
@@ -2312,7 +2312,7 @@ export default function UnifiedSearch() {
                           {task.cadence} at {task.time} · {task.mode}
                         </p>
                         <p className="mt-1 text-[11px] text-signal-muted">
-                          Next run: {new Date(task.nextRun).toLocaleString()}
+                          Next run: {formatTimestampForDisplay(task.nextRun)}
                         </p>
                         <p className="mt-2 line-clamp-2 text-[11px] text-signal-muted">
                           {renderHighlighted(task.prompt)}
