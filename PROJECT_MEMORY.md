@@ -67,6 +67,8 @@
 - 2026-02-11 | `npm run build && node scripts/smoke.mjs --provider mock --skip-build` | `Compiled successfully` + `Smoke OK: provider=mock port=63140 deltaEvents=15` | pass
 - 2026-02-11 | `gh run watch 21898768898 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21898768911 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21898830338 --exit-status` | `main CI ... ✓ build` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21898830326 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-09 | `npm run check:workflows` | `Workflow policy OK (3 file(s) checked).` | pass
 - 2026-02-09 | `npm run lint` | (no output) | pass
 - 2026-02-09 | `npm test` | `Test Files 4 passed` | pass
