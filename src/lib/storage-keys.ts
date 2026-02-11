@@ -20,6 +20,8 @@ export const SIGNAL_UNIFIED_VERBATIM_KEY = "signal-unified-verbatim-v1";
 
 export const SIGNAL_CORRUPT_BACKUP_PREFIX = "signal-corrupt-backup-v1:";
 export const SIGNAL_CORRUPT_LATEST_PREFIX = "signal-corrupt-latest-v1:";
+export const SIGNAL_STORAGE_WRITE_FAILURES_KEY =
+  "signal-storage-write-failures-v1";
 
 export const UNIFIED_SEARCH_STORAGE_EVENT_KEYS = [
   SIGNAL_NOTES_KEY,
@@ -50,4 +52,5 @@ export const ALL_SIGNAL_STORAGE_KEYS = [
   SIGNAL_UNIFIED_RECENT_SEARCH_KEY,
   SIGNAL_UNIFIED_SAVED_SEARCH_KEY,
   SIGNAL_UNIFIED_VERBATIM_KEY,
+  SIGNAL_STORAGE_WRITE_FAILURES_KEY,
 ] as const;

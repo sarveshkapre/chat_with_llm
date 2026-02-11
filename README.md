@@ -19,6 +19,7 @@ npm install && npm run dev
 - Thread library with search, filters, and share links
 - Thread visibility controls (private vs link) with share-state badges
 - Guest and incognito retention windows with auto-expiry cleanup (14 days / 24 hours)
+- Data tools diagnostics for corruption backups and recent localStorage write failures
 - Conversational follow-ups with optional thread context toggle
 - Thread-scoped follow-up lock for mode/source with one-click new-thread reset
 - Rewrite current answer with a selected model + model visibility in answer details

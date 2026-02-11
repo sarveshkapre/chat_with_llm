@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   SIGNAL_CORRUPT_BACKUP_PREFIX,
   SIGNAL_CORRUPT_LATEST_PREFIX,
+  SIGNAL_STORAGE_WRITE_FAILURES_KEY,
 } from "@/lib/storage-keys";
 
 function makeLocalStorage() {
@@ -153,15 +154,27 @@ describe("writeStoredJson", () => {
     g.window = {};
     g.document = {};
     const localStorage = makeLocalStorage();
-    localStorage.setItem = () => {
+    const originalSetItem = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = (key: string, value: string) => {
+      if (key === SIGNAL_STORAGE_WRITE_FAILURES_KEY) {
+        originalSetItem(key, value);
+        return;
+      }
       const error = new Error("quota");
       (error as Error & { name: string }).name = "QuotaExceededError";
       throw error;
     };
     g.localStorage = localStorage;
 
-    const { writeStoredJson } = await import("@/lib/storage");
+    const { writeStoredJson, readStorageWriteFailures } = await import(
+      "@/lib/storage"
+    );
     expect(writeStoredJson("k", { value: 7 })).toBe("quota");
+    const failures = readStorageWriteFailures();
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.key).toBe("k");
+    expect(failures[0]?.status).toBe("quota");
+    expect(typeof failures[0]?.timestamp).toBe("string");
   });
 
   it("returns failed for non-quota write errors", async () => {
@@ -173,12 +186,76 @@ describe("writeStoredJson", () => {
     g.window = {};
     g.document = {};
     const localStorage = makeLocalStorage();
-    localStorage.setItem = () => {
+    const originalSetItem = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = (key: string, value: string) => {
+      if (key === SIGNAL_STORAGE_WRITE_FAILURES_KEY) {
+        originalSetItem(key, value);
+        return;
+      }
       throw new Error("permission denied");
     };
     g.localStorage = localStorage;
 
-    const { writeStoredJson } = await import("@/lib/storage");
+    const { writeStoredJson, readStorageWriteFailures } = await import(
+      "@/lib/storage"
+    );
     expect(writeStoredJson("k", { value: 7 })).toBe("failed");
+    const failures = readStorageWriteFailures();
+    expect(failures).toHaveLength(1);
+    expect(failures[0]?.key).toBe("k");
+    expect(failures[0]?.status).toBe("failed");
+  });
+
+  it("caps stored write failure diagnostics", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    g.localStorage = localStorage;
+    const prefilled = Array.from({ length: 30 }, (_, index) => ({
+      key: `signal-k-${index}`,
+      status: index % 2 ? "quota" : "failed",
+      timestamp: new Date(1_700_000_000_000 + index).toISOString(),
+    }));
+    localStorage.setItem(SIGNAL_STORAGE_WRITE_FAILURES_KEY, JSON.stringify(prefilled));
+
+    const { readStorageWriteFailures } = await import("@/lib/storage");
+    const failures = readStorageWriteFailures();
+    expect(failures).toHaveLength(25);
+    expect(failures[0]?.key).toBe("signal-k-0");
+    expect(failures.at(-1)?.key).toBe("signal-k-24");
+  });
+});
+
+describe("clearStorageWriteFailures", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("removes stored write-failure diagnostics", async () => {
+    const g = globalThis as unknown as {
+      window?: unknown;
+      document?: unknown;
+      localStorage?: ReturnType<typeof makeLocalStorage>;
+    };
+    g.window = {};
+    g.document = {};
+    const localStorage = makeLocalStorage();
+    g.localStorage = localStorage;
+    localStorage.setItem(
+      SIGNAL_STORAGE_WRITE_FAILURES_KEY,
+      JSON.stringify([{ key: "signal-history-v2", status: "quota", timestamp: "t" }])
+    );
+
+    const { clearStorageWriteFailures, readStorageWriteFailures } = await import(
+      "@/lib/storage"
+    );
+    expect(readStorageWriteFailures()).toHaveLength(1);
+    expect(clearStorageWriteFailures()).toBe("ok");
+    expect(readStorageWriteFailures()).toEqual([]);
   });
 });

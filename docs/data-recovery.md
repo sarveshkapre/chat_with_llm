@@ -32,6 +32,15 @@ If Signal Search fails to parse a stored JSON blob, it will:
   - `signal-corrupt-backup-v1:<originalKey>:<timestamp>`
   - `signal-corrupt-latest-v1:<originalKey>` (points to the most recent backup key)
 
+## Storage Write Failure Diagnostics (`signal-storage-write-failures-v1`)
+
+If Signal Search cannot persist updates to `localStorage` (for example quota exceeded), it records recent failures in:
+
+- `signal-storage-write-failures-v1` (bounded list of recent key/status/timestamp entries)
+
+In **Library → Data tools**, this appears as a "Storage write failures" warning card with a clear action.
+Use this with diagnostics exports to debug why recent edits did not persist.
+
 ### How To Recover Something From A Corrupt Backup
 1. Export raw local data (Library → Data tools).
 2. In the exported JSON, search for `signal-corrupt-latest-v1:` to find the latest backup pointer.

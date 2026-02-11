@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Library data tools now surface bounded recent localStorage write-failure diagnostics (`signal-storage-write-failures-v1`) with clear controls, and `chat-app` persistence writes now run through quota/failure-aware guards to avoid unhandled storage exceptions.
+- Added `check:smoke-fixtures` policy enforcement (`scripts/check-smoke-fixtures.mjs`) with tests and CI wiring so every `src/app/smoke-search/*` fixture route must be referenced by `scripts/smoke.mjs`.
 - Added a zero-results smoke fixture route (`/smoke-search/zero-results`) plus smoke assertions that verify Unified Search recovery controls (`Clear operators`, `Reset type`, `Reset timeline`, `Reset verbatim`) remain rendered under constrained query/filter states.
 - Added `check:project-memory` policy enforcement (`scripts/check-project-memory.mjs`) with tests and CI wiring so `PROJECT_MEMORY.md` verification entries must end with explicit `pass`/`fail` status tokens.
 - Added keyboard regression coverage for operator-to-result precedence crossover when operator suggestions disappear, locking Arrow/Enter fallback behavior.

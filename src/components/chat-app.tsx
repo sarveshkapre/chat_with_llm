@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type {
   AnswerMode,
@@ -13,7 +13,13 @@ import type { Task, TaskCadence } from "@/lib/types/task";
 import type { LibraryFile } from "@/lib/types/file";
 import type { Collection } from "@/lib/types/collection";
 import { cn } from "@/lib/utils";
-import { readStoredJson } from "@/lib/storage";
+import {
+  clearStorageWriteFailures,
+  readStorageWriteFailures,
+  readStoredJson,
+  writeStoredJson,
+  type StoredWriteFailure,
+} from "@/lib/storage";
 import {
   clearStorageByPrefix,
   formatBytes,
@@ -393,6 +399,9 @@ export default function ChatApp() {
     Array<{ latestKey: string; originalKey: string; backupKey: string | null }>
   >([]);
   const [corruptBackupCount, setCorruptBackupCount] = useState(0);
+  const [storageWriteFailures, setStorageWriteFailures] = useState<
+    StoredWriteFailure[]
+  >([]);
   const [undoToast, setUndoToast] = useState<UndoToast | null>(null);
   const [liveAnswer, setLiveAnswer] = useState("");
   const [showDetails, setShowDetails] = useState(false);
@@ -406,6 +415,41 @@ export default function ChatApp() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const libraryInputRef = useRef<HTMLInputElement | null>(null);
   const librarySearchInputRef = useRef<HTMLInputElement | null>(null);
+  const storageWriteNoticeGuardRef = useRef(new Set<string>());
+
+  const persistStorageValue = useCallback(
+    (key: string, value: unknown, label: string) => {
+      const status = writeStoredJson(key, value);
+      if (status === "ok" || status === "unavailable") {
+        storageWriteNoticeGuardRef.current.delete(`${key}:quota`);
+        storageWriteNoticeGuardRef.current.delete(`${key}:failed`);
+        return;
+      }
+      setStorageWriteFailures(readStorageWriteFailures());
+      const dedupeKey = `${key}:${status}`;
+      if (storageWriteNoticeGuardRef.current.has(dedupeKey)) return;
+      storageWriteNoticeGuardRef.current.add(dedupeKey);
+      window.setTimeout(() => {
+        setNotice(
+          status === "quota"
+            ? `Local storage is full. Could not save ${label}.`
+            : `Could not save ${label} to local storage.`
+        );
+      }, 0);
+    },
+    []
+  );
+
+  const clearStorageWriteFailureDiagnostics = useCallback(() => {
+    const status = clearStorageWriteFailures();
+    if (status === "ok") {
+      setStorageWriteFailures([]);
+      setNotice("Cleared storage write diagnostics.");
+      return;
+    }
+    if (status === "unavailable") return;
+    setNotice("Could not clear storage write diagnostics.");
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -473,14 +517,20 @@ export default function ChatApp() {
 
     setArchivedSpaces(readStoredJson<string[]>(ARCHIVED_SPACES_KEY, []));
     setSpaceTags(readStoredJson<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
+    setStorageWriteFailures(readStorageWriteFailures());
 
-    const active = localStorage.getItem(ACTIVE_SPACE_KEY);
+    let active: string | null = null;
+    try {
+      active = localStorage.getItem(ACTIVE_SPACE_KEY);
+    } catch {
+      active = null;
+    }
     if (active) setActiveSpaceId(active);
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(threads));
-  }, [threads]);
+    persistStorageValue(STORAGE_KEY, threads, "thread updates");
+  }, [threads, persistStorageValue]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -493,12 +543,12 @@ export default function ChatApp() {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem(SPACES_KEY, JSON.stringify(spaces));
-  }, [spaces]);
+    persistStorageValue(SPACES_KEY, spaces, "spaces");
+  }, [spaces, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(TASKS_KEY, JSON.stringify(tasks));
-  }, [tasks]);
+    persistStorageValue(TASKS_KEY, tasks, "tasks");
+  }, [tasks, persistStorageValue]);
 
   useEffect(() => {
     if (current?.id) {
@@ -513,50 +563,58 @@ export default function ChatApp() {
   }, [current, useThreadContext]);
 
   useEffect(() => {
-    localStorage.setItem(FILES_KEY, JSON.stringify(libraryFiles));
-  }, [libraryFiles]);
+    persistStorageValue(FILES_KEY, libraryFiles, "files");
+  }, [libraryFiles, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(COLLECTIONS_KEY, JSON.stringify(collections));
-  }, [collections]);
+    persistStorageValue(COLLECTIONS_KEY, collections, "collections");
+  }, [collections, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
-  }, [notes]);
+    persistStorageValue(NOTES_KEY, notes, "notes");
+  }, [notes, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(SEARCHES_KEY, JSON.stringify(savedSearches));
-  }, [savedSearches]);
+    persistStorageValue(SEARCHES_KEY, savedSearches, "saved searches");
+  }, [savedSearches, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(
+    persistStorageValue(
       PINNED_SEARCHES_KEY,
-      JSON.stringify(pinnedSearchIds)
+      pinnedSearchIds,
+      "pinned saved searches"
     );
-  }, [pinnedSearchIds]);
+  }, [pinnedSearchIds, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(RECENT_FILTERS_KEY, JSON.stringify(recentFilters));
-  }, [recentFilters]);
+    persistStorageValue(RECENT_FILTERS_KEY, recentFilters, "recent filters");
+  }, [recentFilters, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(
+    persistStorageValue(
       ARCHIVED_SPACES_KEY,
-      JSON.stringify(archivedSpaces)
+      archivedSpaces,
+      "archived spaces"
     );
-  }, [archivedSpaces]);
+  }, [archivedSpaces, persistStorageValue]);
 
   useEffect(() => {
-    localStorage.setItem(SPACE_TAGS_KEY, JSON.stringify(spaceTags));
-  }, [spaceTags]);
+    persistStorageValue(SPACE_TAGS_KEY, spaceTags, "space tags");
+  }, [spaceTags, persistStorageValue]);
 
   useEffect(() => {
     if (activeSpaceId) {
-      localStorage.setItem(ACTIVE_SPACE_KEY, activeSpaceId);
+      persistStorageValue(ACTIVE_SPACE_KEY, activeSpaceId, "active space");
     } else {
-      localStorage.removeItem(ACTIVE_SPACE_KEY);
+      try {
+        localStorage.removeItem(ACTIVE_SPACE_KEY);
+      } catch {
+        window.setTimeout(() => {
+          setNotice("Could not clear active space from local storage.");
+        }, 0);
+      }
     }
-  }, [activeSpaceId]);
+  }, [activeSpaceId, persistStorageValue]);
 
   useEffect(() => {
     setSignalStorageUsage(getStorageUsageByPrefix(SIGNAL_STORAGE_PREFIX));
@@ -574,6 +632,7 @@ export default function ChatApp() {
         .sort((a, b) => a.originalKey.localeCompare(b.originalKey))
     );
     setCorruptBackupCount(getStorageEntriesByPrefix(CORRUPT_BACKUP_PREFIX).length);
+    setStorageWriteFailures(readStorageWriteFailures());
   }, [
     threads,
     spaces,
@@ -3621,6 +3680,32 @@ ${answer.citations
                   You are close to the browser quota. Export and reset if things
                   start failing to save.
                 </p>
+              ) : null}
+              {storageWriteFailures.length ? (
+                <div className="mt-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-3 py-2 text-[11px] text-rose-100">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">Storage write failures</p>
+                    <button
+                      onClick={clearStorageWriteFailureDiagnostics}
+                      className="rounded-full border border-rose-200/30 px-2 py-0.5 text-[10px] text-rose-100/90"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <p className="mt-1 text-rose-100/90">
+                    Recent write failures: {storageWriteFailures.length}. Some
+                    local changes may not have been saved.
+                  </p>
+                  <div className="mt-2 space-y-1 text-rose-100/90">
+                    {storageWriteFailures.slice(0, 3).map((failure) => (
+                      <p key={`${failure.key}:${failure.timestamp}:${failure.status}`}>
+                        <span className="font-mono">{failure.key}</span> ·{" "}
+                        {failure.status} ·{" "}
+                        {new Date(failure.timestamp).toLocaleString()}
+                      </p>
+                    ))}
+                  </div>
+                </div>
               ) : null}
               {corruptLatestKeys.length || corruptBackupCount ? (
                 <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-100">

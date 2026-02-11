@@ -1,11 +1,95 @@
 import {
   SIGNAL_CORRUPT_BACKUP_PREFIX,
   SIGNAL_CORRUPT_LATEST_PREFIX,
+  SIGNAL_STORAGE_WRITE_FAILURES_KEY,
 } from "@/lib/storage-keys";
 
 const backedUpKeys = new Set<string>();
+const MAX_STORED_WRITE_FAILURES = 25;
 
 export type StoredWriteStatus = "ok" | "quota" | "failed" | "unavailable";
+type StoredWriteFailureStatus = Exclude<StoredWriteStatus, "ok" | "unavailable">;
+
+export type StoredWriteFailure = {
+  key: string;
+  status: StoredWriteFailureStatus;
+  timestamp: string;
+};
+
+function canUseLocalStorage() {
+  return typeof window !== "undefined" && typeof document !== "undefined";
+}
+
+function decodeStoredWriteFailure(raw: unknown): StoredWriteFailure | null {
+  if (!raw || typeof raw !== "object") return null;
+  const maybeEntry = raw as {
+    key?: unknown;
+    status?: unknown;
+    timestamp?: unknown;
+  };
+  if (typeof maybeEntry.key !== "string" || !maybeEntry.key.trim()) return null;
+  if (maybeEntry.status !== "quota" && maybeEntry.status !== "failed") return null;
+  if (typeof maybeEntry.timestamp !== "string" || !maybeEntry.timestamp.trim()) {
+    return null;
+  }
+  return {
+    key: maybeEntry.key,
+    status: maybeEntry.status,
+    timestamp: maybeEntry.timestamp,
+  };
+}
+
+export function readStorageWriteFailures(): StoredWriteFailure[] {
+  if (!canUseLocalStorage()) return [];
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(SIGNAL_STORAGE_WRITE_FAILURES_KEY);
+  } catch {
+    return [];
+  }
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => decodeStoredWriteFailure(entry))
+      .filter((entry): entry is StoredWriteFailure => entry !== null)
+      .slice(0, MAX_STORED_WRITE_FAILURES);
+  } catch {
+    return [];
+  }
+}
+
+function recordStorageWriteFailure(
+  key: string,
+  status: StoredWriteFailureStatus
+) {
+  if (!canUseLocalStorage()) return;
+  if (key === SIGNAL_STORAGE_WRITE_FAILURES_KEY) return;
+  const entry: StoredWriteFailure = {
+    key,
+    status,
+    timestamp: new Date().toISOString(),
+  };
+  const existing = readStorageWriteFailures();
+  const next = [entry, ...existing].slice(0, MAX_STORED_WRITE_FAILURES);
+  try {
+    localStorage.setItem(SIGNAL_STORAGE_WRITE_FAILURES_KEY, JSON.stringify(next));
+  } catch {
+    // Best-effort only. Logging a failed write should not throw.
+  }
+}
+
+export function clearStorageWriteFailures(): StoredWriteStatus {
+  if (!canUseLocalStorage()) return "unavailable";
+  try {
+    localStorage.removeItem(SIGNAL_STORAGE_WRITE_FAILURES_KEY);
+    return "ok";
+  } catch (error) {
+    if (isQuotaExceededError(error)) return "quota";
+    return "failed";
+  }
+}
 
 function tryBackupCorruptBlob(key: string, raw: string) {
   if (typeof document === "undefined") return;
@@ -24,9 +108,7 @@ function tryBackupCorruptBlob(key: string, raw: string) {
 }
 
 export function readStoredJson<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return fallback;
-  }
+  if (!canUseLocalStorage()) return fallback;
   let raw: string | null = null;
   try {
     raw = localStorage.getItem(key);
@@ -53,14 +135,16 @@ function isQuotaExceededError(error: unknown): boolean {
 }
 
 export function writeStoredJson(key: string, value: unknown): StoredWriteStatus {
-  if (typeof window === "undefined" || typeof document === "undefined") {
-    return "unavailable";
-  }
+  if (!canUseLocalStorage()) return "unavailable";
   try {
     localStorage.setItem(key, JSON.stringify(value));
     return "ok";
   } catch (error) {
-    if (isQuotaExceededError(error)) return "quota";
+    if (isQuotaExceededError(error)) {
+      recordStorageWriteFailure(key, "quota");
+      return "quota";
+    }
+    recordStorageWriteFailure(key, "failed");
     return "failed";
   }
 }
