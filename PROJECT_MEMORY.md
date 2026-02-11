@@ -72,6 +72,8 @@
 - 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=64810 deltaEvents=15` | pass
 - 2026-02-11 | `gh run watch 21900503216 --exit-status` | `main CI ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21900503209 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21900554344 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21900554292 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt` | Latest `CI` and `Scorecard supply-chain security` for `8041e0f` detected; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 93 passed (93)` | pass
