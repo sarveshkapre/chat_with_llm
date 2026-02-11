@@ -87,6 +87,9 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | commit `94f52ece7f61aa5b02da50f864ac611e2fe8993d` triggered `CI` (`21908833679`) + `Scorecard supply-chain security` (`21908833712`), `Release Please` skipped (`21908833730`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21908833679 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21908833712 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,url,createdAt` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest runs: `CI` + `Scorecard supply-chain security` success; `Release Please` skipped | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search-smoke-fixture.test.ts tests/unified-search.test.ts` | `tests/unified-search-smoke-fixture.test.ts (3 tests)` + `tests/unified-search.test.ts (93 tests)` | pass
