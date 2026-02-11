@@ -1,12 +1,20 @@
 import type { UnifiedSearchBootstrap } from "@/lib/unified-search-bootstrap";
+import { createDeterministicUnifiedSearchDataset } from "@/lib/unified-search-fixtures";
 
-const nowIso = new Date("2026-02-11T12:00:00.000Z").toISOString();
+const smokeNowMs = Date.parse("2026-02-11T12:00:00.000Z");
+const nowIso = new Date(smokeNowMs).toISOString();
 
 export const UNIFIED_SEARCH_SMOKE_QUERY =
   "type:threads is:pinned has:citation tag:incident -has:note";
 export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY =
   'type:tasks space:"Incident Ops" weekly digest';
 export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID = "smoke-saved-roundtrip";
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY =
+  "type:threads is:archived";
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY =
+  "type:threads -is:archived";
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE = "Smoke Archived Thread";
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE = "Smoke Active Thread";
 
 export const UNIFIED_SEARCH_SMOKE_BOOTSTRAP: UnifiedSearchBootstrap = {
   query: UNIFIED_SEARCH_SMOKE_QUERY,
@@ -192,4 +200,132 @@ export const UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP: UnifiedSearchBootst
   debugMode: true,
   filter: "threads",
   selectedThreadIds: ["smoke-thread-match", "smoke-thread-missing"],
+};
+
+const archiveFixture = createDeterministicUnifiedSearchDataset({
+  totalItems: 25,
+  nowMs: smokeNowMs,
+  idPrefix: "smoke-archive",
+});
+
+const archiveSpace = archiveFixture.spaces[0] ?? {
+  id: "smoke-archive-space-0",
+  name: "Archive Ops",
+  instructions: "Archive operator smoke fallback space.",
+  preferredModel: "gpt-4.1",
+  sourcePolicy: "web" as const,
+  createdAt: nowIso,
+};
+
+const smokeArchivedThread = {
+  ...(archiveFixture.threads[0] ?? {
+    id: "smoke-archive-thread-0",
+    question: "Archived fallback question",
+    answer: "Archived fallback answer",
+    mode: "research" as const,
+    sources: "web" as const,
+    provider: "mock",
+    latencyMs: 200,
+    createdAt: nowIso,
+    citations: [],
+    attachments: [],
+    spaceId: archiveSpace.id,
+    spaceName: archiveSpace.name,
+    tags: ["incident"],
+    pinned: false,
+    favorite: false,
+    archived: true,
+  }),
+  id: "smoke-archive-thread-archived",
+  title: UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE,
+  question: "Archived incident snapshot",
+  answer: "Archived record retained for operator smoke verification.",
+  spaceId: archiveSpace.id,
+  spaceName: archiveSpace.name,
+  tags: ["incident", "archive"],
+  archived: true,
+  citations: [
+    {
+      title: "Archived incident timeline",
+      url: "https://example.com/archive/timeline",
+    },
+  ],
+};
+
+const smokeActiveThread = {
+  ...(archiveFixture.threads[1] ?? {
+    id: "smoke-archive-thread-1",
+    question: "Active fallback question",
+    answer: "Active fallback answer",
+    mode: "quick" as const,
+    sources: "none" as const,
+    provider: "mock",
+    latencyMs: 100,
+    createdAt: nowIso,
+    citations: [],
+    attachments: [],
+    spaceId: archiveSpace.id,
+    spaceName: archiveSpace.name,
+    tags: ["incident"],
+    pinned: false,
+    favorite: false,
+    archived: false,
+  }),
+  id: "smoke-archive-thread-active",
+  title: UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE,
+  question: "Active incident snapshot",
+  answer: "Active record retained for negative archive-operator verification.",
+  spaceId: archiveSpace.id,
+  spaceName: archiveSpace.name,
+  tags: ["incident", "active"],
+  archived: false,
+  citations: [
+    {
+      title: "Active incident timeline",
+      url: "https://example.com/active/timeline",
+    },
+  ],
+};
+
+const archiveThreads = [
+  smokeArchivedThread,
+  smokeActiveThread,
+  ...archiveFixture.threads.slice(2),
+];
+
+const archiveNotes = {
+  ...archiveFixture.notes,
+  [smokeArchivedThread.id]: "Archived smoke note",
+};
+
+const archiveBaseBootstrap: UnifiedSearchBootstrap = {
+  disableStorageSync: true,
+  notes: archiveNotes,
+  threads: archiveThreads,
+  spaces: [archiveSpace, ...archiveFixture.spaces.slice(1)],
+  spaceTags: {
+    ...archiveFixture.spaceTags,
+    [archiveSpace.id]: ["incident", "archive"],
+  },
+  collections: archiveFixture.collections,
+  files: archiveFixture.files,
+  tasks: archiveFixture.tasks,
+  recentQueries: [
+    UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY,
+    UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY,
+  ],
+  savedSearches: [],
+  verbatim: false,
+};
+
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_BOOTSTRAP: UnifiedSearchBootstrap = {
+  ...archiveBaseBootstrap,
+  query: UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY,
+  filter: "threads",
+};
+
+export const UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_BOOTSTRAP: UnifiedSearchBootstrap = {
+  ...archiveBaseBootstrap,
+  query: UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY,
+  filter: "threads",
 };

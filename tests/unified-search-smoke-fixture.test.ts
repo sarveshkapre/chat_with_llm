@@ -5,6 +5,12 @@ import {
   parseUnifiedSearchQuery,
 } from "@/lib/unified-search";
 import {
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_BOOTSTRAP,
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY,
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE,
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_BOOTSTRAP,
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY,
+  UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE,
   UNIFIED_SEARCH_SMOKE_BOOTSTRAP,
   UNIFIED_SEARCH_SMOKE_QUERY,
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP,
@@ -126,5 +132,95 @@ describe("unified search smoke fixture", () => {
       "smoke-thread-match",
       "smoke-thread-missing",
     ]);
+  });
+
+  it("defines archive-operator fixtures for both include and exclude semantics", () => {
+    const includeParsed = parseUnifiedSearchQuery(
+      UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_QUERY
+    );
+    const includeNotes = UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_BOOTSTRAP.notes ?? {};
+    const includeThreads = decodeUnifiedSearchThreadsStorage(
+      UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDE_BOOTSTRAP.threads ?? []
+    );
+    const includePrepared = includeThreads.map((thread) => {
+      const tags = thread.tags ?? [];
+      const tagsText = tags.join(" ");
+      const citationsText = (thread.citations ?? [])
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const noteTrimmed = (includeNotes[thread.id] ?? "").trim();
+      return {
+        thread,
+        combinedLower: [
+          thread.title ?? thread.question,
+          thread.question,
+          thread.answer,
+          tagsText,
+          thread.spaceName ?? "",
+          citationsText,
+          noteTrimmed,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase(),
+        spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
+        spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
+        tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+        noteTrimmed,
+        hasCitation: Boolean(thread.citations?.length),
+      };
+    });
+    const includeFiltered = filterThreadEntries(includePrepared, {
+      query: includeParsed.query,
+      operators: includeParsed.operators,
+      timelineWindow: "all",
+      nowMs: Date.parse("2026-02-11T12:00:00.000Z"),
+    }).map((entry) => entry.thread.title);
+    expect(includeFiltered).toContain(UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE);
+    expect(includeFiltered).not.toContain(UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE);
+
+    const excludeParsed = parseUnifiedSearchQuery(
+      UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_QUERY
+    );
+    const excludeNotes = UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_BOOTSTRAP.notes ?? {};
+    const excludeThreads = decodeUnifiedSearchThreadsStorage(
+      UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDE_BOOTSTRAP.threads ?? []
+    );
+    const excludePrepared = excludeThreads.map((thread) => {
+      const tags = thread.tags ?? [];
+      const tagsText = tags.join(" ");
+      const citationsText = (thread.citations ?? [])
+        .map((citation) => `${citation.title} ${citation.url}`)
+        .join(" ");
+      const noteTrimmed = (excludeNotes[thread.id] ?? "").trim();
+      return {
+        thread,
+        combinedLower: [
+          thread.title ?? thread.question,
+          thread.question,
+          thread.answer,
+          tagsText,
+          thread.spaceName ?? "",
+          citationsText,
+          noteTrimmed,
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .toLowerCase(),
+        spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
+        spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
+        tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+        noteTrimmed,
+        hasCitation: Boolean(thread.citations?.length),
+      };
+    });
+    const excludeFiltered = filterThreadEntries(excludePrepared, {
+      query: excludeParsed.query,
+      operators: excludeParsed.operators,
+      timelineWindow: "all",
+      nowMs: Date.parse("2026-02-11T12:00:00.000Z"),
+    }).map((entry) => entry.thread.title);
+    expect(excludeFiltered).toContain(UNIFIED_SEARCH_SMOKE_ARCHIVE_EXCLUDED_TITLE);
+    expect(excludeFiltered).not.toContain(UNIFIED_SEARCH_SMOKE_ARCHIVE_INCLUDED_TITLE);
   });
 });

@@ -25,6 +25,8 @@ jobs:
         run: npm run check:workflows
       - name: Operator docs consistency
         run: npm run check:operator-docs
+      - name: Clone features policy
+        run: npm run check:clone-features
       - name: Lint
         run: npm run lint
       - name: Test

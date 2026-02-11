@@ -182,6 +182,10 @@ function parseDiagnosticsTotalsFromHtml(html) {
   return { loaded, matched, visible };
 }
 
+function stripScriptsFromHtml(html) {
+  return html.replace(/<script[\s\S]*?<\/script>/g, "");
+}
+
 async function main() {
   const provider = pickArg("--provider") ?? process.env.SMOKE_PROVIDER ?? "mock";
   const port =
@@ -378,6 +382,45 @@ async function main() {
     ) {
       throw new Error(
         `/smoke-search/stale-selection diagnostics totals mismatch: totals=(${diagnosticsTotals.loaded},${diagnosticsTotals.matched},${diagnosticsTotals.visible}) rows=(${rowTotals.loaded},${rowTotals.matched},${rowTotals.visible})`
+      );
+    }
+
+    const archiveOnlyResponse = await fetch(`${baseUrl}/smoke-search/archive-only`, {
+      redirect: "manual",
+    });
+    if (!archiveOnlyResponse.ok) {
+      throw new Error(
+        `/smoke-search/archive-only fixture path returned ${archiveOnlyResponse.status}`
+      );
+    }
+    const archiveOnlyHtml = stripScriptsFromHtml(await archiveOnlyResponse.text());
+    if (
+      !archiveOnlyHtml.includes("Smoke Archived Thread") ||
+      archiveOnlyHtml.includes("Smoke Active Thread")
+    ) {
+      throw new Error(
+        "/smoke-search/archive-only did not enforce expected is:archived filtering"
+      );
+    }
+
+    const archiveExcludeResponse = await fetch(
+      `${baseUrl}/smoke-search/archive-exclude`,
+      { redirect: "manual" }
+    );
+    if (!archiveExcludeResponse.ok) {
+      throw new Error(
+        `/smoke-search/archive-exclude fixture path returned ${archiveExcludeResponse.status}`
+      );
+    }
+    const archiveExcludeHtml = stripScriptsFromHtml(
+      await archiveExcludeResponse.text()
+    );
+    if (
+      !archiveExcludeHtml.includes("Smoke Active Thread") ||
+      archiveExcludeHtml.includes("Smoke Archived Thread")
+    ) {
+      throw new Error(
+        "/smoke-search/archive-exclude did not enforce expected -is:archived filtering"
       );
     }
 

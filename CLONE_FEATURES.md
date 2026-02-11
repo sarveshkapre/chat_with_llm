@@ -7,6 +7,26 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Global Cycle 17 (2026-02-11) Session Plan
+- [ ] P1 (Selected): Add a shared deterministic Unified Search fixture generator consumed by both perf benchmarks and smoke fixtures to reduce dataset drift and keep relevance/operator behavior baselines aligned. (Score: impact=high effort=med strategic=high differentiation=med risk=low-med confidence=med-high)
+- [ ] P1 (Selected): Add smoke fixture coverage for archive-state thread operators (`is:archived` and `-is:archived`) with deterministic SSR assertions in `scripts/smoke.mjs`. (Score: impact=high effort=low-med strategic=high differentiation=med risk=low confidence=high)
+- [ ] P2 (Selected): Add a changelog/tracker guard script that validates new `CLONE_FEATURES.md` `Implemented` entries include commit hash tokens and wire it into CI scripts/tests. (Score: impact=med-high effort=low strategic=high differentiation=low risk=low confidence=high)
+- [ ] P2: Add compact smoke path for `/search` keyboard result navigation (`ArrowDown` + `Enter`) using Playwright.
+- [ ] P2: Add guarded migration helper for potential future rename of `signal-unified-saved-v1` while preserving legacy decode compatibility.
+- [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
+- [ ] P2: Add accessibility pass for Unified Search bulk controls and saved-search row action grouping labels.
+- [ ] P2: Add top-results parity assertion ensuring visible snippets remain bounded when notes/citations are huge.
+- [ ] P2: Add CI policy check that enforces `PROJECT_MEMORY.md` verification entries include explicit pass/fail status tokens.
+- [ ] P3: Add explicit CSV export regression cases for multiline citation URLs and leading/trailing whitespace cells.
+- [ ] P3: Add docs example showing how `type:` and `verbatim:` state maps to shareable URL params.
+- [ ] P3: Add mini docs note clarifying that debug diagnostics in smoke fixtures are bootstrap-driven SSR output.
+- [ ] P3: Add inline diagnostics tooltip explaining each filtered-out bucket in debug mode.
+- [ ] P3: Add optional perf command flag for deterministic output ordering by dataset size when custom datasets are introduced.
+- [ ] P3: Add small query-operator lint utility to detect unsupported operator combinations by result type in docs/examples.
+- [ ] P3: Add keyboard regression tests for cross-over behavior when suggestion list empties during Arrow navigation.
+- [ ] P3: Add lightweight smoke assertion helper to centralize SSR-safe text matching and reduce brittle regex duplication.
+- [ ] P3: Add route-level smoke assertion for zero-results reset-card actions (`clear operators`, `reset type/time/verbatim`) to guard recovery UX.
+
 ### Global Cycle 16 (2026-02-11) Session Plan
 - [x] P1 (Selected): Add strict notes payload decoding for Unified Search preload/focus/storage refresh paths so malformed `signal-notes` entries cannot crash search preparation (`note.trim`) under localStorage corruption. (Delivered in Global Cycle 16, commit `63829c1`) (Score: impact=high effort=low strategic=high differentiation=low risk=low confidence=high)
 - [x] P2 (Selected): Add focused regression coverage for `stripUnifiedSearchOperators` mixed unknown-token cases (unknown operators + quoted colon tokens) to lock parser-strip behavior and prevent accidental free-text loss. (Delivered in Global Cycle 16, commit `63829c1`) (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
@@ -363,12 +383,12 @@
 - 2026-02-09: Enforced workflow policy checks (pinned action SHAs + explicit `permissions:`) via `npm run check:workflows` and CI step, with regression tests (`scripts/check-workflows.mjs`, `scripts/workflow-policy.mjs`, `tests/workflow-policy.test.ts`, `.github/workflows/ci.yml`) (commit `0a9bbdf`).
 - 2026-02-09: Migrated SARIF upload to CodeQL action v4 (`.github/workflows/scorecard.yml`) (commit `0a9bbdf`).
 - 2026-02-09: Added Undo affordance for Unified Search bulk thread actions (`src/components/unified-search.tsx`) (commit `0a9bbdf`).
-- 2026-02-08: Hardened Actions workflows by pinning action SHAs and tightening token permissions in CI/Scorecard (`.github/workflows/ci.yml`, `.github/workflows/scorecard.yml`).
-- 2026-02-08: Stabilized Release Please by removing invalid input and gating automation behind explicit enablement (`.github/workflows/release-please.yml`).
-- 2026-02-08: Remediated moderate dependency advisories by upgrading the `vitest` toolchain to v4 (`package.json`, `package-lock.json`, `npm audit --json` now shows 0 vulnerabilities).
-- 2026-02-08: Added Unified Search timeline filtering and in-place thread quick/bulk actions (favorite/pin/archive/space assignment) (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`).
-- 2026-02-08: Added regression tests for timeline and bulk-action helper logic (`tests/unified-search.test.ts`).
-- 2026-02-08: Expanded library + unified search relevance to include answer text, citations, and notes with contextual snippets (src/components/chat-app.tsx, src/components/unified-search.tsx).
+- 2026-02-08: Hardened Actions workflows by pinning action SHAs and tightening token permissions in CI/Scorecard (`.github/workflows/ci.yml`, `.github/workflows/scorecard.yml`). (commit `cc73509`)
+- 2026-02-08: Stabilized Release Please by removing invalid input and gating automation behind explicit enablement (`.github/workflows/release-please.yml`). (commit `cc73509`)
+- 2026-02-08: Remediated moderate dependency advisories by upgrading the `vitest` toolchain to v4 (`package.json`, `package-lock.json`, `npm audit --json` now shows 0 vulnerabilities). (commit `8d23c9d`)
+- 2026-02-08: Added Unified Search timeline filtering and in-place thread quick/bulk actions (favorite/pin/archive/space assignment) (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`). (commit `3b8c76b`)
+- 2026-02-08: Added regression tests for timeline and bulk-action helper logic (`tests/unified-search.test.ts`). (commit `3b8c76b`)
+- 2026-02-08: Expanded library + unified search relevance to include answer text, citations, and notes with contextual snippets (src/components/chat-app.tsx, src/components/unified-search.tsx). (commit `fe65919`)
 - 2026-02-10: Unified Search bulk favorite/unfavorite actions (`src/components/unified-search.tsx`) (commit `2c94219`).
 - 2026-02-10: Hardened Unified Search bulk selection against stale/missing thread ids and made bulk toolbar counts/toasts reflect active selection (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search.test.ts`) (commit `3a7dff9`).
 - 2026-02-10: Local storage corruption backups on JSON parse failures + regression tests (`src/lib/storage.ts`, `src/lib/unified-search.ts`, `src/components/chat-app.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`, `src/components/report-view.tsx`, `tests/storage.test.ts`) (commit `716763b`).

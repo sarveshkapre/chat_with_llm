@@ -12,6 +12,7 @@
     "format": "eslint --fix .",
     "check:workflows": "node scripts/check-workflows.mjs",
     "check:operator-docs": "node scripts/check-operator-docs.mjs",
+    "check:clone-features": "node scripts/check-clone-features.mjs",
     "smoke:mock": "node scripts/smoke.mjs --provider mock",
     "perf:search": "node scripts/search-perf.mjs"
   },

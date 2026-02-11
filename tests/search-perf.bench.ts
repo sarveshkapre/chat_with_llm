@@ -11,6 +11,7 @@ import {
   topKSearchResults,
   type WeightedLoweredField,
 } from "@/lib/unified-search";
+import { createDeterministicUnifiedSearchDataset } from "@/lib/unified-search-fixtures";
 
 type ThreadPerfEntry = {
   thread: {
@@ -99,169 +100,123 @@ function clampCount(value: number, fallback: number): number {
   return rounded;
 }
 
-function createRng(seed: number): () => number {
-  let state = seed >>> 0;
-  return () => {
-    state = (state * 1664525 + 1013904223) >>> 0;
-    return state / 0x100000000;
-  };
-}
-
-function buildTimestamp(rng: () => number): { createdAt: string; createdMs: number } {
-  const ageMs = Math.floor(rng() * 45 * 24 * 60 * 60 * 1000);
-  const createdMs = NOW_MS - ageMs;
-  return { createdAt: new Date(createdMs).toISOString(), createdMs };
-}
-
 function relevanceFields(parts: string[]): WeightedLoweredField[] {
   return parts
     .filter(Boolean)
-    .map((part, index) => ({ loweredText: part.toLowerCase(), weight: Math.max(1, 8 - index * 2) }));
-}
-
-function splitCounts(total: number): {
-  threadCount: number;
-  spaceCount: number;
-  collectionCount: number;
-  fileCount: number;
-  taskCount: number;
-} {
-  const threadCount = Math.max(1, Math.floor(total * 0.48));
-  const spaceCount = Math.max(1, Math.floor(total * 0.16));
-  const collectionCount = Math.max(1, Math.floor(total * 0.12));
-  const fileCount = Math.max(1, Math.floor(total * 0.12));
-  const taskCount = Math.max(1, total - threadCount - spaceCount - collectionCount - fileCount);
-  return {
-    threadCount,
-    spaceCount,
-    collectionCount,
-    fileCount,
-    taskCount,
-  };
+    .map((part, index) => ({
+      loweredText: part.toLowerCase(),
+      weight: Math.max(1, 8 - index * 2),
+    }));
 }
 
 function buildDataset(totalItems: number): SearchPerfDataset {
-  const counts = splitCounts(totalItems);
-  const rng = createRng(totalItems * 17 + 97);
+  const fixture = createDeterministicUnifiedSearchDataset({
+    totalItems,
+    nowMs: NOW_MS,
+    idPrefix: `perf-${totalItems}`,
+  });
+  const notes = fixture.notes;
+  const spaceTags = fixture.spaceTags;
 
-  const threads: ThreadPerfEntry[] = [];
-  for (let i = 0; i < counts.threadCount; i += 1) {
-    const { createdAt, createdMs } = buildTimestamp(rng);
-    const incidentHeavy = i % 4 === 0;
-    const title = incidentHeavy
-      ? `Incident analysis ${i}`
-      : `Research notes ${i}`;
-    const question = incidentHeavy
-      ? `How did workflow incident ${i} happen?`
-      : `How to improve keyboard retrieval ${i}?`;
-    const answer = incidentHeavy
-      ? `Citation-backed incident remediation with research workflow ${i}`
-      : `Keyboard-driven search workflow and citations guidance ${i}`;
-    const spaceNameLower = i % 3 === 0 ? "research" : "planning";
-    const spaceIdLower = i % 3 === 0 ? "space-research" : "space-planning";
-    const tagSetLower = incidentHeavy
-      ? new Set(["incident", "alpha", "workflow"])
-      : new Set(["notes", "beta", "keyboard"]);
-    const noteTrimmed = i % 5 === 0 ? "note with incident context" : "";
-    const hasCitation = i % 2 === 0;
-    const combinedLower = [
-      title,
-      question,
-      answer,
-      spaceNameLower,
-      [...tagSetLower].join(" "),
-      noteTrimmed,
-    ]
-      .join("\n")
-      .toLowerCase();
-
-    threads.push({
+  const threads: ThreadPerfEntry[] = fixture.threads.map((thread) => {
+    const tags = thread.tags ?? [];
+    const tagsText = tags.join(" ");
+    const citationsText = (thread.citations ?? [])
+      .map((citation) => `${citation.title} ${citation.url}`)
+      .join(" ");
+    const noteTrimmed = (notes[thread.id] ?? "").trim();
+    const title = thread.title ?? thread.question;
+    return {
       thread: {
-        id: `thread-${i}`,
-        createdAt,
-        favorite: i % 2 === 0,
-        pinned: i % 3 === 0,
-        archived: i % 11 === 0,
+        id: thread.id,
+        createdAt: thread.createdAt,
+        favorite: thread.favorite === true,
+        pinned: thread.pinned === true,
+        archived: thread.archived === true,
       },
-      createdMs,
-      combinedLower,
-      spaceNameLower,
-      spaceIdLower,
-      tagSetLower,
-      noteTrimmed,
-      hasCitation,
-      relevanceFields: relevanceFields([title, question, answer, spaceNameLower]),
-    });
-  }
-
-  const spaces: SpacePerfEntry[] = [];
-  for (let i = 0; i < counts.spaceCount; i += 1) {
-    const { createdAt, createdMs } = buildTimestamp(rng);
-    const name = i % 2 === 0 ? `Research ${i}` : `Planning ${i}`;
-    const instructions = i % 2 === 0 ? "incident workflow citations" : "roadmap execution";
-    const tags = i % 2 === 0 ? ["alpha", "incident"] : ["beta", "planning"];
-    const combinedLower = [name, instructions, tags.join(" ")].join("\n").toLowerCase();
-    spaces.push({
-      space: { id: `space-${i}`, createdAt },
-      createdMs,
-      combinedLower,
-      spaceNameLower: name.toLowerCase(),
-      spaceIdLower: `space-${i}`,
+      createdMs: Date.parse(thread.createdAt),
+      combinedLower: [
+        title,
+        thread.question,
+        thread.answer,
+        thread.spaceName ?? "",
+        tagsText,
+        citationsText,
+        noteTrimmed,
+      ]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase(),
+      spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
+      spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
       tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
-      relevanceFields: relevanceFields([name, instructions, tags.join(" ")]),
-    });
-  }
+      noteTrimmed,
+      hasCitation: Boolean(thread.citations?.length),
+      relevanceFields: relevanceFields([
+        title,
+        thread.question,
+        thread.answer,
+        thread.spaceName ?? "",
+        tagsText,
+      ]),
+    };
+  });
 
-  const collections: CollectionPerfEntry[] = [];
-  for (let i = 0; i < counts.collectionCount; i += 1) {
-    const { createdAt, createdMs } = buildTimestamp(rng);
-    const name = i % 2 === 0 ? `Incident collection ${i}` : `Research archive ${i}`;
-    const combinedLower = `${name} citation workflow`.toLowerCase();
-    collections.push({
-      collection: { id: `collection-${i}`, createdAt },
-      createdMs,
-      combinedLower,
-      relevanceFields: relevanceFields([name, "citation workflow"]),
-    });
-  }
+  const spaces: SpacePerfEntry[] = fixture.spaces.map((space) => {
+    const tags = spaceTags[space.id] ?? [];
+    return {
+      space: { id: space.id, createdAt: space.createdAt },
+      createdMs: Date.parse(space.createdAt),
+      combinedLower: [space.name, space.instructions, tags.join(" ")]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase(),
+      spaceNameLower: space.name.toLowerCase(),
+      spaceIdLower: space.id.toLowerCase(),
+      tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+      relevanceFields: relevanceFields([
+        space.name,
+        space.instructions,
+        tags.join(" "),
+      ]),
+    };
+  });
 
-  const files: FilePerfEntry[] = [];
-  for (let i = 0; i < counts.fileCount; i += 1) {
-    const { createdAt, createdMs } = buildTimestamp(rng);
-    const name = i % 2 === 0 ? `incident-${i}.md` : `research-${i}.txt`;
-    const body =
-      i % 2 === 0
-        ? "incident postmortem with citations and workflow timeline"
-        : "research notes about keyboard search behavior";
-    const combinedLower = `${name} ${body}`.toLowerCase();
-    files.push({
-      file: { id: `file-${i}`, addedAt: createdAt },
-      createdMs,
-      combinedLower,
-      relevanceFields: relevanceFields([name, body]),
-    });
-  }
+  const collections: CollectionPerfEntry[] = fixture.collections.map((collection) => {
+    return {
+      collection: { id: collection.id, createdAt: collection.createdAt },
+      createdMs: Date.parse(collection.createdAt),
+      combinedLower: `${collection.name} citation workflow`.toLowerCase(),
+      relevanceFields: relevanceFields([collection.name, "citation workflow"]),
+    };
+  });
 
-  const tasks: TaskPerfEntry[] = [];
-  for (let i = 0; i < counts.taskCount; i += 1) {
-    const { createdAt, createdMs } = buildTimestamp(rng);
-    const name = i % 2 === 0 ? `Incident recap ${i}` : `Research digest ${i}`;
-    const prompt =
-      i % 2 === 0
-        ? "Summarize latest incident with citations"
-        : "Collect research updates and keyboard shortcuts";
-    const spaceNameLower = i % 2 === 0 ? "research" : "operations";
-    const spaceIdLower = i % 2 === 0 ? "space-research" : "space-operations";
-    const combinedLower = [name, prompt, spaceNameLower].join("\n").toLowerCase();
-    tasks.push({
-      task: { id: `task-${i}`, createdAt },
-      createdMs,
-      combinedLower,
-      spaceNameLower,
-      spaceIdLower,
-      relevanceFields: relevanceFields([name, prompt, spaceNameLower]),
-    });
-  }
+  const files: FilePerfEntry[] = fixture.files.map((file) => {
+    return {
+      file: { id: file.id, addedAt: file.addedAt },
+      createdMs: Date.parse(file.addedAt),
+      combinedLower: [file.name, file.text].join("\n").toLowerCase(),
+      relevanceFields: relevanceFields([file.name, file.text]),
+    };
+  });
+
+  const tasks: TaskPerfEntry[] = fixture.tasks.map((task) => {
+    return {
+      task: { id: task.id, createdAt: task.createdAt },
+      createdMs: Date.parse(task.createdAt),
+      combinedLower: [task.name, task.prompt, task.spaceName ?? ""]
+        .filter(Boolean)
+        .join("\n")
+        .toLowerCase(),
+      spaceNameLower: (task.spaceName ?? "").toLowerCase(),
+      spaceIdLower: (task.spaceId ?? "").toLowerCase(),
+      relevanceFields: relevanceFields([
+        task.name,
+        task.prompt,
+        task.spaceName ?? "",
+      ]),
+    };
+  });
 
   return {
     totalItems,
