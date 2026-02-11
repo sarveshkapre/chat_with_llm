@@ -24,6 +24,7 @@ import {
   buildUnifiedSearchSavedSearchesMarkdownExport,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -38,6 +39,7 @@ import {
   parseTimestampMs,
   parseUnifiedSearchQuery,
   parseStored,
+  normalizeUnifiedSearchRecentQuery,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
@@ -168,7 +170,9 @@ export default function UnifiedSearch() {
     parseStored<boolean>(VERBATIM_KEY, false)
   );
   const [recentQueries, setRecentQueries] = useState<string[]>(() =>
-    parseStored<string[]>(RECENT_SEARCH_KEY, [])
+    decodeUnifiedSearchRecentQueriesStorage(
+      parseStored<unknown>(RECENT_SEARCH_KEY, [])
+    )
   );
   const [savedSearches, setSavedSearches] = useState<UnifiedSavedSearch[]>(() =>
     decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
@@ -270,7 +274,11 @@ export default function UnifiedSearch() {
       setTasks(
         decodeUnifiedSearchTasksStorage(parseStored<unknown>(TASKS_KEY, []))
       );
-      setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
+      setRecentQueries(
+        decodeUnifiedSearchRecentQueriesStorage(
+          parseStored<unknown>(RECENT_SEARCH_KEY, [])
+        )
+      );
       setSavedSearches(
         decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
       );
@@ -925,10 +933,14 @@ export default function UnifiedSearch() {
   );
 
   function pushRecentQuery(value: string) {
-    const trimmed = value.trim();
-    if (!trimmed) return;
+    const normalized = normalizeUnifiedSearchRecentQuery(value);
+    if (!normalized) return;
     setRecentQueries((prev) => {
-      const next = [trimmed, ...prev.filter((item) => item !== trimmed)];
+      const dedupeKey = normalized.toLowerCase();
+      const next = [
+        normalized,
+        ...prev.filter((item) => item.toLowerCase() !== dedupeKey),
+      ];
       return next.slice(0, 5);
     });
   }

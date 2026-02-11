@@ -76,6 +76,8 @@ export type UnifiedSearchStoredThread = AnswerResponse & {
   archived?: boolean;
 };
 
+const MAX_RECENT_QUERY_LENGTH = 200;
+
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
   "7d": 7 * 24 * 60 * 60 * 1000,
@@ -295,6 +297,36 @@ export function decodeUnifiedSearchTasksStorage(value: unknown): Task[] {
     });
   }
   return tasks;
+}
+
+export function normalizeUnifiedSearchRecentQuery(
+  value: unknown
+): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const compactWhitespace = trimmed.replace(/\s+/g, " ");
+  if (!compactWhitespace) return null;
+  return compactWhitespace.slice(0, MAX_RECENT_QUERY_LENGTH);
+}
+
+export function decodeUnifiedSearchRecentQueriesStorage(
+  value: unknown,
+  maxItems = 5
+): string[] {
+  if (!Array.isArray(value)) return [];
+  const next: string[] = [];
+  const seen = new Set<string>();
+  for (const item of value) {
+    const normalized = normalizeUnifiedSearchRecentQuery(item);
+    if (!normalized) continue;
+    const dedupeKey = normalized.toLowerCase();
+    if (seen.has(dedupeKey)) continue;
+    seen.add(dedupeKey);
+    next.push(normalized);
+    if (next.length >= maxItems) break;
+  }
+  return next;
 }
 
 export function getOperatorAutocomplete(raw: string): OperatorAutocompleteMatch | null {

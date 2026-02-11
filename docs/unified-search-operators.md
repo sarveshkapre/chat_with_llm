@@ -32,3 +32,21 @@ When an operator is outside a result type's scope, that result type is excluded 
 - `type:threads space:"Research" tag:alpha -is:archived -has:note`
 - `type:spaces tag:customer roadmap`
 - `type:all verbatim:true "root cause analysis"`
+
+## Export semantics
+
+- UI result limits (`Show: 10/20/50`) affect only on-screen sections.
+- Markdown and CSV exports include all filtered matches, not just visible top-k cards.
+- Export timestamps are emitted as `ISO (locale)` with invalid-date fallback text (`Unknown`).
+- Markdown exports include environment metadata (`locale`, `timeZone`, `utcOffset`) for reproducibility.
+- Saved-search exports include created/updated metadata for auditability.
+
+## Keyboard precedence matrix
+
+| Key | Suggestion menu open | Result row highlighted | Default behavior |
+| --- | --- | --- | --- |
+| `ArrowDown` / `ArrowUp` | Moves suggestion selection | Moves result highlight (when no suggestions) | No-op |
+| `Tab` | Applies active suggestion | Browser default tab focus | Browser default tab focus |
+| `Enter` | Applies active suggestion | Opens highlighted result | Commits current query to recents |
+| `Esc` | Dismisses suggestions | Clears active result highlight | Clears query (if non-empty) |
+| `/` | N/A | N/A | Focuses search input (outside editable fields) |

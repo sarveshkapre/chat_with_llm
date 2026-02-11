@@ -14,6 +14,7 @@ import {
   computeRelevanceScore,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -25,6 +26,7 @@ import {
   getOperatorAutocomplete,
   matchesLoweredText,
   matchesQuery,
+  normalizeUnifiedSearchRecentQuery,
   normalizeQuery,
   parseUnifiedSearchQuery,
   parseTimestampMs,
@@ -244,6 +246,43 @@ describe("Unified Search preload storage decoders", () => {
   });
 });
 
+describe("Unified Search recent-query storage guards", () => {
+  it("normalizes whitespace and rejects non-string/blank values", () => {
+    expect(normalizeUnifiedSearchRecentQuery("  incident   review  ")).toBe(
+      "incident review"
+    );
+    expect(normalizeUnifiedSearchRecentQuery("   ")).toBeNull();
+    expect(normalizeUnifiedSearchRecentQuery(42)).toBeNull();
+  });
+
+  it("dedupes case-insensitively, caps results, and drops malformed entries", () => {
+    const decoded = decodeUnifiedSearchRecentQueriesStorage([
+      " incident review ",
+      null,
+      "Incident Review",
+      "",
+      "tag:alpha",
+      "space:research",
+      "type:threads",
+      "has:citation",
+      "verbatim:true",
+      "extra-query-should-drop",
+    ]);
+
+    expect(decoded).toEqual([
+      "incident review",
+      "tag:alpha",
+      "space:research",
+      "type:threads",
+      "has:citation",
+    ]);
+  });
+
+  it("returns an empty list when storage payload is not an array", () => {
+    expect(decodeUnifiedSearchRecentQueriesStorage({ bad: true })).toEqual([]);
+  });
+});
+
 describe("timestamp helpers", () => {
   it("parses valid timestamps and returns fallback for invalid values", () => {
     expect(parseTimestampMs("2026-02-08T10:00:00.000Z")).toBe(
@@ -408,6 +447,20 @@ describe("resolveThreadSpaceMeta", () => {
 
   it("returns null metadata when clearing assignment", () => {
     expect(resolveThreadSpaceMeta("", spaces)).toEqual({
+      spaceId: null,
+      spaceName: null,
+    });
+  });
+
+  it("trims whitespace and resolves ids after normalization", () => {
+    expect(resolveThreadSpaceMeta(" space-2 ", spaces)).toEqual({
+      spaceId: "space-2",
+      spaceName: "Planning",
+    });
+  });
+
+  it("returns null metadata for stale or unknown ids", () => {
+    expect(resolveThreadSpaceMeta("missing-space", spaces)).toEqual({
       spaceId: null,
       spaceName: null,
     });

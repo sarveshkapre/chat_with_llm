@@ -11,7 +11,8 @@
     "test:watch": "vitest",
     "format": "eslint --fix .",
     "check:workflows": "node scripts/check-workflows.mjs",
-    "smoke:mock": "node scripts/smoke.mjs --provider mock"
+    "smoke:mock": "node scripts/smoke.mjs --provider mock",
+    "perf:search": "node scripts/search-perf.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

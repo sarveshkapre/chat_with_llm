@@ -80,6 +80,7 @@ Copy `.env.example` to `.env` and set `OPENAI_API_KEY` to enable live search.
 - Product direction and prioritized feature plan live in `PRODUCT_GOALS.md`.
 - Local-first data export/reset and corruption recovery steps live in `docs/data-recovery.md`.
 - Unified Search operator reference and scope matrix live in `docs/unified-search-operators.md`.
+- Unified Search benchmark workflow and baseline table live in `docs/search-performance.md`.
 
 ## Deploy
 This is a standard Next.js app. Deploy on your platform of choice and supply the same env vars.
