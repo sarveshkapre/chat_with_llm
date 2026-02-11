@@ -3,8 +3,10 @@ import {
   applyOperatorAutocomplete,
   applyBulkThreadUpdate,
   applyTimelineWindow,
+  buildUnifiedSearchDiagnosticsRows,
   buildUnifiedSearchCsvExport,
   buildUnifiedSearchMarkdownExport,
+  buildUnifiedSearchOperatorSummary,
   buildUnifiedSearchSavedSearchesMarkdownExport,
   escapeCsvCell,
   formatTimestampForDisplay,
@@ -17,6 +19,7 @@ import {
   decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchCollectionsStorage,
   decodeUnifiedSearchFilesStorage,
+  decodeUnifiedSearchSpaceTagsStorage,
   decodeUnifiedSearchSpacesStorage,
   decodeUnifiedSearchTasksStorage,
   decodeUnifiedSearchThreadsStorage,
@@ -318,6 +321,21 @@ describe("Unified Search preload storage decoders", () => {
       },
     ]);
   });
+
+  it("sanitizes malformed space-tag payloads with trim + dedupe behavior", () => {
+    const decoded = decodeUnifiedSearchSpaceTagsStorage({
+      " space-1 ": [" alpha ", "Alpha", "", 42, "beta"],
+      "": ["ignored"],
+      "space-2": "bad",
+      "space-3": [null, "  "],
+      "space-4": ["release", "ops"],
+    });
+
+    expect(decoded).toEqual({
+      "space-1": ["alpha", "beta"],
+      "space-4": ["release", "ops"],
+    });
+  });
 });
 
 describe("Unified Search recent-query storage guards", () => {
@@ -354,6 +372,74 @@ describe("Unified Search recent-query storage guards", () => {
 
   it("returns an empty list when storage payload is not an array", () => {
     expect(decodeUnifiedSearchRecentQueriesStorage({ bad: true })).toEqual([]);
+  });
+});
+
+describe("Unified Search operator summary chips", () => {
+  it("dedupes operators and keeps canonical summary order", () => {
+    expect(
+      buildUnifiedSearchOperatorSummary({
+        type: "threads",
+        space: "Research",
+        spaceId: "space-1",
+        tags: ["beta", "alpha", "Alpha"],
+        notTags: ["archive", "Archive"],
+        states: ["archived", "favorite", "favorite"],
+        notStates: ["pinned", "pinned"],
+        hasNote: true,
+        notHasCitation: true,
+        verbatim: false,
+      })
+    ).toEqual([
+      "type:threads",
+      'space:"Research"',
+      "spaceId:space-1",
+      "tag:alpha",
+      "tag:beta",
+      "-tag:archive",
+      "is:favorite",
+      "is:archived",
+      "-is:pinned",
+      "has:note",
+      "-has:citation",
+      "verbatim:false",
+    ]);
+  });
+});
+
+describe("Unified Search diagnostics rows", () => {
+  it("computes filtered-out buckets for scope/query/limit", () => {
+    const rows = buildUnifiedSearchDiagnosticsRows(
+      {
+        threads: { loaded: 10, matched: 6, visible: 4 },
+        spaces: { loaded: 7, matched: 3, visible: 3 },
+        collections: { loaded: 4, matched: 2, visible: 2 },
+        files: { loaded: 5, matched: 0, visible: 0 },
+        tasks: { loaded: 9, matched: 5, visible: 2 },
+      },
+      "threads"
+    );
+
+    const threads = rows.find((row) => row.type === "threads");
+    const spaces = rows.find((row) => row.type === "spaces");
+    expect(threads).toEqual({
+      type: "threads",
+      loaded: 10,
+      matched: 6,
+      visible: 4,
+      filteredByTypeScope: 0,
+      filteredByQueryOperatorTime: 4,
+      filteredByResultLimit: 2,
+    });
+    expect(spaces).toEqual({
+      type: "spaces",
+      loaded: 7,
+      matched: 3,
+      visible: 0,
+      filteredByTypeScope: 3,
+      filteredByQueryOperatorTime: 4,
+      filteredByResultLimit: 0,
+    });
   });
 });
 

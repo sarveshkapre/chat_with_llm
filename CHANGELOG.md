@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Unified Search keyboard state handling is extracted to a dedicated helper/hook module with precedence regression tests.
+- Unified Search now supports diagnostics mode (`/search?debug=1`) with per-type loaded/matched/visible counts and filtered-out reason buckets.
+- Unified Search now decodes malformed `signal-space-tags-v1` payloads with trim/dedupe guards before search preload refreshes.
+- Unified Search operator-summary chips now dedupe repeated `tag:`/`is:` operators and render in canonical order.
 - Added Unified Search benchmark harness (`scripts/search-perf.mjs` + `tests/search-perf.bench.ts`) with reproducible 1k/5k/10k local dataset timings.
 - Unified Search now guards recent query preload (`signal-unified-recent-v1`) with schema validation, normalization, dedupe, and deterministic capping.
 - Unified Search now decodes malformed collections/files preload payloads (`signal-collections-v1`, `signal-files-v1`) with safe defaults and malformed-entry pruning.

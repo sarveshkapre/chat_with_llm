@@ -50,3 +50,9 @@ When an operator is outside a result type's scope, that result type is excluded 
 | `Enter` | Applies active suggestion | Opens highlighted result | Commits current query to recents |
 | `Esc` | Dismisses suggestions | Clears active result highlight | Clears query (if non-empty) |
 | `/` | N/A | N/A | Focuses search input (outside editable fields) |
+
+## Diagnostics mode
+
+- Append `?debug=1` to `/search` to show diagnostics cards.
+- Diagnostics report per-type counts for `loaded`, `matched`, and `visible` records.
+- Reason buckets show records filtered by `type scope`, `query/operator/time`, and `result limit`.

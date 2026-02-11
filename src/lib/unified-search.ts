@@ -21,6 +21,8 @@ export type UnifiedSearchType =
   | "files"
   | "tasks";
 
+export type UnifiedSearchResultType = Exclude<UnifiedSearchType, "all">;
+
 export type ThreadStateOperator = "favorite" | "pinned" | "archived";
 
 export type UnifiedSearchOperators = {
@@ -78,7 +80,25 @@ export type UnifiedSearchStoredThread = AnswerResponse & {
   archived?: boolean;
 };
 
+export type UnifiedSearchDiagnosticsCounts = {
+  loaded: number;
+  matched: number;
+  visible: number;
+};
+
+export type UnifiedSearchDiagnosticsRow = UnifiedSearchDiagnosticsCounts & {
+  type: UnifiedSearchResultType;
+  filteredByTypeScope: number;
+  filteredByQueryOperatorTime: number;
+  filteredByResultLimit: number;
+};
+
 const MAX_RECENT_QUERY_LENGTH = 200;
+const THREAD_STATE_ORDER: ThreadStateOperator[] = [
+  "favorite",
+  "pinned",
+  "archived",
+];
 
 const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "24h": 24 * 60 * 60 * 1000,
@@ -336,6 +356,135 @@ export function decodeUnifiedSearchFilesStorage(value: unknown): LibraryFile[] {
     });
   }
   return files;
+}
+
+export function decodeUnifiedSearchSpaceTagsStorage(
+  value: unknown
+): Record<string, string[]> {
+  if (!isRecord(value)) return {};
+  const result: Record<string, string[]> = {};
+
+  for (const [spaceIdRaw, tagsRaw] of Object.entries(value)) {
+    const spaceId = spaceIdRaw.trim();
+    if (!spaceId) continue;
+    if (!Array.isArray(tagsRaw)) continue;
+
+    const tags: string[] = [];
+    const seen = new Set<string>();
+    for (const tagRaw of tagsRaw) {
+      if (typeof tagRaw !== "string") continue;
+      const normalized = tagRaw.trim();
+      if (!normalized) continue;
+      const dedupeKey = normalized.toLowerCase();
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      tags.push(normalized);
+    }
+
+    if (tags.length) {
+      result[spaceId] = tags;
+    }
+  }
+
+  return result;
+}
+
+function dedupeAndSortOperators(values?: string[]): string[] {
+  if (!values?.length) return [];
+  const deduped = new Map<string, string>();
+  values.forEach((value) => {
+    const normalized = value.trim();
+    if (!normalized) return;
+    const key = normalized.toLowerCase();
+    if (!deduped.has(key)) {
+      deduped.set(key, normalized);
+    }
+  });
+  return Array.from(deduped.values()).sort((left, right) =>
+    left.localeCompare(right, undefined, { sensitivity: "base" })
+  );
+}
+
+function dedupeStateOperators(
+  values?: ThreadStateOperator[]
+): ThreadStateOperator[] {
+  if (!values?.length) return [];
+  const seen = new Set<ThreadStateOperator>();
+  const deduped: ThreadStateOperator[] = [];
+  values.forEach((value) => {
+    if (seen.has(value)) return;
+    seen.add(value);
+    deduped.push(value);
+  });
+  return deduped.sort(
+    (left, right) =>
+      THREAD_STATE_ORDER.indexOf(left) - THREAD_STATE_ORDER.indexOf(right)
+  );
+}
+
+export function buildUnifiedSearchOperatorSummary(
+  operators: UnifiedSearchOperators
+): string[] {
+  const parts: string[] = [];
+  if (operators.type) parts.push(`type:${operators.type}`);
+  if (operators.space) parts.push(`space:"${operators.space}"`);
+  if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
+  parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
+  parts.push(
+    ...dedupeAndSortOperators(operators.notTags).map((tag) => `-tag:${tag}`)
+  );
+  parts.push(
+    ...dedupeStateOperators(operators.states).map((state) => `is:${state}`)
+  );
+  parts.push(
+    ...dedupeStateOperators(operators.notStates).map((state) => `-is:${state}`)
+  );
+  if (operators.hasNote) parts.push("has:note");
+  if (operators.notHasNote) parts.push("-has:note");
+  if (operators.hasCitation) parts.push("has:citation");
+  if (operators.notHasCitation) parts.push("-has:citation");
+  if (operators.verbatim === true) parts.push("verbatim:true");
+  if (operators.verbatim === false) parts.push("verbatim:false");
+  return parts;
+}
+
+function clampCount(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
+
+export function buildUnifiedSearchDiagnosticsRows(
+  counts: Record<UnifiedSearchResultType, UnifiedSearchDiagnosticsCounts>,
+  filter: UnifiedSearchType
+): UnifiedSearchDiagnosticsRow[] {
+  const orderedTypes: UnifiedSearchResultType[] = [
+    "threads",
+    "spaces",
+    "collections",
+    "files",
+    "tasks",
+  ];
+
+  return orderedTypes.map((type) => {
+    const loaded = clampCount(counts[type]?.loaded ?? 0);
+    const matched = Math.min(loaded, clampCount(counts[type]?.matched ?? 0));
+    const visible = Math.min(matched, clampCount(counts[type]?.visible ?? 0));
+    const filteredByTypeScope = filter === "all" || filter === type ? 0 : matched;
+    const scopedMatched = Math.max(0, matched - filteredByTypeScope);
+
+    return {
+      type,
+      loaded,
+      matched,
+      visible: filter === "all" || filter === type ? visible : 0,
+      filteredByTypeScope,
+      filteredByQueryOperatorTime: Math.max(0, loaded - matched),
+      filteredByResultLimit: Math.max(
+        0,
+        scopedMatched - (filter === "all" || filter === type ? visible : 0)
+      ),
+    };
+  });
 }
 
 export function normalizeUnifiedSearchRecentQuery(

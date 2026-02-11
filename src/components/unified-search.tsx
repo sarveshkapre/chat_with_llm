@@ -19,11 +19,14 @@ import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
   applyOperatorAutocomplete,
+  buildUnifiedSearchDiagnosticsRows,
   buildUnifiedSearchCsvExport,
   buildUnifiedSearchMarkdownExport,
+  buildUnifiedSearchOperatorSummary,
   buildUnifiedSearchSavedSearchesMarkdownExport,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
+  decodeUnifiedSearchSpaceTagsStorage,
   decodeUnifiedSearchRecentQueriesStorage,
   decodeUnifiedSearchCollectionsStorage,
   decodeUnifiedSearchFilesStorage,
@@ -46,7 +49,6 @@ import {
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
-  stepCircularIndex,
   topKSearchResults,
   toggleVisibleSelection,
   type TimelineWindow,
@@ -65,6 +67,7 @@ import {
   togglePinSavedSearch,
   type UnifiedSavedSearch,
 } from "@/lib/saved-searches";
+import { useUnifiedSearchKeyboard } from "@/lib/unified-search-keyboard";
 
 type Thread = AnswerResponse & {
   title?: string | null;
@@ -160,6 +163,7 @@ function toNavigableDomId(key: string): string {
 export default function UnifiedSearch() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [debugMode, setDebugMode] = useState(false);
   const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<
     "all" | "threads" | "spaces" | "collections" | "files" | "tasks"
@@ -191,7 +195,7 @@ export default function UnifiedSearch() {
     decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
   );
   const [spaceTags, setSpaceTags] = useState<Record<string, string[]>>(() =>
-    parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {})
+    decodeUnifiedSearchSpaceTagsStorage(parseStored<unknown>(SPACE_TAGS_KEY, {}))
   );
   const [collections, setCollections] = useState<Collection[]>(() =>
     decodeUnifiedSearchCollectionsStorage(
@@ -272,7 +276,11 @@ export default function UnifiedSearch() {
       setSpaces(
         decodeUnifiedSearchSpacesStorage(parseStored<unknown>(SPACES_KEY, []))
       );
-      setSpaceTags(parseStored<Record<string, string[]>>(SPACE_TAGS_KEY, {}));
+      setSpaceTags(
+        decodeUnifiedSearchSpaceTagsStorage(
+          parseStored<unknown>(SPACE_TAGS_KEY, {})
+        )
+      );
       setCollections(
         decodeUnifiedSearchCollectionsStorage(
           parseStored<unknown>(COLLECTIONS_KEY, [])
@@ -333,6 +341,16 @@ export default function UnifiedSearch() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const syncDebugMode = () => {
+      setDebugMode(new URLSearchParams(window.location.search).get("debug") === "1");
+    };
+    syncDebugMode();
+    window.addEventListener("popstate", syncDebugMode);
+    return () => window.removeEventListener("popstate", syncDebugMode);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "/") return;
       if (event.metaKey || event.ctrlKey || event.altKey) return;
@@ -356,29 +374,7 @@ export default function UnifiedSearch() {
   }, []);
 
   const operatorSummary = useMemo(() => {
-    const parts: string[] = [];
-    if (operators.type) parts.push(`type:${operators.type}`);
-    if (operators.space) parts.push(`space:"${operators.space}"`);
-    if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
-    if (operators.tags?.length) {
-      parts.push(...operators.tags.map((tag) => `tag:${tag}`));
-    }
-    if (operators.notTags?.length) {
-      parts.push(...operators.notTags.map((tag) => `-tag:${tag}`));
-    }
-    if (operators.states?.length) {
-      parts.push(...operators.states.map((state) => `is:${state}`));
-    }
-    if (operators.notStates?.length) {
-      parts.push(...operators.notStates.map((state) => `-is:${state}`));
-    }
-    if (operators.hasNote) parts.push("has:note");
-    if (operators.notHasNote) parts.push("-has:note");
-    if (operators.hasCitation) parts.push("has:citation");
-    if (operators.notHasCitation) parts.push("-has:citation");
-    if (operators.verbatim === true) parts.push("verbatim:true");
-    if (operators.verbatim === false) parts.push("verbatim:false");
-    return parts;
+    return buildUnifiedSearchOperatorSummary(operators);
   }, [operators]);
 
   useEffect(() => {
@@ -801,6 +797,83 @@ export default function UnifiedSearch() {
     () => visibleTasks.slice(0, resultLimit),
     [visibleTasks, resultLimit]
   );
+  const diagnosticsRows = useMemo(
+    () =>
+      buildUnifiedSearchDiagnosticsRows(
+        {
+          threads: {
+            loaded: preparedThreads.length,
+            matched: filteredThreads.length,
+            visible: shownThreads.length,
+          },
+          spaces: {
+            loaded: preparedSpaces.length,
+            matched: filteredSpaces.length,
+            visible: shownSpaces.length,
+          },
+          collections: {
+            loaded: preparedCollections.length,
+            matched: filteredCollections.length,
+            visible: shownCollections.length,
+          },
+          files: {
+            loaded: preparedFiles.length,
+            matched: filteredFiles.length,
+            visible: shownFiles.length,
+          },
+          tasks: {
+            loaded: preparedTasks.length,
+            matched: filteredTasks.length,
+            visible: shownTasks.length,
+          },
+        },
+        effectiveFilter
+      ),
+    [
+      effectiveFilter,
+      filteredCollections.length,
+      filteredFiles.length,
+      filteredSpaces.length,
+      filteredTasks.length,
+      filteredThreads.length,
+      preparedCollections.length,
+      preparedFiles.length,
+      preparedSpaces.length,
+      preparedTasks.length,
+      preparedThreads.length,
+      shownCollections.length,
+      shownFiles.length,
+      shownSpaces.length,
+      shownTasks.length,
+      shownThreads.length,
+    ]
+  );
+  const diagnosticsTotals = useMemo(
+    () =>
+      diagnosticsRows.reduce(
+        (totals, row) => ({
+          loaded: totals.loaded + row.loaded,
+          matched: totals.matched + row.matched,
+          visible: totals.visible + row.visible,
+          filteredByTypeScope:
+            totals.filteredByTypeScope + row.filteredByTypeScope,
+          filteredByQueryOperatorTime:
+            totals.filteredByQueryOperatorTime +
+            row.filteredByQueryOperatorTime,
+          filteredByResultLimit:
+            totals.filteredByResultLimit + row.filteredByResultLimit,
+        }),
+        {
+          loaded: 0,
+          matched: 0,
+          visible: 0,
+          filteredByTypeScope: 0,
+          filteredByQueryOperatorTime: 0,
+          filteredByResultLimit: 0,
+        }
+      ),
+    [diagnosticsRows]
+  );
   const navigableResults = useMemo<NavigableResult[]>(() => {
     const items: NavigableResult[] = [];
     if (effectiveFilter === "all" || effectiveFilter === "threads") {
@@ -965,6 +1038,21 @@ export default function UnifiedSearch() {
     setHideOperatorAutocomplete(false);
     return true;
   }
+
+  const onInputKeyDown = useUnifiedSearchKeyboard({
+    operatorSuggestions,
+    setActiveOperatorSuggestionIndex,
+    setHideOperatorAutocomplete,
+    applyCurrentOperatorSuggestion,
+    navigableResults,
+    activeResultIndex,
+    activeResultKey,
+    setActiveResultKey,
+    query,
+    setQuery,
+    pushRecentQuery,
+    openResult: (href) => router.push(href),
+  });
 
   function exportResults() {
     const exportEnvironment = getExportEnvironmentMeta();
@@ -1231,72 +1319,7 @@ export default function UnifiedSearch() {
               pushRecentQuery(value);
             }}
             onBlur={() => pushRecentQuery(query)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                if (operatorSuggestions.length) {
-                  event.preventDefault();
-                  const direction = event.key === "ArrowDown" ? 1 : -1;
-                  setActiveOperatorSuggestionIndex((previous) =>
-                    stepCircularIndex(
-                      operatorSuggestions.length,
-                      previous,
-                      direction
-                    )
-                  );
-                  return;
-                }
-                if (navigableResults.length) {
-                  event.preventDefault();
-                  const direction = event.key === "ArrowDown" ? 1 : -1;
-                  const nextIndex = stepCircularIndex(
-                    navigableResults.length,
-                    activeResultIndex,
-                    direction
-                  );
-                  const next = navigableResults[nextIndex];
-                  if (next) setActiveResultKey(next.key);
-                  return;
-                }
-              }
-              if (event.key === "Tab" && operatorSuggestions.length) {
-                event.preventDefault();
-                applyCurrentOperatorSuggestion();
-                return;
-              }
-              if (event.key === "Enter") {
-                if (operatorSuggestions.length) {
-                  event.preventDefault();
-                  applyCurrentOperatorSuggestion();
-                  return;
-                }
-                if (activeResultIndex >= 0) {
-                  const target = navigableResults[activeResultIndex];
-                  if (target) {
-                    event.preventDefault();
-                    pushRecentQuery(query);
-                    router.push(target.href);
-                    return;
-                  }
-                }
-                pushRecentQuery(query);
-                return;
-              }
-              if (event.key === "Escape") {
-                if (operatorSuggestions.length) {
-                  event.preventDefault();
-                  setHideOperatorAutocomplete(true);
-                  return;
-                }
-                if (activeResultKey) {
-                  event.preventDefault();
-                  setActiveResultKey(null);
-                  return;
-                }
-                if (!query) return;
-                event.preventDefault();
-                setQuery("");
-              }
-            }}
+            onKeyDown={onInputKeyDown}
             placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads is:pinned has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
@@ -1517,6 +1540,41 @@ export default function UnifiedSearch() {
               </select>
             </label>
           </div>
+          {debugMode ? (
+            <div className="space-y-3 rounded-2xl border border-amber-400/30 bg-amber-500/5 px-4 py-3 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-medium text-amber-100">Diagnostics (?debug=1)</p>
+                <p className="text-[11px] text-amber-200/90">
+                  loaded {diagnosticsTotals.loaded} · matched {diagnosticsTotals.matched} · visible{" "}
+                  {diagnosticsTotals.visible}
+                </p>
+              </div>
+              <p className="text-[11px] text-amber-200/90">
+                Filtered out: type scope {diagnosticsTotals.filteredByTypeScope} ·
+                query/operator/time {diagnosticsTotals.filteredByQueryOperatorTime} · result
+                limit {diagnosticsTotals.filteredByResultLimit}
+              </p>
+              <div className="grid gap-2 md:grid-cols-2">
+                {diagnosticsRows.map((row) => (
+                  <div
+                    key={`diag-${row.type}`}
+                    className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
+                  >
+                    <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-amber-100">
+                      {row.type}
+                    </p>
+                    <p className="mt-1 text-[11px] text-signal-muted">
+                      loaded {row.loaded} · matched {row.matched} · visible {row.visible}
+                    </p>
+                    <p className="mt-1 text-[11px] text-signal-muted">
+                      out: type {row.filteredByTypeScope} · query/operator/time{" "}
+                      {row.filteredByQueryOperatorTime} · limit {row.filteredByResultLimit}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {toast ? (
             <div
               role="status"
