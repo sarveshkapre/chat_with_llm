@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyOperatorAutocomplete,
   applyBulkThreadUpdate,
   applyTimelineWindow,
   computeRelevanceScore,
@@ -10,6 +11,7 @@ import {
   filterSpaceEntries,
   filterTaskEntries,
   filterThreadEntries,
+  getOperatorAutocomplete,
   matchesLoweredText,
   matchesQuery,
   normalizeQuery,
@@ -18,6 +20,7 @@ import {
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
+  stepCircularIndex,
   topKSearchResults,
   toggleVisibleSelection,
 } from "@/lib/unified-search";
@@ -340,6 +343,60 @@ describe("parseUnifiedSearchQuery", () => {
     expect(negated.text).toBe("roadmap");
     expect(negated.operators.verbatim).toBe(false);
   });
+
+  it("keeps multi-operator combinations for downstream type-scoped filtering", () => {
+    const parsed = parseUnifiedSearchQuery("type:tasks is:pinned -has:note weekly");
+    expect(parsed.text).toBe("weekly");
+    expect(parsed.operators.type).toBe("tasks");
+    expect(parsed.operators.states).toEqual(["pinned"]);
+    expect(parsed.operators.notHasNote).toBe(true);
+  });
+});
+
+describe("operator autocomplete helpers", () => {
+  it("suggests matching operators for partial tokens", () => {
+    const match = getOperatorAutocomplete("ty");
+    expect(match?.token).toBe("ty");
+    expect(match?.suggestions).toContain("type:");
+  });
+
+  it("supports negated operator prefixes", () => {
+    const match = getOperatorAutocomplete("incident -i");
+    expect(match?.suggestions).toEqual(["-is:"]);
+  });
+
+  it("returns null when token is complete or value mode has started", () => {
+    expect(getOperatorAutocomplete("type:threads")).toBeNull();
+    expect(getOperatorAutocomplete("type:")).toBeNull();
+    expect(getOperatorAutocomplete("tag:alpha ")).toBeNull();
+  });
+
+  it("replaces the active token when applying a suggestion", () => {
+    expect(applyOperatorAutocomplete("incident ty", "type:")).toBe(
+      "incident type:"
+    );
+  });
+
+  it("appends suggestions when no active autocomplete token exists", () => {
+    expect(applyOperatorAutocomplete("incident", "tag:")).toBe("incident tag:");
+    expect(applyOperatorAutocomplete("", "space:")).toBe("space:");
+  });
+});
+
+describe("stepCircularIndex", () => {
+  it("returns -1 for empty lists", () => {
+    expect(stepCircularIndex(0, -1, 1)).toBe(-1);
+  });
+
+  it("starts at the first/last index when current is invalid", () => {
+    expect(stepCircularIndex(3, -1, 1)).toBe(0);
+    expect(stepCircularIndex(3, -1, -1)).toBe(2);
+  });
+
+  it("wraps around while navigating forward/backward", () => {
+    expect(stepCircularIndex(3, 2, 1)).toBe(0);
+    expect(stepCircularIndex(3, 0, -1)).toBe(2);
+  });
 });
 
 describe("filterThreadEntries", () => {
@@ -492,6 +549,51 @@ describe("filterThreadEntries", () => {
         nowMs: now,
       })
     ).toHaveLength(1);
+  });
+
+  it("supports combined space/tag/state/has operators", () => {
+    const entries = [
+      makeEntry({
+        thread: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          pinned: true,
+          favorite: true,
+          archived: false,
+        },
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+        tagSetLower: new Set(["alpha", "beta"]),
+        noteTrimmed: "weekly summary",
+      }),
+      makeEntry({
+        thread: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          pinned: true,
+          favorite: false,
+          archived: false,
+        },
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+        tagSetLower: new Set(["alpha"]),
+        noteTrimmed: "",
+      }),
+    ];
+
+    const filtered = filterThreadEntries(entries, {
+      query: normalizeQuery(""),
+      operators: {
+        space: "research",
+        tags: ["alpha"],
+        states: ["pinned"],
+        notStates: ["archived"],
+        hasNote: true,
+      },
+      timelineWindow: "all",
+      nowMs: now,
+    });
+
+    expect(filtered).toHaveLength(1);
+    expect(filtered[0]?.noteTrimmed).toBe("weekly summary");
   });
 });
 
@@ -745,6 +847,26 @@ describe("filterTaskEntries", () => {
         nowMs: now,
       })
     ).toHaveLength(1);
+  });
+
+  it("rejects task matches when incompatible operators are combined", () => {
+    const entries = [
+      {
+        task: { createdAt: "2026-02-08T01:00:00.000Z" },
+        combinedLower: "weekly review",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+    ];
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { spaceId: "space-1", notHasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
   });
 });
 

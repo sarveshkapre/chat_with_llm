@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { AnswerResponse } from "@/lib/types/answer";
 import type { Space } from "@/lib/types/space";
 import type { Collection } from "@/lib/types/collection";
@@ -17,6 +18,7 @@ import type { Task } from "@/lib/types/task";
 import { buildHighlightParts } from "@/lib/highlight";
 import {
   applyBulkThreadUpdate,
+  applyOperatorAutocomplete,
   computeRelevanceScoreFromLowered,
   computeThreadMatchBadges,
   filterCollectionEntries,
@@ -24,12 +26,14 @@ import {
   filterSpaceEntries,
   filterTaskEntries,
   filterThreadEntries,
+  getOperatorAutocomplete,
   parseUnifiedSearchQuery,
   parseStored,
   pruneSelectedIds,
   resolveActiveSelectedIds,
   resolveThreadSpaceMeta,
   sortSearchResults,
+  stepCircularIndex,
   topKSearchResults,
   toggleVisibleSelection,
   type TimelineWindow,
@@ -130,7 +134,18 @@ const THREAD_BADGE_LABELS: Record<string, string> = {
   answer: "Answer",
 };
 
+type NavigableResult = {
+  key: string;
+  href: string;
+  domId: string;
+};
+
+function toNavigableDomId(key: string): string {
+  return `search-nav-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+}
+
 export default function UnifiedSearch() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<
@@ -174,6 +189,10 @@ export default function UnifiedSearch() {
   );
   const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
   const [bulkSpaceId, setBulkSpaceId] = useState("");
+  const [activeResultKey, setActiveResultKey] = useState<string | null>(null);
+  const [activeOperatorSuggestionIndex, setActiveOperatorSuggestionIndex] =
+    useState(0);
+  const [hideOperatorAutocomplete, setHideOperatorAutocomplete] = useState(false);
   const [toast, setToast] = useState<
     | {
         message: string;
@@ -204,6 +223,24 @@ export default function UnifiedSearch() {
         : queryInfo,
     [effectiveVerbatim, queryInfo]
   );
+  const operatorAutocomplete = useMemo(
+    () => getOperatorAutocomplete(query),
+    [query]
+  );
+  const operatorSuggestions = useMemo(() => {
+    if (hideOperatorAutocomplete) return [];
+    return operatorAutocomplete?.suggestions ?? [];
+  }, [hideOperatorAutocomplete, operatorAutocomplete]);
+  const resolvedActiveOperatorSuggestionIndex = useMemo(() => {
+    if (!operatorSuggestions.length) return -1;
+    if (
+      activeOperatorSuggestionIndex < 0 ||
+      activeOperatorSuggestionIndex >= operatorSuggestions.length
+    ) {
+      return 0;
+    }
+    return activeOperatorSuggestionIndex;
+  }, [activeOperatorSuggestionIndex, operatorSuggestions]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -732,6 +769,47 @@ export default function UnifiedSearch() {
     () => visibleTasks.slice(0, resultLimit),
     [visibleTasks, resultLimit]
   );
+  const navigableResults = useMemo<NavigableResult[]>(() => {
+    const items: NavigableResult[] = [];
+    if (effectiveFilter === "all" || effectiveFilter === "threads") {
+      shownThreads.forEach((entry) => {
+        const key = `thread:${entry.thread.id}`;
+        items.push({
+          key,
+          href: `/?thread=${entry.thread.id}`,
+          domId: toNavigableDomId(key),
+        });
+      });
+    }
+    if (effectiveFilter === "all" || effectiveFilter === "spaces") {
+      shownSpaces.forEach((entry) => {
+        const key = `space:${entry.space.id}`;
+        items.push({
+          key,
+          href: `/?space=${entry.space.id}`,
+          domId: toNavigableDomId(key),
+        });
+      });
+    }
+    if (effectiveFilter === "all" || effectiveFilter === "collections") {
+      shownCollections.forEach((entry) => {
+        const key = `collection:${entry.collection.id}`;
+        items.push({
+          key,
+          href: `/?collection=${entry.collection.id}`,
+          domId: toNavigableDomId(key),
+        });
+      });
+    }
+    return items;
+  }, [effectiveFilter, shownThreads, shownSpaces, shownCollections]);
+  const activeResultIndex = useMemo(
+    () =>
+      activeResultKey
+        ? navigableResults.findIndex((item) => item.key === activeResultKey)
+        : -1,
+    [activeResultKey, navigableResults]
+  );
 
   const setAllShownThreadSelection = useCallback(
     (enabled: boolean) => {
@@ -745,6 +823,15 @@ export default function UnifiedSearch() {
   const allShownSelected =
     shownThreads.length > 0 &&
     shownThreads.every((entry) => activeSelectedThreadIds.includes(entry.thread.id));
+
+  useEffect(() => {
+    if (activeResultIndex < 0) return;
+    const current = navigableResults[activeResultIndex];
+    if (!current) return;
+    document
+      .getElementById(current.domId)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [activeResultIndex, navigableResults]);
 
   const topThreadResults = useMemo(() => visibleThreads.slice(0, 3), [visibleThreads]);
   const topSpaceResults = useMemo(() => visibleSpaces.slice(0, 3), [visibleSpaces]);
@@ -830,6 +917,17 @@ export default function UnifiedSearch() {
       const next = [trimmed, ...prev.filter((item) => item !== trimmed)];
       return next.slice(0, 5);
     });
+  }
+
+  function applyCurrentOperatorSuggestion(): boolean {
+    if (!operatorSuggestions.length) return false;
+    const suggestion =
+      operatorSuggestions[resolvedActiveOperatorSuggestionIndex] ??
+      operatorSuggestions[0];
+    if (!suggestion) return false;
+    setQuery((previous) => applyOperatorAutocomplete(previous, suggestion));
+    setHideOperatorAutocomplete(false);
+    return true;
   }
 
   function exportResults() {
@@ -1165,15 +1263,72 @@ export default function UnifiedSearch() {
             onChange={(event) => {
               const value = event.target.value;
               setQuery(value);
+              setHideOperatorAutocomplete(false);
               if (!value.endsWith(" ")) return;
               pushRecentQuery(value);
             }}
             onBlur={() => pushRecentQuery(query)}
             onKeyDown={(event) => {
+              if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+                if (operatorSuggestions.length) {
+                  event.preventDefault();
+                  const direction = event.key === "ArrowDown" ? 1 : -1;
+                  setActiveOperatorSuggestionIndex((previous) =>
+                    stepCircularIndex(
+                      operatorSuggestions.length,
+                      previous,
+                      direction
+                    )
+                  );
+                  return;
+                }
+                if (navigableResults.length) {
+                  event.preventDefault();
+                  const direction = event.key === "ArrowDown" ? 1 : -1;
+                  const nextIndex = stepCircularIndex(
+                    navigableResults.length,
+                    activeResultIndex,
+                    direction
+                  );
+                  const next = navigableResults[nextIndex];
+                  if (next) setActiveResultKey(next.key);
+                  return;
+                }
+              }
+              if (event.key === "Tab" && operatorSuggestions.length) {
+                event.preventDefault();
+                applyCurrentOperatorSuggestion();
+                return;
+              }
               if (event.key === "Enter") {
+                if (operatorSuggestions.length) {
+                  event.preventDefault();
+                  applyCurrentOperatorSuggestion();
+                  return;
+                }
+                if (activeResultIndex >= 0) {
+                  const target = navigableResults[activeResultIndex];
+                  if (target) {
+                    event.preventDefault();
+                    pushRecentQuery(query);
+                    router.push(target.href);
+                    return;
+                  }
+                }
                 pushRecentQuery(query);
+                return;
               }
               if (event.key === "Escape") {
+                if (operatorSuggestions.length) {
+                  event.preventDefault();
+                  setHideOperatorAutocomplete(true);
+                  return;
+                }
+                if (activeResultKey) {
+                  event.preventDefault();
+                  setActiveResultKey(null);
+                  return;
+                }
                 if (!query) return;
                 event.preventDefault();
                 setQuery("");
@@ -1182,6 +1337,40 @@ export default function UnifiedSearch() {
             placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads is:pinned has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
+          {operatorSuggestions.length ? (
+            <div className="rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-xs">
+              <div className="mb-2 flex items-center justify-between text-[11px] text-signal-muted">
+                <span>Operator suggestions</span>
+                <span>Enter/Tab to apply, Esc to dismiss</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {operatorSuggestions.map((suggestion, index) => {
+                  const selected = index === resolvedActiveOperatorSuggestionIndex;
+                  return (
+                    <button
+                      key={`operator-suggestion-${suggestion}`}
+                      type="button"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={() => {
+                        setQuery((previous) =>
+                          applyOperatorAutocomplete(previous, suggestion)
+                        );
+                        setHideOperatorAutocomplete(false);
+                        inputRef.current?.focus();
+                      }}
+                      className={`rounded-full border px-3 py-1 text-[11px] ${
+                        selected
+                          ? "border-signal-accent text-signal-text"
+                          : "border-white/10 text-signal-muted"
+                      }`}
+                    >
+                      {suggestion}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
             <div className="space-y-1">
               <div>
@@ -1226,6 +1415,13 @@ export default function UnifiedSearch() {
                 <span className="text-signal-text">
                   type:threads space:&quot;Research&quot; tag:alpha -is:archived -has:note
                 </span>
+              </div>
+              <div>
+                Keyboard: <span className="text-signal-text">/</span> focus,{" "}
+                <span className="text-signal-text">ArrowUp/ArrowDown</span>{" "}
+                move suggestions/results,{" "}
+                <span className="text-signal-text">Enter</span> applies
+                suggestion or opens highlighted result.
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -1822,6 +2018,8 @@ export default function UnifiedSearch() {
                       const thread = entry.thread;
                       const snippet = buildThreadSnippet(entry);
                       const selected = activeSelectedThreadIds.includes(thread.id);
+                      const navKey = `thread:${thread.id}`;
+                      const isActive = activeResultKey === navKey;
                       const badges = computeThreadMatchBadges(
                         {
                           title: thread.title,
@@ -1837,7 +2035,12 @@ export default function UnifiedSearch() {
                       return (
                         <div
                           key={thread.id}
-                          className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                          id={toNavigableDomId(navKey)}
+                          className={`rounded-2xl border px-3 py-2 text-xs text-signal-muted ${
+                            isActive
+                              ? "border-signal-accent bg-signal-accent/10"
+                              : "border-white/10"
+                          }`}
                         >
                           <div className="flex items-start justify-between gap-2">
                             <label className="mt-1 flex items-center gap-2 text-[11px]">
@@ -1955,10 +2158,17 @@ export default function UnifiedSearch() {
                   shownSpaces.map((entry) => {
                     const space = entry.space;
                     const tags = entry.tags;
+                    const navKey = `space:${space.id}`;
+                    const isActive = activeResultKey === navKey;
                     return (
                       <div
                         key={space.id}
-                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                        id={toNavigableDomId(navKey)}
+                        className={`rounded-2xl border px-3 py-2 text-xs text-signal-muted ${
+                          isActive
+                            ? "border-signal-accent bg-signal-accent/10"
+                            : "border-white/10"
+                        }`}
                       >
                         <p className="text-sm text-signal-text">
                           {renderHighlighted(space.name)}
@@ -2012,10 +2222,17 @@ export default function UnifiedSearch() {
                 ) : (
                   shownCollections.map((entry) => {
                     const collection = entry.collection;
+                    const navKey = `collection:${collection.id}`;
+                    const isActive = activeResultKey === navKey;
                     return (
                       <div
                         key={collection.id}
-                        className="rounded-2xl border border-white/10 px-3 py-2 text-xs text-signal-muted"
+                        id={toNavigableDomId(navKey)}
+                        className={`rounded-2xl border px-3 py-2 text-xs text-signal-muted ${
+                          isActive
+                            ? "border-signal-accent bg-signal-accent/10"
+                            : "border-white/10"
+                        }`}
                       >
                         <p className="text-sm text-signal-text">
                           {renderHighlighted(collection.name)}

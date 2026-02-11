@@ -40,6 +40,13 @@ export type ParsedUnifiedSearchQuery = {
   operators: UnifiedSearchOperators;
 };
 
+export type OperatorAutocompleteMatch = {
+  token: string;
+  start: number;
+  end: number;
+  suggestions: string[];
+};
+
 export type ThreadMatchBadge =
   | "title"
   | "question"
@@ -65,8 +72,66 @@ const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
   "30d": 30 * 24 * 60 * 60 * 1000,
 };
 
+export const UNIFIED_OPERATOR_SUGGESTIONS = [
+  "type:",
+  "space:",
+  "spaceId:",
+  "tag:",
+  "-tag:",
+  "is:",
+  "-is:",
+  "has:",
+  "-has:",
+  "verbatim:",
+] as const;
+
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
+}
+
+export function getOperatorAutocomplete(raw: string): OperatorAutocompleteMatch | null {
+  if (!raw || /\s$/.test(raw)) return null;
+  const end = raw.length;
+  let start = end;
+  while (start > 0 && !/\s/.test(raw[start - 1])) {
+    start -= 1;
+  }
+
+  const token = raw.slice(start, end);
+  const lowered = token.toLowerCase();
+  if (!lowered || lowered.includes(":")) return null;
+
+  const suggestions = UNIFIED_OPERATOR_SUGGESTIONS.filter((candidate) =>
+    candidate.toLowerCase().startsWith(lowered)
+  );
+  if (!suggestions.length) return null;
+  return { token, start, end, suggestions: [...suggestions] };
+}
+
+export function applyOperatorAutocomplete(
+  raw: string,
+  suggestion: string
+): string {
+  const trimmedSuggestion = suggestion.trim();
+  if (!trimmedSuggestion) return raw;
+
+  const match = getOperatorAutocomplete(raw);
+  if (!match) {
+    const prefix = raw.trimEnd();
+    return prefix ? `${prefix} ${trimmedSuggestion}` : trimmedSuggestion;
+  }
+
+  return `${raw.slice(0, match.start)}${trimmedSuggestion}${raw.slice(match.end)}`;
+}
+
+export function stepCircularIndex(
+  length: number,
+  current: number,
+  direction: 1 | -1
+): number {
+  if (length <= 0) return -1;
+  if (current < 0 || current >= length) return direction > 0 ? 0 : length - 1;
+  return (current + direction + length) % length;
 }
 
 export function normalizeQuery(raw: string): NormalizedQuery {

@@ -59,6 +59,8 @@ npm install && npm run dev
 - Unified search sort controls (relevance/newest/oldest) + per-section result limits
 - Unified search timeline filter (all/24h/7d/30d) across threads/spaces/collections/files/tasks
 - Unified search in-place thread actions + bulk operations (favorite/pin/archive/space assignment)
+- Unified search keyboard result navigation (`ArrowUp/ArrowDown/Enter`) with active-row highlight
+- Unified search operator autocomplete (`type:`, `space:`, `tag:`, `has:`, `is:`, `verbatim:`) with Enter/Tab accept and Esc dismiss
 - Spaces with custom instructions and preferred model routing (local-only)
 - Space-level source policy enforcement (flexible, web-only, offline-only)
 - Space templates gallery for one-click workspace setup
