@@ -306,6 +306,13 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.notHasNote).toBe(true);
   });
 
+  it("supports is and -is thread-state operators", () => {
+    const parsed = parseUnifiedSearchQuery("is:pinned -is:archived roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.states).toEqual(["pinned"]);
+    expect(parsed.operators.notStates).toEqual(["archived"]);
+  });
+
   it("supports spaceId exact match operator", () => {
     const parsed = parseUnifiedSearchQuery("spaceId:space-123 roadmap");
     expect(parsed.text).toBe("roadmap");
@@ -447,12 +454,51 @@ describe("filterThreadEntries", () => {
       })
     ).toHaveLength(1);
   });
+
+  it("supports is:* / -is:* thread-state operators", () => {
+    const entries = [
+      makeEntry({
+        thread: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          pinned: true,
+          favorite: true,
+          archived: false,
+        },
+      }),
+      makeEntry({
+        thread: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          pinned: false,
+          favorite: true,
+          archived: true,
+        },
+      }),
+    ];
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { states: ["favorite", "pinned"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notStates: ["archived"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
 });
 
 describe("filterSpaceEntries", () => {
   const now = Date.parse("2026-02-08T12:00:00.000Z");
 
-  it("supports tag and space operators but rejects has:* filters", () => {
+  it("supports tag and space operators but rejects has:* and is:* filters", () => {
     const entries = [
       {
         space: { id: "space-1", createdAt: "2026-02-08T01:00:00.000Z" },
@@ -514,6 +560,15 @@ describe("filterSpaceEntries", () => {
         nowMs: now,
       })
     ).toHaveLength(0);
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery("deep"),
+        operators: { states: ["pinned"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
   });
 });
 
@@ -559,6 +614,15 @@ describe("filterCollectionEntries", () => {
       filterCollectionEntries(entries, {
         query: normalizeQuery(""),
         operators: { space: "research" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterCollectionEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notStates: ["archived"] },
         timelineWindow: "all",
         nowMs: now,
       })
@@ -612,13 +676,22 @@ describe("filterFileEntries", () => {
         nowMs: now,
       })
     ).toHaveLength(0);
+
+    expect(
+      filterFileEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { states: ["favorite"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
   });
 });
 
 describe("filterTaskEntries", () => {
   const now = Date.parse("2026-02-08T12:00:00.000Z");
 
-  it("rejects tag/has operators and supports space filters", () => {
+  it("rejects tag/has/is operators and supports space filters", () => {
     const entries = [
       {
         task: { createdAt: "2026-02-08T01:00:00.000Z" },
@@ -650,6 +723,15 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { notHasNote: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { states: ["pinned"] },
         timelineWindow: "all",
         nowMs: now,
       })

@@ -38,6 +38,8 @@ import {
   type WeightedLoweredField,
 } from "@/lib/unified-search";
 import {
+  decodeSavedSearchStorage,
+  encodeSavedSearchStorage,
   defaultSavedSearchName,
   deleteSavedSearch,
   findDuplicateSavedSearch,
@@ -145,7 +147,7 @@ export default function UnifiedSearch() {
     parseStored<string[]>(RECENT_SEARCH_KEY, [])
   );
   const [savedSearches, setSavedSearches] = useState<UnifiedSavedSearch[]>(() =>
-    parseStored<UnifiedSavedSearch[]>(SAVED_SEARCH_KEY, [])
+    decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
   );
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
   const [editingSavedName, setEditingSavedName] = useState("");
@@ -218,7 +220,7 @@ export default function UnifiedSearch() {
       setTasks(parseStored<Task[]>(TASKS_KEY, []));
       setRecentQueries(parseStored<string[]>(RECENT_SEARCH_KEY, []));
       setSavedSearches(
-        parseStored<UnifiedSavedSearch[]>(SAVED_SEARCH_KEY, [])
+        decodeSavedSearchStorage(parseStored<unknown>(SAVED_SEARCH_KEY, []))
       );
       setVerbatim(parseStored<boolean>(VERBATIM_KEY, false));
 
@@ -294,6 +296,12 @@ export default function UnifiedSearch() {
     if (operators.notTags?.length) {
       parts.push(...operators.notTags.map((tag) => `-tag:${tag}`));
     }
+    if (operators.states?.length) {
+      parts.push(...operators.states.map((state) => `is:${state}`));
+    }
+    if (operators.notStates?.length) {
+      parts.push(...operators.notStates.map((state) => `-is:${state}`));
+    }
     if (operators.hasNote) parts.push("has:note");
     if (operators.notHasNote) parts.push("-has:note");
     if (operators.hasCitation) parts.push("has:citation");
@@ -315,7 +323,10 @@ export default function UnifiedSearch() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    localStorage.setItem(SAVED_SEARCH_KEY, JSON.stringify(savedSearches));
+    localStorage.setItem(
+      SAVED_SEARCH_KEY,
+      JSON.stringify(encodeSavedSearchStorage(savedSearches))
+    );
   }, [savedSearches]);
 
   useEffect(() => {
@@ -1168,7 +1179,7 @@ export default function UnifiedSearch() {
                 setQuery("");
               }
             }}
-            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads has:note tag:foo space:"Research" verbatim:true)'
+            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads is:pinned has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-signal-muted">
@@ -1186,6 +1197,10 @@ export default function UnifiedSearch() {
                 <span className="text-signal-text">spaceId:abc</span>,{" "}
                 <span className="text-signal-text">tag:foo</span>,{" "}
                 <span className="text-signal-text">-tag:foo</span>,{" "}
+                <span className="text-signal-text">
+                  is:favorite|pinned|archived
+                </span>
+                , <span className="text-signal-text">-is:pinned</span>,{" "}
                 <span className="text-signal-text">has:note</span>,{" "}
                 <span className="text-signal-text">-has:note</span>,{" "}
                 <span className="text-signal-text">has:citation</span>,{" "}
@@ -1194,13 +1209,14 @@ export default function UnifiedSearch() {
               </div>
               <div>
                 Operator scope: <span className="text-signal-text">tag:</span> applies to threads/spaces;{" "}
-                <span className="text-signal-text">has:</span> applies to threads;{" "}
+                <span className="text-signal-text">has:</span> and{" "}
+                <span className="text-signal-text">is:</span> apply to threads;{" "}
                 <span className="text-signal-text">space:</span> applies to threads/tasks/spaces.
               </div>
               <div>
                 Examples:{" "}
                 <span className="text-signal-text">
-                  type:threads has:citation incident postmortem
+                  type:threads is:pinned has:citation incident postmortem
                 </span>
                 ,{" "}
                 <span className="text-signal-text">
@@ -1208,7 +1224,7 @@ export default function UnifiedSearch() {
                 </span>
                 ,{" "}
                 <span className="text-signal-text">
-                  type:threads space:&quot;Research&quot; tag:alpha -has:note
+                  type:threads space:&quot;Research&quot; tag:alpha -is:archived -has:note
                 </span>
               </div>
             </div>

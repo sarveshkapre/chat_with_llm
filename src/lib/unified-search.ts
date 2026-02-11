@@ -17,12 +17,16 @@ export type UnifiedSearchType =
   | "files"
   | "tasks";
 
+export type ThreadStateOperator = "favorite" | "pinned" | "archived";
+
 export type UnifiedSearchOperators = {
   type?: Exclude<UnifiedSearchType, "all">;
   space?: string;
   spaceId?: string;
   tags?: string[];
   notTags?: string[];
+  states?: ThreadStateOperator[];
+  notStates?: ThreadStateOperator[];
   hasNote?: boolean;
   notHasNote?: boolean;
   hasCitation?: boolean;
@@ -164,12 +168,25 @@ function normalizeBooleanToken(raw: string): boolean | null {
   return null;
 }
 
+function normalizeStateToken(raw: string): ThreadStateOperator | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "favorite" || value === "favorites" || value === "fav")
+    return "favorite";
+  if (value === "pinned" || value === "pin" || value === "pins") return "pinned";
+  if (value === "archived" || value === "archive" || value === "archives")
+    return "archived";
+  return null;
+}
+
 export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   const tokens = tokenizeOperatorQuery(raw.trim());
   const textTokens: string[] = [];
   const operators: UnifiedSearchOperators = {};
   const tags: string[] = [];
   const notTags: string[] = [];
+  const states: ThreadStateOperator[] = [];
+  const notStates: ThreadStateOperator[] = [];
 
   for (const token of tokens) {
     const sep = token.indexOf(":");
@@ -221,6 +238,15 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       continue;
     }
 
+    if (key === "is") {
+      const normalizedState = normalizeStateToken(value);
+      if (normalizedState) {
+        if (negated) notStates.push(normalizedState);
+        else states.push(normalizedState);
+        continue;
+      }
+    }
+
     if (key === "has") {
       const normalizedHas = normalizeHasToken(value);
       if (normalizedHas === "note") {
@@ -252,6 +278,12 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   }
   if (notTags.length) {
     operators.notTags = notTags;
+  }
+  if (states.length) {
+    operators.states = states;
+  }
+  if (notStates.length) {
+    operators.notStates = notStates;
   }
 
   return { text, query: normalizeQuery(text), operators };
@@ -628,7 +660,12 @@ export function topKSearchResults<T extends { createdMs: number }>(
 
 export function filterThreadEntries<
   T extends {
-    thread: { createdAt?: string | null | undefined };
+    thread: {
+      createdAt?: string | null | undefined;
+      favorite?: boolean | null | undefined;
+      pinned?: boolean | null | undefined;
+      archived?: boolean | null | undefined;
+    };
     combinedLower: string;
     spaceNameLower: string;
     spaceIdLower: string;
@@ -685,6 +722,16 @@ export function filterThreadEntries<
     if (operators.notHasCitation) {
       if (entry.hasCitation) return false;
     }
+    if (operators.states?.length) {
+      for (const state of operators.states) {
+        if (!entry.thread[state]) return false;
+      }
+    }
+    if (operators.notStates?.length) {
+      for (const state of operators.notStates) {
+        if (entry.thread[state]) return false;
+      }
+    }
     return true;
   });
 }
@@ -704,6 +751,10 @@ function hasTagOperators(operators: UnifiedSearchOperators): boolean {
 
 function hasSpaceOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.space || operators.spaceId);
+}
+
+function hasStateOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.states?.length || operators.notStates?.length);
 }
 
 export function filterSpaceEntries<
@@ -732,6 +783,7 @@ export function filterSpaceEntries<
     if (!applyTimelineWindow(entry.space.createdAt, timelineWindow, nowMs))
       return false;
     if (hasHasOperators(operators)) return false;
+    if (hasStateOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -781,6 +833,7 @@ export function filterTaskEntries<
       return false;
     if (hasHasOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
+    if (hasStateOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -819,6 +872,7 @@ export function filterCollectionEntries<
     if (hasSpaceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
+    if (hasStateOperators(operators)) return false;
     return true;
   });
 }
@@ -848,6 +902,7 @@ export function filterFileEntries<
     if (hasSpaceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
+    if (hasStateOperators(operators)) return false;
     return true;
   });
 }

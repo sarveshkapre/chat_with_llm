@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  decodeSavedSearchStorage,
   defaultSavedSearchName,
   deleteSavedSearch,
+  encodeSavedSearchStorage,
   findDuplicateSavedSearch,
   fingerprintSavedSearch,
   renameSavedSearch,
+  SAVED_SEARCH_STORAGE_VERSION,
   sortSavedSearches,
   togglePinSavedSearch,
   upsertSavedSearch,
@@ -139,5 +142,69 @@ describe("defaultSavedSearchName", () => {
         verbatim: true,
       })
     ).toBe("threads · 7d · newest · verbatim");
+  });
+});
+
+describe("decodeSavedSearchStorage", () => {
+  it("migrates legacy array payloads and normalizes invalid fields", () => {
+    const decoded = decodeSavedSearchStorage([
+      {
+        id: "a",
+        name: "  Weekly   review  ",
+        query: "  roadmap ",
+        filter: "unknown",
+        sortBy: "newest",
+        timelineWindow: "bad-window",
+        resultLimit: 999,
+        verbatim: 1,
+        pinned: "yes",
+        createdAt: "invalid-date",
+        updatedAt: "2026-02-10T01:00:00.000Z",
+      },
+    ]);
+
+    expect(decoded).toHaveLength(1);
+    expect(decoded[0]).toMatchObject({
+      id: "a",
+      name: "Weekly review",
+      query: "roadmap",
+      filter: "all",
+      sortBy: "newest",
+      timelineWindow: "all",
+      resultLimit: 20,
+      verbatim: true,
+      pinned: true,
+      updatedAt: "2026-02-10T01:00:00.000Z",
+    });
+  });
+
+  it("accepts versioned envelope payloads and drops malformed/duplicate rows", () => {
+    const decoded = decodeSavedSearchStorage({
+      version: SAVED_SEARCH_STORAGE_VERSION,
+      searches: [
+        makeSaved({ id: "a", name: "A" }),
+        { id: "", name: "bad" },
+        makeSaved({ id: "a", name: "duplicate-id" }),
+      ],
+    });
+    expect(decoded.map((item) => item.id)).toEqual(["a"]);
+    expect(decoded[0].name).toBe("A");
+  });
+
+  it("returns empty list for unknown envelope versions", () => {
+    const decoded = decodeSavedSearchStorage({
+      version: 999,
+      searches: [makeSaved({ id: "a" })],
+    });
+    expect(decoded).toEqual([]);
+  });
+});
+
+describe("encodeSavedSearchStorage", () => {
+  it("wraps searches with schema version", () => {
+    const encoded = encodeSavedSearchStorage([makeSaved({ id: "a" })]);
+    expect(encoded.version).toBe(SAVED_SEARCH_STORAGE_VERSION);
+    expect(encoded.searches).toHaveLength(1);
+    expect(encoded.searches[0].id).toBe("a");
   });
 });
