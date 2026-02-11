@@ -84,6 +84,7 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh run list --limit 10 --json databaseId,workflowName,headSha,status,conclusion,url,displayTitle,createdAt` | commit `70eb943da312ec7a5cca3cabf0053e009faafbbd`: `CI` success (`21908005924`), `Scorecard supply-chain security` success (`21908005894`), `Release Please` skipped (`21908005886`) | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,headSha,status,conclusion,event,url,workflowName,createdAt` | latest pre-change runs: CI + Scorecard success; Release Please skipped | pass (untrusted)
 - 2026-02-11 | `npm run lint -- --max-warnings=0` | initial run failed with `react-hooks/set-state-in-effect` in `src/components/unified-search.tsx`; adjusted persistence toast path to async scheduling | fail
