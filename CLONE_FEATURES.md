@@ -7,6 +7,18 @@
 - Gaps found during codebase exploration
 
 ## Candidate Features To Do
+### Global Cycle 13 (2026-02-11) Plan
+- [x] P1 (Selected): Refactor shared `signal-*` storage keys into one constants module and migrate all consuming surfaces (Library, Unified Search, Spaces, Collections, Report, and storage helpers) to remove key drift risk. (Delivered in Global Cycle 13, commit `87007fa`) (Score: impact=high effort=low-med strategic=high differentiation=low risk=low confidence=high)
+- [x] P2 (Selected): Remove dead/unused local storage helper module superseded by current diagnostics/storage helpers (`src/lib/local-data.ts`) to simplify architecture. (Delivered in Global Cycle 13, commit `87007fa`) (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
+- [x] P2 (Selected): Add keyset consistency tests for unified-search storage listener allowlists and centralized key contracts. (Delivered in Global Cycle 13, commit `87007fa`) (Score: impact=med effort=low strategic=med-high differentiation=low risk=low confidence=high)
+- [ ] P2: Add stale-selection smoke assertions that exercise `Prune stale` recovery under cross-tab deletion simulation.
+- [ ] P2: Add perf threshold guardrails for 10k Unified Search datasets with variance-tolerant med/p95 limits in CI.
+- [ ] P2: Add Unified Search zero-results guidance card with one-click reset actions for operators/type/timeline/verbatim.
+- [ ] P2: Add shareable Unified Search URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with hydration-safe defaults.
+- [ ] P3: Add NDJSON malformed-line integration check script for `/api/answer/stream` framing resilience.
+- [ ] P3: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
+- [ ] P3: Add JSON artifact output mode for `scripts/search-perf.mjs` to support historical trend diffing.
+
 ### Global Cycle 12 (2026-02-11) Plan
 - [x] P1 (Selected): Add deterministic saved-search roundtrip smoke coverage under mock mode by introducing a dedicated smoke scenario that verifies persisted query/filter/sort/timeline/result-limit/verbatim state on reload and rerun. (Delivered in Global Cycle 12, commit `a45d4c1`) (Score: impact=high effort=med strategic=high differentiation=med risk=low-med confidence=med-high)
 - [x] P1 (Selected): Add top-k parity regression tests covering relevance score ties plus invalid timestamp (`createdMs=0` fallback) edge cases to prove UI ordering always matches full export ordering. (Delivered in Global Cycle 12, commit `a45d4c1`) (Score: impact=high effort=low-med strategic=high differentiation=low risk=low confidence=high)
@@ -16,7 +28,7 @@
 - [ ] P2: Add Unified Search zero-results guidance card with one-click reset actions for operators/type/timeline/verbatim.
 - [ ] P2: Add shareable Unified Search URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with hydration-safe defaults.
 - [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
-- [ ] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it.
+- [x] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it. (Delivered in Global Cycle 13, commit `87007fa`)
 - [ ] P3: Add NDJSON malformed-line integration check script for `/api/answer/stream` framing resilience.
 - [ ] P3: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
 - [ ] P3: Add JSON artifact output mode for `scripts/search-perf.mjs` to support historical trend diffing.
@@ -37,7 +49,7 @@
 - [ ] P2: Add Unified Search zero-results guidance card with one-click reset actions for operators/type/timeline/verbatim.
 - [ ] P2: Add shareable Unified Search URL state (`q`, `type`, `sort`, `time`, `limit`, `verbatim`) with hydration-safe defaults.
 - [ ] P2: Add explicit malformed-write diagnostics panel in Library data tools for recent localStorage write failures.
-- [ ] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it.
+- [x] P3: Refactor shared `signal-*` storage keys into one constants module and migrate all surfaces to it. (Delivered in Global Cycle 13, commit `87007fa`)
 - [ ] P3: Add NDJSON malformed-line integration check script for `/api/answer/stream` framing resilience.
 - [ ] P3: Add focused tests for notes payload sanitation used by Unified Search preload/read-refresh paths.
 - [ ] P3: Add JSON artifact output mode for `scripts/search-perf.mjs` to support historical trend diffing.
@@ -193,7 +205,7 @@
 - [ ] P3: Add optional local debug telemetry for parse/filter/sort timings behind a query param or debug flag. (Score: impact=low-med effort=med strategic=med differentiation=med risk=low confidence=med)
 - [ ] P3: Add docs for Unified Search keyboard shortcuts and operator autocomplete behavior. (Score: impact=low-med effort=low strategic=med differentiation=low risk=low confidence=high)
 - [x] P3: Add CI guard to ensure `npm run smoke:mock` remains runnable in workflow changes (cheap smoke command policy check). (Delivered in Cycle 6, commit `3dd910e`) (Score: impact=low-med effort=low-med strategic=med differentiation=low risk=low confidence=med)
-- [ ] P3: Add keyset consistency tests for localStorage keys used by Unified Search reload listeners to prevent missed cross-tab updates. (Score: impact=low-med effort=low strategic=med differentiation=low risk=low confidence=high)
+- [x] P3: Add keyset consistency tests for localStorage keys used by Unified Search reload listeners to prevent missed cross-tab updates. (Delivered in Global Cycle 13, commit `87007fa`) (Score: impact=low-med effort=low strategic=med differentiation=low risk=low confidence=high)
 
 ### Cycle 2 (2026-02-11) Plan
 - [x] P1 (Selected): Add Unified Search `is:` / `-is:` operators for thread state filters (`favorite|pinned|archived`) with parser support, filter logic, and inline help/chips updates. (Score: impact=high effort=med strategic=high differentiation=med risk=low confidence=high)
@@ -232,6 +244,7 @@
 - [x] P4: Unified Search performance: consider top-k selection (avoid full sort) for very large result sets when resultLimit is small. (Delivered in Cycle 10) (Score: impact=med effort=med risk=med confidence=med)
 
 ## Implemented
+- 2026-02-11: Storage-key drift cleanup for Signal Search: added centralized storage key/prefix contracts in `src/lib/storage-keys.ts`, migrated all active consumers (Library/Unified Search/Spaces/Collections/Report + storage helper tests) to shared constants, replaced Unified Search storage-event hardcoded lists with a shared allowlist, added keyset regression tests, and removed dead `src/lib/local-data.ts` (`src/components/chat-app.tsx`, `src/components/unified-search.tsx`, `src/components/spaces-view.tsx`, `src/components/collections-view.tsx`, `src/components/report-view.tsx`, `src/lib/storage.ts`, `src/lib/storage-keys.ts`, `tests/storage-keys.test.ts`, `tests/storage.test.ts`). (commit `87007fa`)
 - 2026-02-11: Unified Search saved-search roundtrip and ordering parity hardening: added a dedicated smoke fixture route (`/smoke-search/saved-roundtrip`) that verifies persisted saved-search rerun state (query/filter/sort/timeline/result limit/verbatim), expanded smoke-fixture tests for roundtrip bootstrap semantics, surfaced `verbatim:true|false` in saved-search cards for faster scanability, and added deterministic tie-order parity guards so heap top-k ordering matches full sort ordering even when `createdMs` uses invalid-date fallback values (`src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `src/lib/unified-search-bootstrap.ts`, `src/lib/unified-search-smoke-fixture.ts`, `src/app/smoke-search/saved-roundtrip/page.tsx`, `scripts/smoke.mjs`, `tests/unified-search.test.ts`, `tests/unified-search-smoke-fixture.test.ts`). (commit `a45d4c1`)
 - 2026-02-11: Unified Search smoke/reliability/accessibility hardening: added a fixture-backed smoke route (`/smoke-search`, gated by `SMOKE_ENABLE_SEARCH_FIXTURE=1`) and smoke assertions for operator-filtered seeded results, introduced `writeStoredJson()` guardrails with quota/failure handling for Unified Search persistence writes, added `aria-describedby` linkage from search input to operator guidance, and added regression tests for storage writes + smoke fixture query filtering (`scripts/smoke.mjs`, `src/app/smoke-search/page.tsx`, `src/components/unified-search.tsx`, `src/lib/storage.ts`, `src/lib/unified-search-bootstrap.ts`, `src/lib/unified-search-smoke-fixture.ts`, `tests/storage.test.ts`, `tests/unified-search-smoke-fixture.test.ts`). (commit `f3e107b`)
 - 2026-02-11: Unified Search diagnostics + keyboard maintainability pass: extracted input keyboard precedence into `useUnifiedSearchKeyboard` with dedicated regression tests, added `/search?debug=1` diagnostics cards (loaded/matched/visible + filtered-out reason buckets), added strict `signal-space-tags-v1` decode guards in preload/focus refresh paths, and canonicalized operator-summary chips to dedupe repeated `tag:`/`is:` operators (`src/lib/unified-search-keyboard.ts`, `src/components/unified-search.tsx`, `src/lib/unified-search.ts`, `tests/unified-search-keyboard.test.ts`, `tests/unified-search.test.ts`, `docs/unified-search-operators.md`, `README.md`, `CHANGELOG.md`). (commit `d3f7396`)
