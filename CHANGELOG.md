@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 - Initial scaffold for Signal Search.
+- Unified Search now decodes malformed thread/space/task localStorage payloads through schema guards before preload/focus refresh, preventing `/search` crashes from invalid cached shapes.
+- Unified Search timeline regression coverage now includes DST-offset timestamp cases and invalid mixed timestamp handling for bounded windows.
 - Unified Search export builders now run through shared pure helpers for markdown/saved-search/CSV generation.
 - Unified Search CSV exports now use deterministic full-cell escaping for commas/newlines/quotes.
 - Unified Search accessibility pass: action controls now expose explicit labels and toast updates are announced via polite live regions.

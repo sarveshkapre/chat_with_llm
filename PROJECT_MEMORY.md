@@ -9,6 +9,8 @@
 
 ## Recent Decisions
 - Template: YYYY-MM-DD | Decision | Why | Evidence (tests/logs) | Commit | Confidence (high/medium/low) | Trust (trusted/untrusted)
+- 2026-02-11 | Prioritize Cycle 7 Unified Search preload schema-hardening before new UX surface work | Bounded market scan still points to trust-sensitive baseline expectations around searchable history and explicit filtering; malformed local cache crashes are higher-impact than adding new controls | OpenAI/Perplexity/Kagi docs (`https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 7cbe4d6 | medium | untrusted
+- 2026-02-11 | Add typed decoders for Unified Search thread/space/task localStorage payloads and route preload reads through them; add DST timeline regression cases | Prevents runtime crashes from malformed cached payloads while keeping best-effort data recovery; DST-offset tests lock absolute-ms timeline behavior for 24h windows | `npm test -- tests/unified-search.test.ts` (81 tests), `npm run lint -- --max-warnings=0`, `npm run check:workflows`, `npm test` (122 tests), `npm run build`, `node scripts/smoke.mjs --provider mock --skip-build`, `gh run watch 21904175036 --exit-status`, `gh run watch 21904175021 --exit-status` | 7cbe4d6 | high | trusted
 - 2026-02-11 | Prioritize Cycle 6 Unified Search export reliability + accessibility work (pure export builders, deterministic CSV escaping tests, and workflow smoke-policy guard) | Bounded market scan still indicates baseline expectations for explicit narrowing controls, searchable history/workspaces, and trustworthy portable artifacts; this bundle improves trust and maintainability with low delivery risk | OpenAI/Perplexity/Kagi docs (`https://help.openai.com/en/articles/11487644-search-in-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 3dd910e | medium | untrusted
 - 2026-02-11 | Extract export builders and harden CSV escaping in Unified Search; add aria labels/live announcements and enforce smoke workflow command policy | Consolidates duplicated export logic into testable helpers, prevents malformed CSV rows for quoted/newline-heavy content, improves accessibility for power-user actions, and prevents CI smoke workflow drift | `npm test -- tests/unified-search.test.ts` (77 tests), `npm test -- tests/workflow-policy.test.ts` (5 tests), `npm run lint -- --max-warnings=0`, `npm run check:workflows`, `npm test && npm run build && node scripts/smoke.mjs --provider mock --skip-build`, `gh run watch 21903325034 --exit-status`, `gh run watch 21903325000 --exit-status` | 3dd910e | high | trusted
 - 2026-02-11 | Prioritize Cycle 5 Unified Search reproducibility + selection resilience work (export environment metadata, stale-selection recovery, parser stress coverage) | Bounded market scan still shows baseline expectation for explicit search controls and reproducible search artifacts; this work improves trust without adding risky architecture surface area | OpenAI Help web/history search docs + Perplexity threads/spaces docs + Kagi filtering docs (`https://help.openai.com/en/articles/11186788-search-the-web-using-chatgpt`, `https://help.openai.com/en/articles/10056348-how-do-i-search-my-chat-history-in-chatgpt`, `https://www.perplexity.ai/help-center/en/articles/10354775-technical-capabilities-of-threads`, `https://www.perplexity.ai/help-center/en/articles/10352961-what-are-spaces`, `https://help.kagi.com/kagi/features/filtering-results.html`) | 3b7d78e | medium | untrusted
@@ -61,16 +63,28 @@
 - 2026-02-10 | `npm run smoke:mock` failed with `.next/lock` | Ran `next build` in parallel with `scripts/smoke.mjs`, which also executes `next build` | Re-ran `npm run smoke:mock` sequentially after the standalone build completed | Avoid parallelizing verification commands when one command internally runs the other (build+smoke); run smoke sequentially or pass `--skip-build` | 8627eef | medium
 
 ## Known Risks
-- LocalStorage is still the single source of truth; until server sync exists, corruption/quota and multi-tab divergence remain key risk areas.
+- LocalStorage is still the single source of truth; schema guards now prevent several malformed payload crashes in Unified Search, but quota pressure and cross-tab drift remain key risk areas until server sync exists.
 
 ## Next Prioritized Tasks
 - P2: Add a search performance harness (`scripts/search-perf.mjs`) for 1k/5k/10k local dataset baselines.
-- P2: Add localStorage schema guards for malformed Unified Search preload payloads (threads/spaces/tasks), with regression tests.
-- P3: Extend smoke with fixture-backed localStorage preload so `/search` operator assertions validate non-empty filtered results.
-- P3: Add timeline-window edge-case tests around daylight-saving transitions and mixed invalid timestamps.
+- P2: Extend smoke with fixture-backed localStorage preload so `/search` operator assertions validate non-empty filtered results.
+- P2: Extract Unified Search keyboard logic into a dedicated hook (`useUnifiedSearchKeyboard`) to reduce maintenance risk in `unified-search.tsx`.
+- P2: Add `/search` debug diagnostics mode (counts per type + filtered-out reasons) behind a query-param flag.
+- P3: Document Unified Search export semantics (all-results export vs UI limits, deterministic timestamps, environment metadata).
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url,createdAt` | `[]` (no owner/bot open issues) | pass (untrusted)
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,headSha,status,conclusion,workflowName,url,createdAt` | latest runs before code change: `CI` + `Scorecard supply-chain security` success; `Release Please` skipped | pass (untrusted)
+- 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (81 tests)` | pass
+- 2026-02-11 | `npm run lint -- --max-warnings=0` | (no warnings/errors) | pass
+- 2026-02-11 | `npm run check:workflows` | `Workflow policy OK (4 file(s) checked).` | pass
+- 2026-02-11 | `npm test` | `Test Files 10 passed (10), Tests 122 passed (122)` | pass
+- 2026-02-11 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=50859 deltaEvents=15` | pass
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha==\"7cbe4d6c3538498c786710349e3a73fabde512aa\")]'` | commit `7cbe4d6` triggered `CI` + `Scorecard supply-chain security` (Release Please skipped) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21904175036 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21904175021 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 10 --json databaseId,headSha,workflowName,status,conclusion,url,displayTitle,createdAt | jq '[.[] | select(.headSha==\"a88d9f5df543171dc8c92412875076bafaf065ec\")]'` | commit `a88d9f5` triggered `CI` + `Scorecard supply-chain security` in-progress then completed | pass (untrusted)
 - 2026-02-11 | `gh run watch 21903407361 --exit-status` | `main CI ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21903407358 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
