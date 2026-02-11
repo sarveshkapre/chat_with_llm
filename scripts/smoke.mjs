@@ -125,6 +125,58 @@ async function readNdjsonUntilDone(response) {
   return events;
 }
 
+function parseNumericAttr(tag, attrName) {
+  const match = tag.match(new RegExp(`${attrName}="(\\d+)"`));
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+function parseDiagnosticsRowsFromHtml(html) {
+  const rowMatches = [...html.matchAll(/<div[^>]*data-diagnostics-row="[^"]+"[^>]*>/g)];
+  return rowMatches
+    .map((match) => {
+      const tag = match[0];
+      const typeMatch = tag.match(/data-diagnostics-row="([^"]+)"/);
+      if (!typeMatch) return null;
+      const loaded = parseNumericAttr(tag, "data-row-loaded");
+      const matched = parseNumericAttr(tag, "data-row-matched");
+      const visible = parseNumericAttr(tag, "data-row-visible");
+      if (
+        !Number.isFinite(loaded) ||
+        !Number.isFinite(matched) ||
+        !Number.isFinite(visible)
+      ) {
+        return null;
+      }
+      return {
+        type: typeMatch[1],
+        loaded,
+        matched,
+        visible,
+      };
+    })
+    .filter(Boolean);
+}
+
+function parseDiagnosticsTotalsFromHtml(html) {
+  const totalsMatch = html.match(
+    /<p[^>]*data-diagnostics-totals="true"[^>]*>/
+  );
+  if (!totalsMatch) return null;
+  const tag = totalsMatch[0];
+  const loaded = parseNumericAttr(tag, "data-total-loaded");
+  const matched = parseNumericAttr(tag, "data-total-matched");
+  const visible = parseNumericAttr(tag, "data-total-visible");
+  if (
+    !Number.isFinite(loaded) ||
+    !Number.isFinite(matched) ||
+    !Number.isFinite(visible)
+  ) {
+    return null;
+  }
+  return { loaded, matched, visible };
+}
+
 async function main() {
   const provider = pickArg("--provider") ?? process.env.SMOKE_PROVIDER ?? "mock";
   const port =
@@ -245,6 +297,81 @@ async function main() {
     ) {
       throw new Error(
         "/smoke-search/saved-roundtrip controls did not preserve saved-search filter/sort/timeline/limit/verbatim state"
+      );
+    }
+
+    const smokeStaleSelectionResponse = await fetch(
+      `${baseUrl}/smoke-search/stale-selection`,
+      { redirect: "manual" }
+    );
+    if (!smokeStaleSelectionResponse.ok) {
+      throw new Error(
+        `/smoke-search/stale-selection fixture path returned ${smokeStaleSelectionResponse.status}`
+      );
+    }
+    const smokeStaleSelectionHtml = await smokeStaleSelectionResponse.text();
+    if (!/Prune stale\s*\((?:<!-- -->)?1(?:<!-- -->)?\)/.test(smokeStaleSelectionHtml)) {
+      throw new Error(
+        "/smoke-search/stale-selection did not expose expected stale-selection recovery control"
+      );
+    }
+    const diagnosticsRows = parseDiagnosticsRowsFromHtml(smokeStaleSelectionHtml);
+    if (diagnosticsRows.length !== 5) {
+      throw new Error(
+        `/smoke-search/stale-selection expected 5 diagnostics rows, found ${diagnosticsRows.length}`
+      );
+    }
+    const expectedTypes = new Set([
+      "threads",
+      "spaces",
+      "collections",
+      "files",
+      "tasks",
+    ]);
+    diagnosticsRows.forEach((row) => {
+      expectedTypes.delete(row.type);
+      if (row.loaded < row.matched || row.matched < row.visible) {
+        throw new Error(
+          `/smoke-search/stale-selection diagnostics invariant failed for ${row.type}: loaded=${row.loaded} matched=${row.matched} visible=${row.visible}`
+        );
+      }
+    });
+    if (expectedTypes.size > 0) {
+      throw new Error(
+        `/smoke-search/stale-selection diagnostics rows missing expected types: ${[
+          ...expectedTypes,
+        ].join(", ")}`
+      );
+    }
+    const diagnosticsTotals = parseDiagnosticsTotalsFromHtml(smokeStaleSelectionHtml);
+    if (!diagnosticsTotals) {
+      throw new Error(
+        "/smoke-search/stale-selection diagnostics totals were missing from fixture output"
+      );
+    }
+    if (
+      diagnosticsTotals.loaded < diagnosticsTotals.matched ||
+      diagnosticsTotals.matched < diagnosticsTotals.visible
+    ) {
+      throw new Error(
+        `/smoke-search/stale-selection diagnostics totals invariant failed: loaded=${diagnosticsTotals.loaded} matched=${diagnosticsTotals.matched} visible=${diagnosticsTotals.visible}`
+      );
+    }
+    const rowTotals = diagnosticsRows.reduce(
+      (sum, row) => ({
+        loaded: sum.loaded + row.loaded,
+        matched: sum.matched + row.matched,
+        visible: sum.visible + row.visible,
+      }),
+      { loaded: 0, matched: 0, visible: 0 }
+    );
+    if (
+      diagnosticsTotals.loaded !== rowTotals.loaded ||
+      diagnosticsTotals.matched !== rowTotals.matched ||
+      diagnosticsTotals.visible !== rowTotals.visible
+    ) {
+      throw new Error(
+        `/smoke-search/stale-selection diagnostics totals mismatch: totals=(${diagnosticsTotals.loaded},${diagnosticsTotals.matched},${diagnosticsTotals.visible}) rows=(${rowTotals.loaded},${rowTotals.matched},${rowTotals.visible})`
       );
     }
 

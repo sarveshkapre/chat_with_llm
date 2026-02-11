@@ -16,6 +16,8 @@ export type UnifiedSearchBootstrap = {
   sortBy?: UnifiedSearchBootstrapSortBy;
   timelineWindow?: UnifiedSearchBootstrapTimelineWindow;
   resultLimit?: UnifiedSearchBootstrapResultLimit;
+  debugMode?: boolean;
+  selectedThreadIds?: unknown;
   activeSavedSearchId?: string;
   disableStorageSync?: boolean;
   notes?: Record<string, string>;

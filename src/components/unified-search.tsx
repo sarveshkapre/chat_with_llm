@@ -196,6 +196,20 @@ function normalizeBootstrapResultLimit(value: unknown): UnifiedSearchResultLimit
   return 20;
 }
 
+function decodeBootstrapSelectedThreadIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  value.forEach((item) => {
+    if (typeof item !== "string") return;
+    const normalized = item.trim();
+    if (!normalized || seen.has(normalized)) return;
+    seen.add(normalized);
+    ids.push(normalized);
+  });
+  return ids;
+}
+
 const THREAD_BADGE_LABELS: Record<string, string> = {
   title: "Title",
   question: "Question",
@@ -242,7 +256,7 @@ export default function UnifiedSearch({
   const [query, setQuery] = useState(
     bootstrapSavedSearchState.activeSavedSearch?.query ?? initialBootstrap?.query ?? ""
   );
-  const [debugMode, setDebugMode] = useState(false);
+  const [debugMode, setDebugMode] = useState(initialBootstrap?.debugMode === true);
   const deferredQuery = useDeferredValue(query);
   const [filter, setFilter] = useState<SearchFilter>(
     normalizeBootstrapFilter(
@@ -322,7 +336,9 @@ export default function UnifiedSearch({
       initialBootstrap?.tasks ?? parseStored<unknown>(TASKS_KEY, [])
     )
   );
-  const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>([]);
+  const [selectedThreadIds, setSelectedThreadIds] = useState<string[]>(() =>
+    decodeBootstrapSelectedThreadIds(initialBootstrap?.selectedThreadIds)
+  );
   const [bulkSpaceId, setBulkSpaceId] = useState("");
   const [activeResultKey, setActiveResultKey] = useState<string | null>(null);
   const [activeOperatorSuggestionIndex, setActiveOperatorSuggestionIndex] =
@@ -1811,7 +1827,13 @@ export default function UnifiedSearch({
             <div className="space-y-3 rounded-2xl border border-amber-400/30 bg-amber-500/5 px-4 py-3 text-xs">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-medium text-amber-100">Diagnostics (?debug=1)</p>
-                <p className="text-[11px] text-amber-200/90">
+                <p
+                  data-diagnostics-totals="true"
+                  data-total-loaded={diagnosticsTotals.loaded}
+                  data-total-matched={diagnosticsTotals.matched}
+                  data-total-visible={diagnosticsTotals.visible}
+                  className="text-[11px] text-amber-200/90"
+                >
                   loaded {diagnosticsTotals.loaded} · matched {diagnosticsTotals.matched} · visible{" "}
                   {diagnosticsTotals.visible}
                 </p>
@@ -1825,6 +1847,10 @@ export default function UnifiedSearch({
                 {diagnosticsRows.map((row) => (
                   <div
                     key={`diag-${row.type}`}
+                    data-diagnostics-row={row.type}
+                    data-row-loaded={row.loaded}
+                    data-row-matched={row.matched}
+                    data-row-visible={row.visible}
                     className="rounded-xl border border-white/10 bg-black/20 px-3 py-2"
                   >
                     <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-amber-100">

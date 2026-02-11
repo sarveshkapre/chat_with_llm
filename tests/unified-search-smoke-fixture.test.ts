@@ -10,6 +10,7 @@ import {
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP,
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_QUERY,
   UNIFIED_SEARCH_SMOKE_ROUNDTRIP_SAVED_ID,
+  UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP,
 } from "@/lib/unified-search-smoke-fixture";
 
 describe("unified search smoke fixture", () => {
@@ -116,5 +117,14 @@ describe("unified search smoke fixture", () => {
     expect(roundtripSaved?.timelineWindow).toBe("7d");
     expect(roundtripSaved?.resultLimit).toBe(10);
     expect(roundtripSaved?.verbatim).toBe(true);
+  });
+
+  it("defines stale-selection diagnostics fixture state for smoke assertions", () => {
+    expect(UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP.debugMode).toBe(true);
+    expect(UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP.filter).toBe("threads");
+    expect(UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP.selectedThreadIds).toEqual([
+      "smoke-thread-match",
+      "smoke-thread-missing",
+    ]);
   });
 });

@@ -186,3 +186,10 @@ export const UNIFIED_SEARCH_SMOKE_ROUNDTRIP_BOOTSTRAP: UnifiedSearchBootstrap = 
     },
   ],
 };
+
+export const UNIFIED_SEARCH_SMOKE_STALE_SELECTION_BOOTSTRAP: UnifiedSearchBootstrap = {
+  ...UNIFIED_SEARCH_SMOKE_BOOTSTRAP,
+  debugMode: true,
+  filter: "threads",
+  selectedThreadIds: ["smoke-thread-match", "smoke-thread-missing"],
+};
