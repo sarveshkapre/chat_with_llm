@@ -96,6 +96,10 @@
 
 ## Verification Evidence
 - Template: YYYY-MM-DD | Command | Key output | Status (pass/fail)
+- 2026-02-11 | `git push origin main` | pushed commit `0be967d` to `origin/main` | pass
+- 2026-02-11 | `gh run list --limit 20 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch | jq '[.[] | select(.headSha==\"0be967d917a273c567a226c516a5992506745138\")]'` | commit `0be967d` triggered `CI` (`21911916834`) + `Scorecard supply-chain security` (`21911916767`); `Release Please` skipped (`21911916792`) | pass (untrusted)
+- 2026-02-11 | `gh run watch 21911916834 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21911916767 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 200 --json number,title,author,labels,url,createdAt` | `[]` (no open issues authored by `sarveshkapre`/trusted bots) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,workflowName,headSha,status,conclusion,url,createdAt,event,headBranch` | latest non-release runs were green (`CI` + `Scorecard supply-chain security`) before Cycle 15 code changes | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/api-answer-stream.test.ts tests/unified-search-bootstrap.test.ts tests/check-operator-docs.test.ts tests/ndjson.test.ts` | `Test Files 4 passed (4), Tests 11 passed (11)` | pass
