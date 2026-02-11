@@ -76,6 +76,8 @@
 - 2026-02-11 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=65427 deltaEvents=15` | pass
 - 2026-02-11 | `gh run watch 21901477620 --exit-status` | `main CI ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh run watch 21901477636 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21901544610 --exit-status` | `main CI ... completed success` | pass (untrusted)
+- 2026-02-11 | `gh run watch 21901544625 --exit-status` | `Scorecard supply-chain security ... completed success` | pass (untrusted)
 - 2026-02-11 | `gh issue list --state open --limit 100 --json number,title,author,labels,url` | `[]` (no owner/bot open issues) | pass (untrusted)
 - 2026-02-11 | `gh run list --limit 30 --json databaseId,displayTitle,headSha,headBranch,status,conclusion,event,workflowName,url,createdAt | jq '[.[] | select(.workflowName!=\"Release Please\") | select(.conclusion==\"failure\" or .conclusion==\"cancelled\" or .status!=\"completed\")]'` | `[]` (no failing/in-progress non-release runs) | pass (untrusted)
 - 2026-02-11 | `npm test -- tests/unified-search.test.ts` | `tests/unified-search.test.ts (65 tests)` | pass
