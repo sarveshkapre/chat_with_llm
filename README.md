@@ -73,7 +73,7 @@ npm install && npm run dev
 - Space-level source policy enforcement (flexible, web-only, offline-only)
 - Space templates gallery for one-click workspace setup
 - Local file attachments for context (text formats)
-- File library with lightweight full-text search
+- File library with lightweight full-text search and quoted phrase boosts
 - Tasks scheduler (local-only) with once/daily/weekday/weekly/monthly/yearly cadences, explicit Space targeting, and last-result links
 - Pluggable provider interface (OpenAI now, OSS models next)
 
