@@ -9,6 +9,7 @@ Signal Search supports inline operators in `/search` to narrow mixed results.
 - `source:web|none` (aliases: `source:offline`, `sources:`): filter thread/task source mode.
 - `provider:<name>` (alias: `engine:`): case-insensitive contains match on thread provider id.
 - `model:<name>` (alias: `llm:`): case-insensitive contains match on thread model id.
+- `cadence:once|daily|weekday|weekly|monthly|yearly` (alias: `schedule:`): filter task recurrence.
 - `space:"name"`: space name contains match, or exact space id match.
 - `spaceId:<id>`: exact space id match.
 - `tag:<value>` / `-tag:<value>`: include/exclude tags.
@@ -25,6 +26,7 @@ Signal Search supports inline operators in `/search` to narrow mixed results.
 | `source:` | Yes | No | No | No | Yes |
 | `provider:` | Yes | No | No | No | No |
 | `model:` | Yes | No | No | No | No |
+| `cadence:` | No | No | No | No | Yes |
 | `space:` | Yes | Yes | No | No | Yes |
 | `spaceId:` | Yes | Yes | No | No | Yes |
 | `tag:` / `-tag:` | Yes | Yes | No | No | No |

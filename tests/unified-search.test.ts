@@ -404,6 +404,7 @@ describe("Unified Search operator summary chips", () => {
         source: "web",
         provider: "openai",
         model: "gpt-4.1",
+        cadence: "weekly",
         space: "Research",
         spaceId: "space-1",
         tags: ["beta", "alpha", "Alpha"],
@@ -421,6 +422,7 @@ describe("Unified Search operator summary chips", () => {
       "source:web",
       "provider:openai",
       "model:gpt-4.1",
+      "cadence:weekly",
       'space:"Research"',
       "spaceId:space-1",
       "tag:alpha",
@@ -545,7 +547,7 @@ describe("Unified Search URL state helpers", () => {
 describe("stripUnifiedSearchOperators", () => {
   it("removes recognized operators while preserving free-text and unknown tokens", () => {
     const stripped = stripUnifiedSearchOperators(
-      'type:threads mode:research source:web provider:openai model:gpt-4 has:note status:open space:"Research" outage triage'
+      'type:threads mode:research source:web provider:openai model:gpt-4 cadence:weekly has:note status:open space:"Research" outage triage'
     );
     expect(stripped).toBe("status:open outage triage");
   });
@@ -992,6 +994,12 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.model).toBe("o3");
   });
 
+  it("supports cadence operator and alias", () => {
+    const parsed = parseUnifiedSearchQuery("cadence:daily schedule:weekdays roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.cadence).toBe("weekday");
+  });
+
   it("supports negative tag and has operators", () => {
     const parsed = parseUnifiedSearchQuery("-tag:foo -has:note has:file hello");
     expect(parsed.text).toBe("hello");
@@ -1428,6 +1436,24 @@ describe("filterThreadEntries", () => {
     expect(filtered).toHaveLength(1);
     expect(filtered[0]?.noteTrimmed).toBe("weekly summary");
   });
+
+  it("rejects thread matches when task-only cadence operator is present", () => {
+    const entries = [
+      makeEntry({
+        thread: { createdAt: "2026-02-08T01:00:00.000Z", mode: "research" },
+        noteTrimmed: "weekly summary",
+      }),
+    ];
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { cadence: "weekly" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+  });
 });
 
 describe("filterSpaceEntries", () => {
@@ -1792,6 +1818,38 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { source: "none" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+
+  it("supports cadence filter on tasks", () => {
+    const entries = [
+      {
+        task: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          cadence: "weekly",
+        },
+        combinedLower: "weekly review",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+      {
+        task: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          cadence: "daily",
+        },
+        combinedLower: "daily digest",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+    ];
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { cadence: "weekly" },
         timelineWindow: "all",
         nowMs: now,
       })

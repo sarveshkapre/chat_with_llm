@@ -32,6 +32,7 @@ export type UnifiedSearchOperators = {
   source?: SourceMode;
   provider?: string;
   model?: string;
+  cadence?: TaskCadence;
   space?: string;
   spaceId?: string;
   tags?: string[];
@@ -116,6 +117,7 @@ export type UnifiedSearchStripOperatorKey =
   | "source"
   | "provider"
   | "model"
+  | "cadence"
   | "space"
   | "spaceid"
   | "tag"
@@ -142,6 +144,7 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "source:",
   "provider:",
   "model:",
+  "cadence:",
   "space:",
   "spaceId:",
   "tag:",
@@ -160,6 +163,7 @@ const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKe
     "source",
     "provider",
     "model",
+    "cadence",
     "space",
     "spaceid",
     "tag",
@@ -235,6 +239,8 @@ function normalizeStrippableOperatorKey(
               ? "provider"
               : normalized === "llm"
                 ? "model"
+                : normalized === "schedule"
+                  ? "cadence"
         : normalized === "exact"
           ? "verbatim"
           : normalized;
@@ -645,6 +651,7 @@ export function buildUnifiedSearchOperatorSummary(
   if (operators.source) parts.push(`source:${operators.source}`);
   if (operators.provider) parts.push(`provider:${operators.provider}`);
   if (operators.model) parts.push(`model:${operators.model}`);
+  if (operators.cadence) parts.push(`cadence:${operators.cadence}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
@@ -873,6 +880,19 @@ function normalizeSourceToken(raw: string): SourceMode | null {
   return null;
 }
 
+function normalizeCadenceToken(raw: string): TaskCadence | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "once") return "once";
+  if (value === "daily") return "daily";
+  if (value === "weekday" || value === "weekdays") return "weekday";
+  if (value === "weekly") return "weekly";
+  if (value === "monthly") return "monthly";
+  if (value === "yearly" || value === "annual" || value === "annually")
+    return "yearly";
+  return null;
+}
+
 function normalizeHasToken(raw: string): "note" | "citation" | "attachment" | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
@@ -985,6 +1005,14 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
     if (!negated && (key === "model" || key === "llm")) {
       operators.model = value;
       continue;
+    }
+
+    if (!negated && (key === "cadence" || key === "schedule")) {
+      const normalizedCadence = normalizeCadenceToken(value);
+      if (normalizedCadence) {
+        operators.cadence = normalizedCadence;
+        continue;
+      }
     }
 
     if (!negated && key === "space") {
@@ -1772,6 +1800,7 @@ export function filterThreadEntries<
       const model = (entry.thread.model ?? "").toLowerCase();
       if (!model.includes(needle)) return false;
     }
+    if (operators.cadence) return false;
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
         if (!entry.tagSetLower.has(tag.toLowerCase())) return false;
@@ -1841,6 +1870,10 @@ function hasModelOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.model);
 }
 
+function hasCadenceOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.cadence);
+}
+
 function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
@@ -1884,6 +1917,7 @@ export function filterSpaceEntries<
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
+    if (hasCadenceOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1913,6 +1947,7 @@ export function filterTaskEntries<
       createdAt?: string | null | undefined;
       mode?: AnswerMode | null | undefined;
       sources?: SourceMode | null | undefined;
+      cadence?: TaskCadence | null | undefined;
     };
     combinedLower: string;
     spaceNameLower: string;
@@ -1942,6 +1977,7 @@ export function filterTaskEntries<
     if (hasModelOperators(operators)) return false;
     if (operators.mode && entry.task.mode !== operators.mode) return false;
     if (operators.source && entry.task.sources !== operators.source) return false;
+    if (operators.cadence && entry.task.cadence !== operators.cadence) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1982,6 +2018,7 @@ export function filterCollectionEntries<
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
+    if (hasCadenceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -2016,6 +2053,7 @@ export function filterFileEntries<
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
+    if (hasCadenceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
