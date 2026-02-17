@@ -24,7 +24,11 @@
 - Keep a broad queue of aligned candidates across features, bugs, refactor, UI/UX, docs, and test hardening.
 
 ## Pending Features
-- Keep this section updated every cycle.
+- Responses-native provider hardening (streaming + tools + background jobs).
+- Durable background research jobs with resumable progress API.
+- Server-side file ingestion/indexing pipeline for citation-grade retrieval.
+- MCP connector source mode with explicit user confirmation.
+- Multi-user auth + durable storage migration off localStorage-only mode.
 
 ## Delivered Features
 - Keep dated entries with evidence links/commands.

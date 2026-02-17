@@ -37,6 +37,13 @@ The product direction is a Perplexity-style experience with our own branding and
 6. Security/compliance: data retention controls, encryption strategy, admin controls.
 7. Monetization controls: usage quotas, plan gating, billing/entitlements.
 
+## 2026-02 World-State Opportunities
+- Responses-native migration hardening: keep APIs aligned with OpenAI Responses/Conversations and avoid new Assistants-era dependencies.
+- Background research execution: run long jobs asynchronously with resumable status/progress polling.
+- MCP source integration: add explicit connector hooks so users can opt into local/remote MCP tools safely.
+- Retrieval modernization: move from local text scan toward ingestion + embeddings + citation-grade chunk retrieval.
+- Next.js 16 readiness: keep App Router async boundaries, cache semantics, and CI checks aligned with v16 behavior.
+
 ## Prioritized Feature List
 ## P0 (Core Platform)
 - [ ] Auth and user accounts (email/SSO placeholder with secure sessions).
@@ -45,6 +52,7 @@ The product direction is a Perplexity-style experience with our own branding and
 - [ ] Embeddings + retrieval API with citation grounding from indexed docs.
 - [ ] Background job runner for research/tasks with persistent job state.
 - [ ] Secure share model (private/link/org scopes with authorization checks).
+- [ ] Responses-native provider contract (streaming + tools + background jobs, no Assistants dependency).
 
 ## P1 (Research and Productivity)
 - [ ] Research job orchestration with intermediate checkpoints and resumability.
@@ -52,6 +60,7 @@ The product direction is a Perplexity-style experience with our own branding and
 - [ ] Space-level source controls and query policies.
 - [ ] Better task scheduler (cron UI, timezone handling, notifications).
 - [ ] Rich export engine (DOCX/PDF/HTML templates with citations and metadata).
+- [ ] MCP connector source mode (opt-in tool calls with explicit confirmation UX).
 
 ## P2 (Model and Ecosystem)
 - [ ] OSS model connector layer (vLLM/Ollama/hosted OSS providers).

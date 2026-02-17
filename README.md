@@ -83,6 +83,7 @@ Copy `.env.example` to `.env` and set `OPENAI_API_KEY` to enable live search.
 
 ## Notes
 - Vibe coding + LLM workflow notes live in `docs/vibe-coding.md`.
+- External platform landscape snapshot lives in `docs/world-state-2026-02.md`.
 - Product direction and prioritized feature plan live in `PRODUCT_GOALS.md`.
 - Local-first data export/reset and corruption recovery steps live in `docs/data-recovery.md`.
 - Unified Search operator reference and scope matrix live in `docs/unified-search-operators.md`.
