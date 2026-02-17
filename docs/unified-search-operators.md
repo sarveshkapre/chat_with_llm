@@ -10,6 +10,7 @@ Signal Search supports inline operators in `/search` to narrow mixed results.
 - `provider:<name>` (alias: `engine:`): case-insensitive contains match on thread provider id.
 - `model:<name>` (alias: `llm:`): case-insensitive contains match on thread model id.
 - `cadence:once|daily|weekday|weekly|monthly|yearly` (alias: `schedule:`): filter task recurrence.
+- `domain:<host>` / `-domain:<host>` (alias: `host:`): include/exclude thread citation hosts.
 - `space:"name"`: space name contains match, or exact space id match.
 - `spaceId:<id>`: exact space id match.
 - `tag:<value>` / `-tag:<value>`: include/exclude tags.
@@ -27,6 +28,7 @@ Signal Search supports inline operators in `/search` to narrow mixed results.
 | `provider:` | Yes | No | No | No | No |
 | `model:` | Yes | No | No | No | No |
 | `cadence:` | No | No | No | No | Yes |
+| `domain:` / `-domain:` | Yes | No | No | No | No |
 | `space:` | Yes | Yes | No | No | Yes |
 | `spaceId:` | Yes | Yes | No | No | Yes |
 | `tag:` / `-tag:` | Yes | Yes | No | No | No |
@@ -40,6 +42,7 @@ When an operator is outside a result type's scope, that result type is excluded 
 
 - `type:threads is:pinned has:citation incident postmortem`
 - `type:threads mode:research has:citation incident postmortem`
+- `type:threads domain:openai.com -domain:wikipedia.org ai updates`
 - `type:threads space:"Research" tag:alpha -is:archived -has:note`
 - `type:spaces tag:customer roadmap`
 - `type:all verbatim:true "root cause analysis"`

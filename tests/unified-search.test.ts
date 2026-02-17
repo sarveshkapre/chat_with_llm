@@ -407,6 +407,8 @@ describe("Unified Search operator summary chips", () => {
         cadence: "weekly",
         space: "Research",
         spaceId: "space-1",
+        domains: ["openai.com", "docs.openai.com"],
+        notDomains: ["wikipedia.org", "Wikipedia.org"],
         tags: ["beta", "alpha", "Alpha"],
         notTags: ["archive", "Archive"],
         states: ["archived", "favorite", "favorite"],
@@ -425,6 +427,9 @@ describe("Unified Search operator summary chips", () => {
       "cadence:weekly",
       'space:"Research"',
       "spaceId:space-1",
+      "domain:docs.openai.com",
+      "domain:openai.com",
+      "-domain:wikipedia.org",
       "tag:alpha",
       "tag:beta",
       "-tag:archive",
@@ -547,7 +552,7 @@ describe("Unified Search URL state helpers", () => {
 describe("stripUnifiedSearchOperators", () => {
   it("removes recognized operators while preserving free-text and unknown tokens", () => {
     const stripped = stripUnifiedSearchOperators(
-      'type:threads mode:research source:web provider:openai model:gpt-4 cadence:weekly has:note status:open space:"Research" outage triage'
+      'type:threads mode:research source:web provider:openai model:gpt-4 cadence:weekly domain:openai.com has:note status:open space:"Research" outage triage'
     );
     expect(stripped).toBe("status:open outage triage");
   });
@@ -1000,6 +1005,15 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.cadence).toBe("weekday");
   });
 
+  it("supports domain operators and alias", () => {
+    const parsed = parseUnifiedSearchQuery(
+      "domain:openai.com host:docs.openai.com -domain:wikipedia.org roadmap"
+    );
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.domains).toEqual(["openai.com", "docs.openai.com"]);
+    expect(parsed.operators.notDomains).toEqual(["wikipedia.org"]);
+  });
+
   it("supports negative tag and has operators", () => {
     const parsed = parseUnifiedSearchQuery("-tag:foo -has:note has:file hello");
     expect(parsed.text).toBe("hello");
@@ -1158,6 +1172,7 @@ describe("filterThreadEntries", () => {
       spaceNameLower: "research",
       spaceIdLower: "space-1",
       tagSetLower: new Set(["alpha", "beta"]),
+      citationDomainSetLower: new Set(["openai.com"]),
       noteTrimmed: "",
       hasCitation: false,
       hasAttachment: false,
@@ -1291,6 +1306,35 @@ describe("filterThreadEntries", () => {
       filterThreadEntries(entries, {
         query: normalizeQuery(""),
         operators: { model: "gpt-4" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+
+  it("supports domain and -domain operators against citation hosts", () => {
+    const entries = [
+      makeEntry({
+        citationDomainSetLower: new Set(["openai.com", "docs.openai.com"]),
+      }),
+      makeEntry({
+        citationDomainSetLower: new Set(["wikipedia.org"]),
+      }),
+    ];
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { domains: ["openai.com"] },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notDomains: ["wikipedia.org"] },
         timelineWindow: "all",
         nowMs: now,
       })
@@ -1758,6 +1802,15 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { model: "gpt-4.1" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { domains: ["openai.com"] },
         timelineWindow: "all",
         nowMs: now,
       })

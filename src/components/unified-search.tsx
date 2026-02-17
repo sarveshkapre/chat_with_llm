@@ -111,6 +111,7 @@ type PreparedThread = {
   spaceNameLower: string;
   spaceIdLower: string;
   tagSetLower: Set<string>;
+  citationDomainSetLower: Set<string>;
   tagsText: string;
   note: string;
   noteTrimmed: string;
@@ -222,6 +223,17 @@ type NavigableResult = {
 type UnifiedSearchProps = {
   initialBootstrap?: UnifiedSearchBootstrap;
 };
+
+function parseCitationDomainLower(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
 
 function toNavigableDomId(key: string): string {
   return `search-nav-${key.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
@@ -631,6 +643,11 @@ export default function UnifiedSearch({
       const citationsText = thread.citations
         .map((citation) => `${citation.title} ${citation.url}`)
         .join(" ");
+      const citationDomainSetLower = new Set(
+        thread.citations
+          .map((citation) => parseCitationDomainLower(citation.url))
+          .filter((domain): domain is string => Boolean(domain))
+      );
       const tagsText = (thread.tags ?? []).join(" ");
       const note = notes[thread.id] ?? "";
       const noteTrimmed = note.trim();
@@ -654,6 +671,7 @@ export default function UnifiedSearch({
         spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
         spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
         tagSetLower: new Set((thread.tags ?? []).map((tag) => tag.toLowerCase())),
+        citationDomainSetLower,
         tagsText,
         note,
         noteTrimmed,
@@ -1582,7 +1600,7 @@ export default function UnifiedSearch({
             onBlur={() => pushRecentQuery(query)}
             onKeyDown={onInputKeyDown}
             aria-describedby={OPERATOR_HELP_ID}
-            placeholder='Search threads, spaces, collections, files, and tasks (try: type:tasks cadence:weekly mode:research source:web provider:openai model:gpt-4 is:pinned has:note tag:foo space:"Research" verbatim:true)'
+            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads domain:openai.com mode:research source:web provider:openai model:gpt-4 has:citation tag:foo)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           {operatorSuggestions.length ? (
@@ -1634,6 +1652,7 @@ export default function UnifiedSearch({
                 , <span className="text-signal-text">provider:openai</span>
                 , <span className="text-signal-text">model:gpt-4.1</span>
                 , <span className="text-signal-text">cadence:weekly</span>
+                , <span className="text-signal-text">domain:openai.com</span>
                 ,{" "}
                 <span className="text-signal-text">
                   space:&quot;Name contains&quot;
@@ -1663,6 +1682,7 @@ export default function UnifiedSearch({
                 <span className="text-signal-text">provider:</span> and{" "}
                 <span className="text-signal-text">model:</span> apply to threads;{" "}
                 <span className="text-signal-text">cadence:</span> applies to tasks;{" "}
+                <span className="text-signal-text">domain:</span> applies to thread citations;{" "}
                 <span className="text-signal-text">space:</span> applies to threads/tasks/spaces.
               </div>
               <div>

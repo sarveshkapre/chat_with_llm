@@ -37,6 +37,8 @@ export type UnifiedSearchOperators = {
   spaceId?: string;
   tags?: string[];
   notTags?: string[];
+  domains?: string[];
+  notDomains?: string[];
   states?: ThreadStateOperator[];
   notStates?: ThreadStateOperator[];
   hasNote?: boolean;
@@ -118,6 +120,7 @@ export type UnifiedSearchStripOperatorKey =
   | "provider"
   | "model"
   | "cadence"
+  | "domain"
   | "space"
   | "spaceid"
   | "tag"
@@ -145,6 +148,8 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "provider:",
   "model:",
   "cadence:",
+  "domain:",
+  "-domain:",
   "space:",
   "spaceId:",
   "tag:",
@@ -164,6 +169,7 @@ const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKe
     "provider",
     "model",
     "cadence",
+    "domain",
     "space",
     "spaceid",
     "tag",
@@ -241,6 +247,8 @@ function normalizeStrippableOperatorKey(
                 ? "model"
                 : normalized === "schedule"
                   ? "cadence"
+                  : normalized === "host"
+                    ? "domain"
         : normalized === "exact"
           ? "verbatim"
           : normalized;
@@ -654,6 +662,14 @@ export function buildUnifiedSearchOperatorSummary(
   if (operators.cadence) parts.push(`cadence:${operators.cadence}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
+  parts.push(
+    ...dedupeAndSortOperators(operators.domains).map((domain) => `domain:${domain}`)
+  );
+  parts.push(
+    ...dedupeAndSortOperators(operators.notDomains).map(
+      (domain) => `-domain:${domain}`
+    )
+  );
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
   parts.push(
     ...dedupeAndSortOperators(operators.notTags).map((tag) => `-tag:${tag}`)
@@ -944,6 +960,8 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   const operators: UnifiedSearchOperators = {};
   const tags: string[] = [];
   const notTags: string[] = [];
+  const domains: string[] = [];
+  const notDomains: string[] = [];
   const states: ThreadStateOperator[] = [];
   const notStates: ThreadStateOperator[] = [];
 
@@ -1025,6 +1043,12 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       continue;
     }
 
+    if (key === "domain" || key === "host") {
+      if (negated) notDomains.push(value);
+      else domains.push(value);
+      continue;
+    }
+
     if (key === "tag") {
       if (negated) notTags.push(value);
       else tags.push(value);
@@ -1076,6 +1100,12 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
   }
   if (notTags.length) {
     operators.notTags = notTags;
+  }
+  if (domains.length) {
+    operators.domains = domains;
+  }
+  if (notDomains.length) {
+    operators.notDomains = notDomains;
   }
   if (states.length) {
     operators.states = states;
@@ -1753,6 +1783,7 @@ export function filterThreadEntries<
     spaceNameLower: string;
     spaceIdLower: string;
     tagSetLower: ReadonlySet<string>;
+    citationDomainSetLower: ReadonlySet<string>;
     noteTrimmed: string;
     hasCitation: boolean;
     hasAttachment: boolean;
@@ -1783,6 +1814,16 @@ export function filterThreadEntries<
     if (operators.spaceId) {
       const needle = operators.spaceId.toLowerCase();
       if (entry.spaceIdLower !== needle) return false;
+    }
+    if (operators.domains?.length) {
+      for (const domain of operators.domains) {
+        if (!entry.citationDomainSetLower.has(domain.toLowerCase())) return false;
+      }
+    }
+    if (operators.notDomains?.length) {
+      for (const domain of operators.notDomains) {
+        if (entry.citationDomainSetLower.has(domain.toLowerCase())) return false;
+      }
     }
     if (operators.mode) {
       if (entry.thread.mode !== operators.mode) return false;
@@ -1878,6 +1919,10 @@ function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
 
+function hasDomainOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.domains?.length || operators.notDomains?.length);
+}
+
 function hasSpaceOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.space || operators.spaceId);
 }
@@ -1918,6 +1963,7 @@ export function filterSpaceEntries<
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
     if (hasCadenceOperators(operators)) return false;
+    if (hasDomainOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1975,6 +2021,7 @@ export function filterTaskEntries<
     if (hasStateOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
+    if (hasDomainOperators(operators)) return false;
     if (operators.mode && entry.task.mode !== operators.mode) return false;
     if (operators.source && entry.task.sources !== operators.source) return false;
     if (operators.cadence && entry.task.cadence !== operators.cadence) return false;
@@ -2019,6 +2066,7 @@ export function filterCollectionEntries<
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
     if (hasCadenceOperators(operators)) return false;
+    if (hasDomainOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -2054,6 +2102,7 @@ export function filterFileEntries<
     if (hasProviderOperators(operators)) return false;
     if (hasModelOperators(operators)) return false;
     if (hasCadenceOperators(operators)) return false;
+    if (hasDomainOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
