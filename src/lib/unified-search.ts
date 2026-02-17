@@ -42,6 +42,8 @@ export type UnifiedSearchOperators = {
   notHasNote?: boolean;
   hasCitation?: boolean;
   notHasCitation?: boolean;
+  hasAttachment?: boolean;
+  notHasAttachment?: boolean;
   verbatim?: boolean;
 };
 
@@ -659,6 +661,8 @@ export function buildUnifiedSearchOperatorSummary(
   if (operators.notHasNote) parts.push("-has:note");
   if (operators.hasCitation) parts.push("has:citation");
   if (operators.notHasCitation) parts.push("-has:citation");
+  if (operators.hasAttachment) parts.push("has:attachment");
+  if (operators.notHasAttachment) parts.push("-has:attachment");
   if (operators.verbatim === true) parts.push("verbatim:true");
   if (operators.verbatim === false) parts.push("verbatim:false");
   return parts;
@@ -869,10 +873,18 @@ function normalizeSourceToken(raw: string): SourceMode | null {
   return null;
 }
 
-function normalizeHasToken(raw: string): "note" | "citation" | null {
+function normalizeHasToken(raw: string): "note" | "citation" | "attachment" | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
   if (value === "note" || value === "notes") return "note";
+  if (
+    value === "attachment" ||
+    value === "attachments" ||
+    value === "file" ||
+    value === "files"
+  ) {
+    return "attachment";
+  }
   if (
     value === "citation" ||
     value === "citations" ||
@@ -1010,6 +1022,11 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       if (normalizedHas === "citation") {
         if (negated) operators.notHasCitation = true;
         else operators.hasCitation = true;
+        continue;
+      }
+      if (normalizedHas === "attachment") {
+        if (negated) operators.notHasAttachment = true;
+        else operators.hasAttachment = true;
         continue;
       }
     }
@@ -1710,6 +1727,7 @@ export function filterThreadEntries<
     tagSetLower: ReadonlySet<string>;
     noteTrimmed: string;
     hasCitation: boolean;
+    hasAttachment: boolean;
   },
 >(
   entries: T[],
@@ -1776,6 +1794,12 @@ export function filterThreadEntries<
     if (operators.notHasCitation) {
       if (entry.hasCitation) return false;
     }
+    if (operators.hasAttachment) {
+      if (!entry.hasAttachment) return false;
+    }
+    if (operators.notHasAttachment) {
+      if (entry.hasAttachment) return false;
+    }
     if (operators.states?.length) {
       for (const state of operators.states) {
         if (!entry.thread[state]) return false;
@@ -1795,7 +1819,9 @@ function hasHasOperators(operators: UnifiedSearchOperators): boolean {
     operators.hasNote ||
       operators.notHasNote ||
       operators.hasCitation ||
-      operators.notHasCitation
+      operators.notHasCitation ||
+      operators.hasAttachment ||
+      operators.notHasAttachment
   );
 }
 

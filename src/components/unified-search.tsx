@@ -116,6 +116,7 @@ type PreparedThread = {
   noteTrimmed: string;
   citationsText: string;
   hasCitation: boolean;
+  hasAttachment: boolean;
   relevanceFields: WeightedLoweredField[];
 };
 
@@ -658,6 +659,7 @@ export default function UnifiedSearch({
         noteTrimmed,
         citationsText,
         hasCitation: Boolean(thread.citations && thread.citations.length > 0),
+        hasAttachment: Boolean(thread.attachments && thread.attachments.length > 0),
         relevanceFields: [
           {
             loweredText: (thread.title ?? thread.question ?? "").toLowerCase(),
@@ -1647,6 +1649,8 @@ export default function UnifiedSearch({
                 <span className="text-signal-text">-has:note</span>,{" "}
                 <span className="text-signal-text">has:citation</span>,{" "}
                 <span className="text-signal-text">-has:citation</span>,{" "}
+                <span className="text-signal-text">has:attachment</span>,{" "}
+                <span className="text-signal-text">-has:attachment</span>,{" "}
                 <span className="text-signal-text">verbatim:true|false</span>
               </div>
               <div>

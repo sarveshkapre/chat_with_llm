@@ -13,7 +13,7 @@ Signal Search supports inline operators in `/search` to narrow mixed results.
 - `spaceId:<id>`: exact space id match.
 - `tag:<value>` / `-tag:<value>`: include/exclude tags.
 - `is:favorite|pinned|archived` / `-is:<state>`: include/exclude thread states.
-- `has:note|citation` / `-has:note|citation`: include/exclude note/citation presence.
+- `has:note|citation|attachment` / `-has:note|citation|attachment`: include/exclude note/citation/attachment presence.
 - `verbatim:true|false` (alias: `exact:true|false`): phrase-only mode.
 
 ## Operator scope matrix

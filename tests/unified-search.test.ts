@@ -411,6 +411,7 @@ describe("Unified Search operator summary chips", () => {
         states: ["archived", "favorite", "favorite"],
         notStates: ["pinned", "pinned"],
         hasNote: true,
+        hasAttachment: true,
         notHasCitation: true,
         verbatim: false,
       })
@@ -430,6 +431,7 @@ describe("Unified Search operator summary chips", () => {
       "-is:pinned",
       "has:note",
       "-has:citation",
+      "has:attachment",
       "verbatim:false",
     ]);
   });
@@ -991,10 +993,11 @@ describe("parseUnifiedSearchQuery", () => {
   });
 
   it("supports negative tag and has operators", () => {
-    const parsed = parseUnifiedSearchQuery("-tag:foo -has:note hello");
+    const parsed = parseUnifiedSearchQuery("-tag:foo -has:note has:file hello");
     expect(parsed.text).toBe("hello");
     expect(parsed.operators.notTags).toEqual(["foo"]);
     expect(parsed.operators.notHasNote).toBe(true);
+    expect(parsed.operators.hasAttachment).toBe(true);
   });
 
   it("supports is and -is thread-state operators", () => {
@@ -1149,6 +1152,7 @@ describe("filterThreadEntries", () => {
       tagSetLower: new Set(["alpha", "beta"]),
       noteTrimmed: "",
       hasCitation: false,
+      hasAttachment: false,
       ...overrides,
     };
   }
@@ -1285,10 +1289,10 @@ describe("filterThreadEntries", () => {
     ).toHaveLength(1);
   });
 
-  it("supports has:note / -has:note and has:citation / -has:citation", () => {
+  it("supports has:* operators for note/citation/attachment", () => {
     const entries = [
-      makeEntry({ noteTrimmed: "", hasCitation: false }),
-      makeEntry({ noteTrimmed: "note", hasCitation: true }),
+      makeEntry({ noteTrimmed: "", hasCitation: false, hasAttachment: false }),
+      makeEntry({ noteTrimmed: "note", hasCitation: true, hasAttachment: true }),
     ];
 
     expect(
@@ -1319,6 +1323,22 @@ describe("filterThreadEntries", () => {
       filterThreadEntries(entries, {
         query: normalizeQuery(""),
         operators: { notHasCitation: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { hasAttachment: true },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { notHasAttachment: true },
         timelineWindow: "all",
         nowMs: now,
       })
