@@ -442,6 +442,15 @@
 - 2026-02-10 | `npm run lint` | (no output) | pass
 - 2026-02-10 | `npm run build` | `Compiled successfully` | pass
 - 2026-02-10 | `node scripts/smoke.mjs --provider mock --skip-build` | `Smoke OK: provider=mock port=64882 deltaEvents=15` | pass
+- 2026-02-17 | `npm test -- tests/unified-search.test.ts tests/check-operator-docs.test.ts` | `tests/unified-search.test.ts (115 tests)` + `tests/check-operator-docs.test.ts (3 tests)` | pass
+- 2026-02-17 | `npm test -- tests/file-search.test.ts` | `tests/file-search.test.ts (4 tests)` | pass
+- 2026-02-17 | `npm test -- tests/citations.test.ts` | URL trailing slash expectation mismatch (`https://example.com/` vs `https://example.com`) | fail
+- 2026-02-17 | `npm test -- tests/citations.test.ts` | `tests/citations.test.ts (4 tests)` | pass
+- 2026-02-17 | `npm run build` | TypeScript mismatch in `tests/search-perf.bench.ts` (missing `citationDomainSetLower` / `hasAttachment`) | fail
+- 2026-02-17 | `npm run build` | `Compiled successfully` | pass
+- 2026-02-17 | `npm run lint -- --max-warnings=0` | (no output) | pass
+- 2026-02-17 | `npm test` | `Test Files 21 passed (21), Tests 210 passed (210)` | pass
+- 2026-02-17 | `npm run smoke:mock` | `Smoke OK: provider=mock port=59980 deltaEvents=15` | pass
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.

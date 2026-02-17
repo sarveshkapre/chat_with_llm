@@ -17,6 +17,10 @@ type ThreadPerfEntry = {
   thread: {
     id: string;
     createdAt: string;
+    mode: "quick" | "research" | "learn";
+    sources: "web" | "none";
+    provider: string;
+    model?: string;
     favorite: boolean;
     pinned: boolean;
     archived: boolean;
@@ -26,8 +30,10 @@ type ThreadPerfEntry = {
   spaceNameLower: string;
   spaceIdLower: string;
   tagSetLower: Set<string>;
+  citationDomainSetLower: Set<string>;
   noteTrimmed: string;
   hasCitation: boolean;
+  hasAttachment: boolean;
   relevanceFields: WeightedLoweredField[];
 };
 
@@ -56,7 +62,13 @@ type FilePerfEntry = {
 };
 
 type TaskPerfEntry = {
-  task: { id: string; createdAt: string };
+  task: {
+    id: string;
+    createdAt: string;
+    mode: "quick" | "research" | "learn";
+    sources: "web" | "none";
+    cadence: "once" | "daily" | "weekday" | "weekly" | "monthly" | "yearly";
+  };
   createdMs: number;
   combinedLower: string;
   spaceNameLower: string;
@@ -109,6 +121,16 @@ function relevanceFields(parts: string[]): WeightedLoweredField[] {
     }));
 }
 
+function parseDomain(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
 function buildDataset(totalItems: number): SearchPerfDataset {
   const fixture = createDeterministicUnifiedSearchDataset({
     totalItems,
@@ -130,6 +152,10 @@ function buildDataset(totalItems: number): SearchPerfDataset {
       thread: {
         id: thread.id,
         createdAt: thread.createdAt,
+        mode: thread.mode,
+        sources: thread.sources,
+        provider: thread.provider,
+        model: thread.model,
         favorite: thread.favorite === true,
         pinned: thread.pinned === true,
         archived: thread.archived === true,
@@ -150,8 +176,14 @@ function buildDataset(totalItems: number): SearchPerfDataset {
       spaceNameLower: (thread.spaceName ?? "").toLowerCase(),
       spaceIdLower: (thread.spaceId ?? "").toLowerCase(),
       tagSetLower: new Set(tags.map((tag) => tag.toLowerCase())),
+      citationDomainSetLower: new Set(
+        (thread.citations ?? [])
+          .map((citation) => parseDomain(citation.url))
+          .filter((domain): domain is string => Boolean(domain))
+      ),
       noteTrimmed,
       hasCitation: Boolean(thread.citations?.length),
+      hasAttachment: Boolean(thread.attachments?.length),
       relevanceFields: relevanceFields([
         title,
         thread.question,
@@ -202,7 +234,13 @@ function buildDataset(totalItems: number): SearchPerfDataset {
 
   const tasks: TaskPerfEntry[] = fixture.tasks.map((task) => {
     return {
-      task: { id: task.id, createdAt: task.createdAt },
+      task: {
+        id: task.id,
+        createdAt: task.createdAt,
+        mode: task.mode,
+        sources: task.sources,
+        cadence: task.cadence,
+      },
       createdMs: Date.parse(task.createdAt),
       combinedLower: [task.name, task.prompt, task.spaceName ?? ""]
         .filter(Boolean)

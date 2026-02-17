@@ -412,3 +412,14 @@
 - Evidence: pass_log=logs/20260212-101456-chat_with_llm-cycle-30.log
 - Commit: pending
 - Confidence: medium
+
+### 2026-02-17T20:24:00Z | Build/type regression after search operator expansion
+- Date: 2026-02-17T20:24:00Z
+- Trigger: `npm run build` failed during TypeScript checks.
+- Impact: Production build blocked before push.
+- Root Cause: `filterThreadEntries` required new thread prep fields (`citationDomainSetLower`, `hasAttachment`) but perf benchmark fixtures were not updated.
+- Fix: Updated `tests/search-perf.bench.ts` fixture shapes and mapping logic to include new required fields and task filter fields.
+- Prevention Rule: After widening shared filter contracts, run `npm run build` immediately (not only unit tests) to catch downstream type fixtures.
+- Evidence: `npm run build` fail -> pass on 2026-02-17 (captured in `PROJECT_MEMORY.md`).
+- Commit: pending
+- Confidence: high
