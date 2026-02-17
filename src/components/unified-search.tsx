@@ -1580,7 +1580,7 @@ export default function UnifiedSearch({
             onBlur={() => pushRecentQuery(query)}
             onKeyDown={onInputKeyDown}
             aria-describedby={OPERATOR_HELP_ID}
-            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads mode:research source:web provider:openai is:pinned has:note tag:foo space:"Research" verbatim:true)'
+            placeholder='Search threads, spaces, collections, files, and tasks (try: type:threads mode:research source:web provider:openai model:gpt-4 is:pinned has:note tag:foo space:"Research" verbatim:true)'
             className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-signal-text outline-none placeholder:text-signal-muted"
           />
           {operatorSuggestions.length ? (
@@ -1630,6 +1630,7 @@ export default function UnifiedSearch({
                 , <span className="text-signal-text">mode:quick|research|learn</span>
                 , <span className="text-signal-text">source:web|none</span>
                 , <span className="text-signal-text">provider:openai</span>
+                , <span className="text-signal-text">model:gpt-4.1</span>
                 ,{" "}
                 <span className="text-signal-text">
                   space:&quot;Name contains&quot;
@@ -1654,7 +1655,8 @@ export default function UnifiedSearch({
                 <span className="text-signal-text">is:</span> apply to threads;{" "}
                 <span className="text-signal-text">mode:</span> and{" "}
                 <span className="text-signal-text">source:</span> apply to threads/tasks;{" "}
-                <span className="text-signal-text">provider:</span> applies to threads;{" "}
+                <span className="text-signal-text">provider:</span> and{" "}
+                <span className="text-signal-text">model:</span> apply to threads;{" "}
                 <span className="text-signal-text">space:</span> applies to threads/tasks/spaces.
               </div>
               <div>

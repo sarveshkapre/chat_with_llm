@@ -31,6 +31,7 @@ export type UnifiedSearchOperators = {
   mode?: AnswerMode;
   source?: SourceMode;
   provider?: string;
+  model?: string;
   space?: string;
   spaceId?: string;
   tags?: string[];
@@ -112,6 +113,7 @@ export type UnifiedSearchStripOperatorKey =
   | "mode"
   | "source"
   | "provider"
+  | "model"
   | "space"
   | "spaceid"
   | "tag"
@@ -137,6 +139,7 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "mode:",
   "source:",
   "provider:",
+  "model:",
   "space:",
   "spaceId:",
   "tag:",
@@ -154,6 +157,7 @@ const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKe
     "mode",
     "source",
     "provider",
+    "model",
     "space",
     "spaceid",
     "tag",
@@ -227,6 +231,8 @@ function normalizeStrippableOperatorKey(
             ? "source"
             : normalized === "engine"
               ? "provider"
+              : normalized === "llm"
+                ? "model"
         : normalized === "exact"
           ? "verbatim"
           : normalized;
@@ -636,6 +642,7 @@ export function buildUnifiedSearchOperatorSummary(
   if (operators.mode) parts.push(`mode:${operators.mode}`);
   if (operators.source) parts.push(`source:${operators.source}`);
   if (operators.provider) parts.push(`provider:${operators.provider}`);
+  if (operators.model) parts.push(`model:${operators.model}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
@@ -960,6 +967,11 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
 
     if (!negated && (key === "provider" || key === "engine")) {
       operators.provider = value;
+      continue;
+    }
+
+    if (!negated && (key === "model" || key === "llm")) {
+      operators.model = value;
       continue;
     }
 
@@ -1687,6 +1699,7 @@ export function filterThreadEntries<
       mode?: AnswerMode | null | undefined;
       sources?: SourceMode | null | undefined;
       provider?: string | null | undefined;
+      model?: string | null | undefined;
       favorite?: boolean | null | undefined;
       pinned?: boolean | null | undefined;
       archived?: boolean | null | undefined;
@@ -1735,6 +1748,11 @@ export function filterThreadEntries<
       const needle = operators.provider.toLowerCase();
       const provider = (entry.thread.provider ?? "").toLowerCase();
       if (!provider.includes(needle)) return false;
+    }
+    if (operators.model) {
+      const needle = operators.model.toLowerCase();
+      const model = (entry.thread.model ?? "").toLowerCase();
+      if (!model.includes(needle)) return false;
     }
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
@@ -1793,6 +1811,10 @@ function hasProviderOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.provider);
 }
 
+function hasModelOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.model);
+}
+
 function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
@@ -1835,6 +1857,7 @@ export function filterSpaceEntries<
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
+    if (hasModelOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1890,6 +1913,7 @@ export function filterTaskEntries<
     if (hasTagOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
+    if (hasModelOperators(operators)) return false;
     if (operators.mode && entry.task.mode !== operators.mode) return false;
     if (operators.source && entry.task.sources !== operators.source) return false;
     if (operators.space) {
@@ -1931,6 +1955,7 @@ export function filterCollectionEntries<
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
+    if (hasModelOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -1964,6 +1989,7 @@ export function filterFileEntries<
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
     if (hasProviderOperators(operators)) return false;
+    if (hasModelOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;

@@ -403,6 +403,7 @@ describe("Unified Search operator summary chips", () => {
         mode: "research",
         source: "web",
         provider: "openai",
+        model: "gpt-4.1",
         space: "Research",
         spaceId: "space-1",
         tags: ["beta", "alpha", "Alpha"],
@@ -418,6 +419,7 @@ describe("Unified Search operator summary chips", () => {
       "mode:research",
       "source:web",
       "provider:openai",
+      "model:gpt-4.1",
       'space:"Research"',
       "spaceId:space-1",
       "tag:alpha",
@@ -541,7 +543,7 @@ describe("Unified Search URL state helpers", () => {
 describe("stripUnifiedSearchOperators", () => {
   it("removes recognized operators while preserving free-text and unknown tokens", () => {
     const stripped = stripUnifiedSearchOperators(
-      'type:threads mode:research source:web provider:openai has:note status:open space:"Research" outage triage'
+      'type:threads mode:research source:web provider:openai model:gpt-4 has:note status:open space:"Research" outage triage'
     );
     expect(stripped).toBe("status:open outage triage");
   });
@@ -982,6 +984,12 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.provider).toBe("mock");
   });
 
+  it("supports model operator and alias", () => {
+    const parsed = parseUnifiedSearchQuery("model:gpt-4 llm:o3 roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.model).toBe("o3");
+  });
+
   it("supports negative tag and has operators", () => {
     const parsed = parseUnifiedSearchQuery("-tag:foo -has:note hello");
     expect(parsed.text).toBe("hello");
@@ -1252,6 +1260,25 @@ describe("filterThreadEntries", () => {
       filterThreadEntries(entries, {
         query: normalizeQuery(""),
         operators: { provider: "OPENAI" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+
+  it("supports model operator with case-insensitive contains matching", () => {
+    const entries = [
+      makeEntry({
+        thread: { createdAt: "2026-02-08T01:00:00.000Z", model: "gpt-4.1-mini" },
+      }),
+      makeEntry({
+        thread: { createdAt: "2026-02-08T01:00:00.000Z", model: "o3-mini" },
+      }),
+    ];
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { model: "gpt-4" },
         timelineWindow: "all",
         nowMs: now,
       })
@@ -1676,6 +1703,15 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { provider: "openai" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { model: "gpt-4.1" },
         timelineWindow: "all",
         nowMs: now,
       })
