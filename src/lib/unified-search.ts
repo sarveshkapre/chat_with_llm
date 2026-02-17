@@ -30,6 +30,7 @@ export type UnifiedSearchOperators = {
   type?: Exclude<UnifiedSearchType, "all">;
   mode?: AnswerMode;
   source?: SourceMode;
+  provider?: string;
   space?: string;
   spaceId?: string;
   tags?: string[];
@@ -110,6 +111,7 @@ export type UnifiedSearchStripOperatorKey =
   | "type"
   | "mode"
   | "source"
+  | "provider"
   | "space"
   | "spaceid"
   | "tag"
@@ -134,6 +136,7 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "type:",
   "mode:",
   "source:",
+  "provider:",
   "space:",
   "spaceId:",
   "tag:",
@@ -150,6 +153,7 @@ const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKe
     "type",
     "mode",
     "source",
+    "provider",
     "space",
     "spaceid",
     "tag",
@@ -221,6 +225,8 @@ function normalizeStrippableOperatorKey(
           ? "mode"
           : normalized === "sources"
             ? "source"
+            : normalized === "engine"
+              ? "provider"
         : normalized === "exact"
           ? "verbatim"
           : normalized;
@@ -629,6 +635,7 @@ export function buildUnifiedSearchOperatorSummary(
   if (operators.type) parts.push(`type:${operators.type}`);
   if (operators.mode) parts.push(`mode:${operators.mode}`);
   if (operators.source) parts.push(`source:${operators.source}`);
+  if (operators.provider) parts.push(`provider:${operators.provider}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
@@ -949,6 +956,11 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
         operators.source = normalizedSource;
         continue;
       }
+    }
+
+    if (!negated && (key === "provider" || key === "engine")) {
+      operators.provider = value;
+      continue;
     }
 
     if (!negated && key === "space") {
@@ -1674,6 +1686,7 @@ export function filterThreadEntries<
       createdAt?: string | null | undefined;
       mode?: AnswerMode | null | undefined;
       sources?: SourceMode | null | undefined;
+      provider?: string | null | undefined;
       favorite?: boolean | null | undefined;
       pinned?: boolean | null | undefined;
       archived?: boolean | null | undefined;
@@ -1717,6 +1730,11 @@ export function filterThreadEntries<
     }
     if (operators.source) {
       if (entry.thread.sources !== operators.source) return false;
+    }
+    if (operators.provider) {
+      const needle = operators.provider.toLowerCase();
+      const provider = (entry.thread.provider ?? "").toLowerCase();
+      if (!provider.includes(needle)) return false;
     }
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
@@ -1771,6 +1789,10 @@ function hasSourceOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.source);
 }
 
+function hasProviderOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.provider);
+}
+
 function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
@@ -1812,6 +1834,7 @@ export function filterSpaceEntries<
     if (hasStateOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
+    if (hasProviderOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1866,6 +1889,7 @@ export function filterTaskEntries<
     if (hasHasOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
+    if (hasProviderOperators(operators)) return false;
     if (operators.mode && entry.task.mode !== operators.mode) return false;
     if (operators.source && entry.task.sources !== operators.source) return false;
     if (operators.space) {
@@ -1906,6 +1930,7 @@ export function filterCollectionEntries<
     if (hasSpaceOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
+    if (hasProviderOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -1938,6 +1963,7 @@ export function filterFileEntries<
     if (hasSpaceOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
     if (hasSourceOperators(operators)) return false;
+    if (hasProviderOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
