@@ -28,6 +28,7 @@ export type ThreadStateOperator = "favorite" | "pinned" | "archived";
 
 export type UnifiedSearchOperators = {
   type?: Exclude<UnifiedSearchType, "all">;
+  mode?: AnswerMode;
   space?: string;
   spaceId?: string;
   tags?: string[];
@@ -106,6 +107,7 @@ export type UnifiedSearchUrlState = {
 export type UnifiedSearchUrlStatePatch = Partial<UnifiedSearchUrlState>;
 export type UnifiedSearchStripOperatorKey =
   | "type"
+  | "mode"
   | "space"
   | "spaceid"
   | "tag"
@@ -128,6 +130,7 @@ const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
 
 export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "type:",
+  "mode:",
   "space:",
   "spaceId:",
   "tag:",
@@ -140,7 +143,7 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
 ] as const;
 
 const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKey> =
-  new Set(["type", "space", "spaceid", "tag", "is", "has", "verbatim"]);
+  new Set(["type", "mode", "space", "spaceid", "tag", "is", "has", "verbatim"]);
 
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
@@ -201,9 +204,11 @@ function normalizeStrippableOperatorKey(
       ? "spaceid"
       : normalized === "in"
         ? "type"
-      : normalized === "exact"
-        ? "verbatim"
-        : normalized;
+        : normalized === "searchmode"
+          ? "mode"
+        : normalized === "exact"
+          ? "verbatim"
+          : normalized;
   if (
     UNIFIED_STRIPPABLE_OPERATOR_KEYS.has(
       aliasNormalized as UnifiedSearchStripOperatorKey
@@ -607,6 +612,7 @@ export function buildUnifiedSearchOperatorSummary(
 ): string[] {
   const parts: string[] = [];
   if (operators.type) parts.push(`type:${operators.type}`);
+  if (operators.mode) parts.push(`mode:${operators.mode}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
@@ -815,6 +821,15 @@ function normalizeTypeToken(raw: string): Exclude<UnifiedSearchType, "all"> | nu
   return null;
 }
 
+function normalizeModeToken(raw: string): AnswerMode | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "quick") return "quick";
+  if (value === "research") return "research";
+  if (value === "learn") return "learn";
+  return null;
+}
+
 function normalizeHasToken(raw: string): "note" | "citation" | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
@@ -891,6 +906,14 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       const normalizedType = normalizeTypeToken(value);
       if (normalizedType) {
         operators.type = normalizedType;
+        continue;
+      }
+    }
+
+    if (!negated && (key === "mode" || key === "searchmode")) {
+      const normalizedMode = normalizeModeToken(value);
+      if (normalizedMode) {
+        operators.mode = normalizedMode;
         continue;
       }
     }
@@ -1616,6 +1639,7 @@ export function filterThreadEntries<
   T extends {
     thread: {
       createdAt?: string | null | undefined;
+      mode?: AnswerMode | null | undefined;
       favorite?: boolean | null | undefined;
       pinned?: boolean | null | undefined;
       archived?: boolean | null | undefined;
@@ -1653,6 +1677,9 @@ export function filterThreadEntries<
     if (operators.spaceId) {
       const needle = operators.spaceId.toLowerCase();
       if (entry.spaceIdLower !== needle) return false;
+    }
+    if (operators.mode) {
+      if (entry.thread.mode !== operators.mode) return false;
     }
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
@@ -1699,6 +1726,10 @@ function hasHasOperators(operators: UnifiedSearchOperators): boolean {
   );
 }
 
+function hasModeOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.mode);
+}
+
 function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
@@ -1738,6 +1769,7 @@ export function filterSpaceEntries<
       return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
+    if (hasModeOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1763,7 +1795,7 @@ export function filterSpaceEntries<
 
 export function filterTaskEntries<
   T extends {
-    task: { createdAt?: string | null | undefined };
+    task: { createdAt?: string | null | undefined; mode?: AnswerMode | null | undefined };
     combinedLower: string;
     spaceNameLower: string;
     spaceIdLower: string;
@@ -1788,6 +1820,7 @@ export function filterTaskEntries<
     if (hasHasOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
+    if (operators.mode && entry.task.mode !== operators.mode) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1824,6 +1857,7 @@ export function filterCollectionEntries<
     if (!applyTimelineWindow(entry.collection.createdAt, timelineWindow, nowMs))
       return false;
     if (hasSpaceOperators(operators)) return false;
+    if (hasModeOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -1854,6 +1888,7 @@ export function filterFileEntries<
     if (!applyTimelineWindow(entry.file.addedAt, timelineWindow, nowMs))
       return false;
     if (hasSpaceOperators(operators)) return false;
+    if (hasModeOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
