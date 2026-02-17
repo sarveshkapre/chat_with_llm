@@ -15,6 +15,30 @@ type OutputTextPart = {
   }>;
 };
 
+const TRACKING_PARAM_PREFIXES = ["utm_"];
+const TRACKING_PARAMS = new Set(["gclid", "fbclid", "mc_cid", "mc_eid"]);
+
+function normalizeCitationUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return "";
+  try {
+    const parsed = new URL(trimmed);
+    const filteredParams = new URLSearchParams();
+    for (const [key, value] of parsed.searchParams.entries()) {
+      const normalizedKey = key.toLowerCase();
+      if (TRACKING_PARAMS.has(normalizedKey)) continue;
+      if (TRACKING_PARAM_PREFIXES.some((prefix) => normalizedKey.startsWith(prefix)))
+        continue;
+      filteredParams.append(key, value);
+    }
+    const search = filteredParams.toString();
+    const pathname = parsed.pathname === "/" ? "" : parsed.pathname;
+    return `${parsed.origin}${pathname}${search ? `?${search}` : ""}`;
+  } catch {
+    return trimmed;
+  }
+}
+
 export function extractTextFromOutput(output: OutputItem[]): string {
   const message = output.find((item) => item.type === "message");
   if (!message?.content) return "";
@@ -45,7 +69,18 @@ export function extractCitationsFromOutput(output: OutputItem[]): Citation[] {
 
   const unique = new Map<string, Citation>();
   for (const citation of citations) {
-    if (!unique.has(citation.url)) unique.set(citation.url, citation);
+    const key = normalizeCitationUrl(citation.url);
+    if (!key) continue;
+    if (!unique.has(key)) {
+      unique.set(key, { ...citation, url: key });
+      continue;
+    }
+
+    const existing = unique.get(key);
+    if (!existing) continue;
+    if (existing.title === existing.url && citation.title !== citation.url) {
+      unique.set(key, { title: citation.title, url: key });
+    }
   }
 
   return Array.from(unique.values());

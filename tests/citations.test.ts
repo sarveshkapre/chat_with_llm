@@ -49,4 +49,58 @@ describe("citations", () => {
     expect(citations[0].url).toBe("https://example.com");
     expect(citations[1].url).toBe("https://example.org");
   });
+
+  it("normalizes tracking params before dedupe", () => {
+    const citations = extractCitationsFromOutput([
+      {
+        type: "message",
+        content: [
+          {
+            type: "output_text",
+            text: "Tracked links",
+            annotations: [
+              {
+                type: "url_citation",
+                url: "https://example.com/news?utm_source=foo&id=7",
+                title: "Primary source",
+              },
+              {
+                type: "url_citation",
+                url: "https://example.com/news?id=7&fbclid=123",
+                title: "https://example.com/news?id=7&fbclid=123",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    expect(citations).toHaveLength(1);
+    expect(citations[0]).toEqual({
+      title: "Primary source",
+      url: "https://example.com/news?id=7",
+    });
+  });
+
+  it("keeps non-URL citation strings when normalization is not possible", () => {
+    const citations = extractCitationsFromOutput([
+      {
+        type: "message",
+        content: [
+          {
+            type: "output_text",
+            text: "Non-url",
+            annotations: [
+              {
+                type: "url_citation",
+                url: "not-a-url",
+                title: "Raw",
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(citations).toEqual([{ title: "Raw", url: "not-a-url" }]);
+  });
 });

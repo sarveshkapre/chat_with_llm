@@ -11,6 +11,7 @@ npm install && npm run dev
 
 ## Features
 - Web-grounded answers with citations
+- Citation normalization strips tracking params for cleaner dedupe
 - Quick, Research, and Learn modes with research progress states
 - Research mode key findings panel while answers are still streaming
 - Pre-research clarifying prompts for broad research queries
