@@ -12,19 +12,36 @@ permissions:
 
 jobs:
   analysis:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          clean: true
           persist-credentials: false
+      - name: Detect Docker availability
+        id: docker
+        shell: bash
+        run: |
+          if command -v docker >/dev/null 2>&1; then
+            docker --version
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "Docker not found on self-hosted runner; skipping Scorecard scan."
+          fi
       - name: Scorecard analysis
+        if: steps.docker.outputs.available == 'true'
         uses: ossf/scorecard-action@0864cf19026789058feabb7e87baa5f140aac736 # v2.3.1
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: false
       - name: Upload SARIF
+        if: steps.docker.outputs.available == 'true'
         uses: github/codeql-action/upload-sarif@59c2c1ca13dff455ab22ad8157d6ab220447da29 # v4
         with:
           sarif_file: results.sarif
+      - name: Docker missing notice
+        if: steps.docker.outputs.available != 'true'
+        run: echo "Scorecard skipped because Docker is unavailable on this self-hosted runner."

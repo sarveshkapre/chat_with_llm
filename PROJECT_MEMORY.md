@@ -451,6 +451,11 @@
 - 2026-02-17 | `npm run lint -- --max-warnings=0` | (no output) | pass
 - 2026-02-17 | `npm test` | `Test Files 21 passed (21), Tests 210 passed (210)` | pass
 - 2026-02-17 | `npm run smoke:mock` | `Smoke OK: provider=mock port=59980 deltaEvents=15` | pass
+- 2026-02-17 | `npm ci` | `added 417 packages ... found 0 vulnerabilities` | pass
+- 2026-02-17 | `npm run check:workflows && npm run check:operator-docs && npm run check:smoke-fixtures && npm run check:clone-features && npm run check:project-memory` | `Workflow policy OK` + `Operator docs OK (17 token(s))` + `Smoke fixture coverage OK` + `CLONE_FEATURES policy OK` + `PROJECT_MEMORY policy OK` | pass
+- 2026-02-17 | `npm run lint -- --max-warnings=0 && npm test && npm run build && npm run smoke:mock` | lint clean + `Test Files 21 passed (21)` + `Compiled successfully` + `Smoke OK: provider=mock port=56297 deltaEvents=15` | pass
+- 2026-02-17 | `docker --version` | `zsh:1: command not found: docker` | fail
+- 2026-02-17 | `npm run check:workflows && npm run lint -- --max-warnings=0 && npm test && npm run build && npm run smoke:mock` | `Workflow policy OK (4 file(s) checked)` + lint clean + `Test Files 21 passed (21)` + `Compiled successfully` + `Smoke OK: provider=mock port=57660 deltaEvents=15` | pass
 
 ## Historical Summary
 - Keep compact summaries of older entries here when file compaction runs.
