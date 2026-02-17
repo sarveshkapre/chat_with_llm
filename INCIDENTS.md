@@ -445,3 +445,14 @@
 - Evidence: gate_log=logs/20260216-212549-chat_with_llm-cycle-2-uiux-gate.log pass=cycle-2
 - Commit: pending
 - Confidence: medium
+
+### 2026-02-17T07:22:37Z | UI/UX checklist gate failed
+- Date: 2026-02-17T07:22:37Z
+- Trigger: UI/UX checklist gate failed
+- Impact: UI-facing repository session ended without a valid UIUX_CHECKLIST marker line
+- Root Cause: required checklist evidence (flow=desktop=mobile=a11y= in one marker line on UIUX_CHECKLIST: PASS/BLOCKED) was not written in PROJECT_MEMORY.md
+- Fix: attempted dedicated UI/UX gate remediation run and kept logs
+- Prevention Rule: rerun with a focused UI validation pass and ensure checklist line is appended with required keys
+- Evidence: gate_log=logs/20260216-212549-chat_with_llm-cycle-3-uiux-gate.log pass=cycle-3
+- Commit: pending
+- Confidence: medium
