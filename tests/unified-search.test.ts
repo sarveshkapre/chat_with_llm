@@ -401,6 +401,7 @@ describe("Unified Search operator summary chips", () => {
       buildUnifiedSearchOperatorSummary({
         type: "threads",
         mode: "research",
+        source: "web",
         space: "Research",
         spaceId: "space-1",
         tags: ["beta", "alpha", "Alpha"],
@@ -414,6 +415,7 @@ describe("Unified Search operator summary chips", () => {
     ).toEqual([
       "type:threads",
       "mode:research",
+      "source:web",
       'space:"Research"',
       "spaceId:space-1",
       "tag:alpha",
@@ -537,7 +539,7 @@ describe("Unified Search URL state helpers", () => {
 describe("stripUnifiedSearchOperators", () => {
   it("removes recognized operators while preserving free-text and unknown tokens", () => {
     const stripped = stripUnifiedSearchOperators(
-      'type:threads mode:research has:note status:open space:"Research" outage triage'
+      'type:threads mode:research source:web has:note status:open space:"Research" outage triage'
     );
     expect(stripped).toBe("status:open outage triage");
   });
@@ -966,6 +968,12 @@ describe("parseUnifiedSearchQuery", () => {
     expect(parsed.operators.mode).toBe("learn");
   });
 
+  it("supports source operator and aliases", () => {
+    const parsed = parseUnifiedSearchQuery("source:web sources:offline roadmap");
+    expect(parsed.text).toBe("roadmap");
+    expect(parsed.operators.source).toBe("none");
+  });
+
   it("supports negative tag and has operators", () => {
     const parsed = parseUnifiedSearchQuery("-tag:foo -has:note hello");
     expect(parsed.text).toBe("hello");
@@ -1201,6 +1209,25 @@ describe("filterThreadEntries", () => {
     ).toHaveLength(1);
   });
 
+  it("supports source operator", () => {
+    const entries = [
+      makeEntry({
+        thread: { createdAt: "2026-02-08T01:00:00.000Z", sources: "none" },
+      }),
+      makeEntry({
+        thread: { createdAt: "2026-02-08T01:00:00.000Z", sources: "web" },
+      }),
+    ];
+    expect(
+      filterThreadEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { source: "web" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+
   it("supports has:note / -has:note and has:citation / -has:citation", () => {
     const entries = [
       makeEntry({ noteTrimmed: "", hasCitation: false }),
@@ -1405,6 +1432,15 @@ describe("filterSpaceEntries", () => {
       filterSpaceEntries(entries, {
         query: normalizeQuery("deep"),
         operators: { mode: "quick" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(0);
+
+    expect(
+      filterSpaceEntries(entries, {
+        query: normalizeQuery("deep"),
+        operators: { source: "web" },
         timelineWindow: "all",
         nowMs: now,
       })
@@ -1627,6 +1663,40 @@ describe("filterTaskEntries", () => {
       filterTaskEntries(entries, {
         query: normalizeQuery(""),
         operators: { mode: "learn" },
+        timelineWindow: "all",
+        nowMs: now,
+      })
+    ).toHaveLength(1);
+  });
+
+  it("supports source filter on tasks", () => {
+    const entries = [
+      {
+        task: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          mode: "quick",
+          sources: "web",
+        },
+        combinedLower: "weekly review",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+      {
+        task: {
+          createdAt: "2026-02-08T01:00:00.000Z",
+          mode: "quick",
+          sources: "none",
+        },
+        combinedLower: "offline recap",
+        spaceNameLower: "research",
+        spaceIdLower: "space-1",
+      },
+    ];
+
+    expect(
+      filterTaskEntries(entries, {
+        query: normalizeQuery(""),
+        operators: { source: "none" },
         timelineWindow: "all",
         nowMs: now,
       })

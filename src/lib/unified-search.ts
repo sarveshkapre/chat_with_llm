@@ -29,6 +29,7 @@ export type ThreadStateOperator = "favorite" | "pinned" | "archived";
 export type UnifiedSearchOperators = {
   type?: Exclude<UnifiedSearchType, "all">;
   mode?: AnswerMode;
+  source?: SourceMode;
   space?: string;
   spaceId?: string;
   tags?: string[];
@@ -108,6 +109,7 @@ export type UnifiedSearchUrlStatePatch = Partial<UnifiedSearchUrlState>;
 export type UnifiedSearchStripOperatorKey =
   | "type"
   | "mode"
+  | "source"
   | "space"
   | "spaceid"
   | "tag"
@@ -131,6 +133,7 @@ const WINDOW_TO_MS: Record<Exclude<TimelineWindow, "all">, number> = {
 export const UNIFIED_OPERATOR_SUGGESTIONS = [
   "type:",
   "mode:",
+  "source:",
   "space:",
   "spaceId:",
   "tag:",
@@ -143,7 +146,17 @@ export const UNIFIED_OPERATOR_SUGGESTIONS = [
 ] as const;
 
 const UNIFIED_STRIPPABLE_OPERATOR_KEYS: ReadonlySet<UnifiedSearchStripOperatorKey> =
-  new Set(["type", "mode", "space", "spaceid", "tag", "is", "has", "verbatim"]);
+  new Set([
+    "type",
+    "mode",
+    "source",
+    "space",
+    "spaceid",
+    "tag",
+    "is",
+    "has",
+    "verbatim",
+  ]);
 
 export function parseStored<T>(key: string, fallback: T): T {
   return readStoredJson(key, fallback);
@@ -206,6 +219,8 @@ function normalizeStrippableOperatorKey(
         ? "type"
         : normalized === "searchmode"
           ? "mode"
+          : normalized === "sources"
+            ? "source"
         : normalized === "exact"
           ? "verbatim"
           : normalized;
@@ -613,6 +628,7 @@ export function buildUnifiedSearchOperatorSummary(
   const parts: string[] = [];
   if (operators.type) parts.push(`type:${operators.type}`);
   if (operators.mode) parts.push(`mode:${operators.mode}`);
+  if (operators.source) parts.push(`source:${operators.source}`);
   if (operators.space) parts.push(`space:"${operators.space}"`);
   if (operators.spaceId) parts.push(`spaceId:${operators.spaceId}`);
   parts.push(...dedupeAndSortOperators(operators.tags).map((tag) => `tag:${tag}`));
@@ -830,6 +846,15 @@ function normalizeModeToken(raw: string): AnswerMode | null {
   return null;
 }
 
+function normalizeSourceToken(raw: string): SourceMode | null {
+  const value = raw.trim().toLowerCase();
+  if (!value) return null;
+  if (value === "web" || value === "online") return "web";
+  if (value === "none" || value === "offline" || value === "local")
+    return "none";
+  return null;
+}
+
 function normalizeHasToken(raw: string): "note" | "citation" | null {
   const value = raw.trim().toLowerCase();
   if (!value) return null;
@@ -914,6 +939,14 @@ export function parseUnifiedSearchQuery(raw: string): ParsedUnifiedSearchQuery {
       const normalizedMode = normalizeModeToken(value);
       if (normalizedMode) {
         operators.mode = normalizedMode;
+        continue;
+      }
+    }
+
+    if (!negated && (key === "source" || key === "sources")) {
+      const normalizedSource = normalizeSourceToken(value);
+      if (normalizedSource) {
+        operators.source = normalizedSource;
         continue;
       }
     }
@@ -1640,6 +1673,7 @@ export function filterThreadEntries<
     thread: {
       createdAt?: string | null | undefined;
       mode?: AnswerMode | null | undefined;
+      sources?: SourceMode | null | undefined;
       favorite?: boolean | null | undefined;
       pinned?: boolean | null | undefined;
       archived?: boolean | null | undefined;
@@ -1680,6 +1714,9 @@ export function filterThreadEntries<
     }
     if (operators.mode) {
       if (entry.thread.mode !== operators.mode) return false;
+    }
+    if (operators.source) {
+      if (entry.thread.sources !== operators.source) return false;
     }
     if (operators.tags?.length) {
       for (const tag of operators.tags) {
@@ -1730,6 +1767,10 @@ function hasModeOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.mode);
 }
 
+function hasSourceOperators(operators: UnifiedSearchOperators): boolean {
+  return Boolean(operators.source);
+}
+
 function hasTagOperators(operators: UnifiedSearchOperators): boolean {
   return Boolean(operators.tags?.length || operators.notTags?.length);
 }
@@ -1770,6 +1811,7 @@ export function filterSpaceEntries<
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
+    if (hasSourceOperators(operators)) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1795,7 +1837,11 @@ export function filterSpaceEntries<
 
 export function filterTaskEntries<
   T extends {
-    task: { createdAt?: string | null | undefined; mode?: AnswerMode | null | undefined };
+    task: {
+      createdAt?: string | null | undefined;
+      mode?: AnswerMode | null | undefined;
+      sources?: SourceMode | null | undefined;
+    };
     combinedLower: string;
     spaceNameLower: string;
     spaceIdLower: string;
@@ -1821,6 +1867,7 @@ export function filterTaskEntries<
     if (hasTagOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
     if (operators.mode && entry.task.mode !== operators.mode) return false;
+    if (operators.source && entry.task.sources !== operators.source) return false;
     if (operators.space) {
       const needle = operators.space.toLowerCase();
       if (!entry.spaceNameLower.includes(needle) && entry.spaceIdLower !== needle)
@@ -1858,6 +1905,7 @@ export function filterCollectionEntries<
       return false;
     if (hasSpaceOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
+    if (hasSourceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
@@ -1889,6 +1937,7 @@ export function filterFileEntries<
       return false;
     if (hasSpaceOperators(operators)) return false;
     if (hasModeOperators(operators)) return false;
+    if (hasSourceOperators(operators)) return false;
     if (hasTagOperators(operators)) return false;
     if (hasHasOperators(operators)) return false;
     if (hasStateOperators(operators)) return false;
